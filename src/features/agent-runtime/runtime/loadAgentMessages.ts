@@ -13,12 +13,18 @@ export class AgentHistoryReadError extends Error {
 
 // 主工作区与归档预览共用历史校验，避免归档绕过消息归属和分页完整性检查。
 export async function loadAgentMessages(
-  gateway: Pick<AgentWorkspaceGateway, 'messages'>,
+  gateway: Pick<AgentWorkspaceGateway, 'messages' | 'timelineSupported'>,
   sessionId: string,
   afterSequence = 0,
   signal?: AbortSignal,
   createError: (code: string) => Error = (code) => new AgentHistoryReadError(code),
 ) {
+  if (gateway.timelineSupported) {
+    const page = await gateway.messages(sessionId, { view: 'timeline', limit: 100, signal })
+    signal?.throwIfAborted()
+    if (page.items.some(message => message.session_id !== sessionId)) throw createError('AGENT_MESSAGE_OWNER_INVALID')
+    return page.items
+  }
   const messages: AgentMessage[] = []
   const messageIDs = new Set<string>()
   const messageSequences = new Set<number>()

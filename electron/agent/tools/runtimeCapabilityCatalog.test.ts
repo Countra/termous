@@ -5,16 +5,19 @@ import { Type } from 'typebox'
 import { RuntimeToolDiscovery } from './runtimeToolDiscovery.ts'
 import { RuntimeSkillContext, skillResourceMarker } from './runtimeSkillContext.ts'
 import { createAgentSkillBundleSnapshot } from '../contracts/skillBundle.ts'
+import { identifyTool, termousToolSource } from '../contracts/toolSources.ts'
 
-test('workflow 根说明不依赖正文工具名，截图语义搜索只加载创建入口', async () => {
+test('workflow 根说明复用能力入口，截图语义搜索优先创建且显式动作保持精确', async () => {
   const names = ['schema', 'list', 'get', 'captures.create', 'captures.release', 'templates.preview', 'delete'].map((name) => `termous.desktop_workflows.${name}`)
-  const tools = names.map((name) => ({ name, label: name, description: 'workflow 快照截图', parameters: Type.Object({}), execute: async () => ({ content: [], details: {} }) }))
+  const tools = names.map((name) => identifyTool({ name, label: name, description: 'workflow 快照截图', parameters: Type.Object({}), execute: async () => ({ content: [], details: {} }) }, termousToolSource))
   const discovery = new RuntimeToolDiscovery(tools, (name) => name, [])
-  assert.deepEqual(discovery.loadReferencedTools('只有流程说明，不写工具名称', 'skill://termous-desktop-workflows/SKILL.md').map((tool) => tool.original_name), names.slice(0, 4))
+  assert.deepEqual(discovery.loadReferencedTools('只有流程说明，不写工具名称', 'skill://termous-desktop-workflows/SKILL.md').map((tool) => tool.original_name), [names[0], names[3], names[5], names[1], names[2]])
   for (const query of ['workflow 截图', '创建快照']) {
     const result = await discovery.tool.execute('call', { query })
     const data = JSON.parse(result.content.find((part) => part.type === 'text')!.text)
-    assert.deepEqual(data.tools.map((tool: { original_name: string }) => tool.original_name), ['termous.desktop_workflows.captures.create'])
+    assert.equal(data.tools[0].original_name, 'termous.desktop_workflows.captures.create')
+    const exact = await discovery.tool.execute('exact', { query, operation: 'capture' })
+    assert.deepEqual(JSON.parse(exact.content.find(part => part.type === 'text')!.text).tools.map((tool: { original_name: string }) => tool.original_name), ['termous.desktop_workflows.captures.create'])
   }
   const restricted = new RuntimeToolDiscovery(tools.filter((tool) => !tool.name.endsWith('captures.create')), (name) => name, [])
   assert.deepEqual(restricted.loadNames(['termous.desktop_workflows.captures.create']), [])
@@ -33,4 +36,19 @@ test('能力文档只在 URI、哈希和正文同时存在时去重，压缩移�
   assert.equal(context.content([present]).length, 0)
   assert.equal(context.content([{ ...present, content: [...message.content, { type: 'text', text: skillResourceMarker({ ...resource, sha256: 'old' }) }] }]).length, 2)
   assert.equal(context.content([]).length, 2)
+})
+
+
+test('导入配置、导出工作流和保存模板能发现独立的文件交换工具', async () => {
+  const suffixes = ['imports.preview', 'imports.get', 'imports.commit', 'imports.cancel', 'exports.save', 'assets.export', 'create', 'update']
+  const tools = suffixes.map(suffix => {
+    const name = `termous.desktop_workflows.${suffix}`
+    return identifyTool({ name, label: name, description: '工作流', parameters: Type.Object({}), execute: async () => ({ content: [], details: {} }) }, termousToolSource)
+  })
+  const discovery = new RuntimeToolDiscovery(tools, name => name, [])
+  for (const [query, suffix] of [['导入配置', 'imports.preview'], ['导出工作流', 'exports.save'], ['保存模板', 'assets.export']]) {
+    const result = await discovery.tool.execute(query!, { query })
+    const data = JSON.parse(result.content.find(part => part.type === 'text')!.text)
+    assert.ok(data.tools.some((tool: { original_name: string }) => tool.original_name === `termous.desktop_workflows.${suffix}`))
+  }
 })

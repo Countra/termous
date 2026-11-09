@@ -2,6 +2,7 @@ import { lstat, rm } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { buildOutputPaths } from '../build/output-paths.mjs'
 
 const electronOutputDirectoryName = 'dist-electron'
 const scriptPath = fileURLToPath(import.meta.url)
@@ -14,6 +15,8 @@ export function requireElectronOutputPath(webDirectory, outputDirectory) {
     resolvedWebDirectory,
     resolvedOutputDirectory,
   )
+  const configured = buildOutputPaths(resolvedWebDirectory)
+  if (configured.managed && resolvedOutputDirectory === configured.electron) return resolvedOutputDirectory
 
   if (relative !== electronOutputDirectoryName) {
     throw new Error(
@@ -29,7 +32,7 @@ export async function cleanElectronOutput({
   const resolvedWebDirectory = path.resolve(webDirectory)
   const outputDirectory = requireElectronOutputPath(
     resolvedWebDirectory,
-    path.join(resolvedWebDirectory, electronOutputDirectoryName),
+    buildOutputPaths(resolvedWebDirectory).electron,
   )
 
   let outputInfo

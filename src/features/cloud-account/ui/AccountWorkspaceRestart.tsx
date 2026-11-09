@@ -70,11 +70,12 @@ export function AccountWorkspaceRestart({ api, status, busy, mfaEnabled, mfaRevi
                 const result = await api.verifyRestart(status.generation, op.id, op.revision, evidence.email_token, buildCloudStepUpProof(mfaEnabled, evidence))
                 if (!current()) return
                 if (startedPolicy !== policy.current) { await read(current); throw new Error('mfa_revision_conflict') }
+                proof.resetFields()
                 setOp(result)
-              } finally { if (current()) proof.resetFields(['password', 'code', 'email_token']) }
+              } finally { if (current() && startedPolicy === policy.current) proof.resetFields(['password', 'email_token']) }
             })}>
               <Form.Item name="email_token" label={t('cloud.safeguards.emailToken')} rules={[{ required: true }]}><Input autoComplete="off" spellCheck={false} disabled={inactive} /></Form.Item>
-              <AccountStepUpFields enabled={mfaEnabled} revision={mfaRevision} disabled={inactive} />
+              <AccountStepUpFields enabled={mfaEnabled} revision={mfaRevision} disabled={inactive || !op.email_sent} />
             </Form>
           </> : null}
           {op.status === 'verified' || op.status === 'completed' ? <>

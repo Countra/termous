@@ -134,3 +134,15 @@ function restoreProperty(target: object, key: PropertyKey, descriptor?: Property
     Reflect.deleteProperty(target, key)
   }
 }
+
+test('连续多次进入与退出全屏后仍以浏览器实际状态为准', async () => {
+  const { result } = renderHook(() => useRemoteDesktopFullscreen())
+  for (let i = 0; i < 4; i++) {
+    await act(async () => result.current.toggleFullscreen())
+    expect(result.current.isFullscreen).toBe(true)
+    await act(async () => result.current.toggleFullscreen())
+    expect(result.current.isFullscreen).toBe(false)
+  }
+  expect(requestFullscreen).toHaveBeenCalledTimes(4)
+  expect(exitFullscreen).toHaveBeenCalledTimes(4)
+})

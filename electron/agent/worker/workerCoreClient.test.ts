@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { createHash } from 'node:crypto'
+import { materializeRuntimeTextResources } from './runtimeTextResources.ts'
+import { hydrateRuntimeUserContent } from '../context/runtimeUserContent.ts'
 import { agentRuntimeProtocolVersion } from '#common/contracts'
 import type { AgentWorkerStartMessage } from '../contracts/protocol.ts'
 import { testAgentSkillBundle } from '../test-support/skillBundleTestFixture.ts'
@@ -16,6 +19,49 @@ const start: AgentWorkerStartMessage = {
   generation: 1,
   skills: testAgentSkillBundle(),
 }
+
+test('文本附件启动只传引用，二进制校验后恢复原文且不改写启动合同', async () => {
+  const bytes = Buffer.from('中文文件\nline two\n', 'utf8')
+  const reference = { resource_id: 'agres_text', kind: 'text' as const, mime_type: 'text/plain', size_bytes: bytes.length,
+    sha256: createHash('sha256').update(bytes).digest('hex') }
+  const bootstrap = bootstrapResponse()
+  bootstrap.messages = [{ id: 'agm_text', role: 'user', status: 'completed', sequence: 1, created_at: new Date(0).toISOString(),
+    parts: [{ id: 'agp_text', message_id: 'agm_text', sequence: 1, kind: 'text', content: { text: { text: 'Read this file' } } }],
+    attachments: [{ id: 'aga_text', kind: 'text', mime_type: 'text/plain', resource: reference }] }]
+  const original = structuredClone(bootstrap)
+  const client = new WorkerCoreClient({ fetch: async (input, init) => {
+    assert.ok(String(input).endsWith('/runtime-resources/agres_text'))
+    assert.equal((init?.headers as Record<string, string>).Authorization, 'Bearer fixture')
+    return new Response(bytes, { headers: { 'content-type': 'text/plain' } })
+  } })
+  const signal = new AbortController().signal
+  const restored = await materializeRuntimeTextResources(bootstrap, ref => client.readResourceText(start, 'fixture', ref, signal), signal)
+  assert.deepEqual(bootstrap, original)
+  assert.ok(JSON.stringify(hydrateRuntimeUserContent(restored.messages[0]!, true)).includes('中文文件\\nline two\\n'))
+  await assert.rejects(client.readResourceText(start, 'fixture', { ...reference, sha256: '0'.repeat(64) }), /AGENT_RUNTIME_ATTACHMENT_INVALID/u)
+  await assert.rejects(materializeRuntimeTextResources(bootstrap, async () => { assert.fail('取消后仍读取附件') }, AbortSignal.abort()))
+})
+
+test('资源响应格式不匹配时取消正文流并保留附件错误分类', async () => {
+  let cancelled = false
+  const client = new WorkerCoreClient({ fetch: async () => new Response(new ReadableStream({
+    cancel: () => { cancelled = true },
+  }), { headers: { 'content-type': 'image/png' } }) })
+  await assert.rejects(client.readResourceText(start, 'fixture', {
+    resource_id: 'agres_text', kind: 'text', mime_type: 'text/plain', size_bytes: 1, sha256: '0'.repeat(64),
+  }), /AGENT_RUNTIME_ATTACHMENT_INVALID/u)
+  assert.equal(cancelled, true)
+})
+
+test('资源正文读取失败时仍释放流读取锁', async () => {
+  const failure = new Error('resource connection interrupted')
+  const body = new ReadableStream<Uint8Array>({ pull(controller) { controller.error(failure) } })
+  const client = new WorkerCoreClient({ fetch: async () => new Response(body, { headers: { 'content-type': 'text/plain' } }) })
+  await assert.rejects(client.readResourceText(start, 'fixture', {
+    resource_id: 'agres_text', kind: 'text', mime_type: 'text/plain', size_bytes: 1, sha256: '0'.repeat(64),
+  }), error => error === failure)
+  assert.equal(body.locked, false)
+})
 
 test('bootstrap 独立使用大响应预算且不放宽普通 Runtime 请求', () => {
   assert.equal(agentRuntimeBootstrapRequestTimeoutMs, 60_000)

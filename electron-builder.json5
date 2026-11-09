@@ -1,10 +1,8 @@
 // @see - https://www.electron.build/configuration/configuration
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "dev.termous.app",
+  "extends": "./scripts/desktop-development/production-builder.mjs",
   "asar": true,
-  "productName": "Termous",
-  "executableName": "Termous",
   "directories": {
     "buildResources": "build",
     "output": "release/${version}"
@@ -27,6 +25,10 @@
     {
       "from": "THIRD_PARTY_NOTICES.txt",
       "to": "THIRD_PARTY_NOTICES.txt"
+    },
+    {
+      "from": "third_party_licenses/go-winio-LICENSE.txt",
+      "to": "licenses/go-winio-LICENSE.txt"
     },
     {
       "from": "third_party_licenses/pi-LICENSE.txt",
@@ -113,6 +115,10 @@
       "filter": [
         "termous-core.exe",
         "termous-core",
+        "termous-desktop.exe",
+        "termous-desktop",
+        "termous-desktopd.exe",
+        "desktop-bundle.json",
         "termous-rdp.exe",
         "termous-rdp"
       ]
@@ -125,6 +131,10 @@
   ],
   "extraResources": [
     {
+      "from": "public/termous-icon.png",
+      "to": "icon.png"
+    },
+    {
       "from": "build/agent/skills",
       "to": "agent/skills",
       "filter": [
@@ -133,9 +143,9 @@
     }
   ],
   "mac": {
-    "icon": "build/icon.icns",
     "identity": null,
     "notarize": false,
+    "minimumSystemVersion": "13.0",
     "target": [
       "dmg",
       "zip"
@@ -146,7 +156,6 @@
     "sign": false
   },
   "win": {
-    "icon": "build/icon.ico",
     "target": [
       {
         "target": "nsis",
@@ -159,17 +168,15 @@
   },
   "nsis": {
     "oneClick": false,
-    "perMachine": false,
+    "perMachine": true,
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": false,
     "createStartMenuShortcut": false,
-    "shortcutName": "Termous",
-    "menuCategory": "Termous",
+    "menuCategory": false,
     "include": "build/installer-options.nsh",
     "deleteAppDataOnUninstall": false
   },
   "linux": {
-    "icon": "build/icon.png",
     "target": [
       "AppImage"
     ],

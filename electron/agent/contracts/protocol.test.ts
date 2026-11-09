@@ -12,8 +12,8 @@ const steerAck = {
   accepted: true,
 }
 
-test('Agent Worker 使用包含多会话执行分配的协议 v11', () => {
-  assert.equal(agentRuntimeProtocolVersion, '13')
+test('Agent Worker 使用包含第三方 MCP 托管与会话准备的协议 v21', () => {
+  assert.equal(agentRuntimeProtocolVersion, '22')
 })
 
 test('Worker steer ack 严格校验请求标识与错误分支', () => {

@@ -4,6 +4,8 @@ import type { ToolResultMessage } from '@earendil-works/pi-ai'
 import { compactionTestAssistant, compactionTestUser } from '../test-support/runtimeCompactionTestFixture.ts'
 import { projectRuntimeToolHistory, runtimeToolName } from './runtimeToolHistory.ts'
 import { encodeMCPToolName } from '../contracts/toolNameCodec.ts'
+import { externalToolName, externalToolSource } from '../contracts/toolSources.ts'
+import { localToolNames } from '../contracts/toolNames.ts'
 
 test('历史原名与已编码名先解码再映射，重复恢复不会二次编码', () => {
   const expected = encodeMCPToolName('termous.files.batch_rename.presets.list')
@@ -44,4 +46,15 @@ test('压缩尾部仅投影结构化工具名称，保留调用配对、正文�
   assert.equal(projectRuntimeToolHistory(user), user)
   const other = { ...result, toolName: 'read_skill_resource' }
   assert.equal(projectRuntimeToolHistory(other), other)
+})
+
+test('外部历史名称恢复到同一来源命名空间，不经过内置别名规则', () => {
+  const name = 'termous.files.read'
+  assert.equal(runtimeToolName(`server_a::${name}`), externalToolName(externalToolSource('server_a'), name))
+  assert.notEqual(runtimeToolName(`server_a::${name}`), runtimeToolName(name))
+  assert.notEqual(runtimeToolName(`server_a::${name}`), runtimeToolName(`server_b::${name}`))
+})
+
+test('扩展资源和回执读取入口恢复时保持本地工具名称', () => {
+  for (const name of localToolNames) assert.equal(runtimeToolName(name), name)
 })

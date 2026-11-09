@@ -1,10 +1,8 @@
-import { spawn } from 'node:child_process'
 import {
   lstat,
   readdir,
   readFile,
   realpath,
-  rm,
   stat,
 } from 'node:fs/promises'
 import path from 'node:path'
@@ -18,12 +16,14 @@ import {
   validateUpdateManifest,
 } from './release-manifest-contract.mjs'
 import { validateAgentSkillsBundleDirectory } from '../agent/validate-skills-bundle.mjs'
+import { validateDesktopBundle } from './desktop-bundle.mjs'
 
 const scriptPath = fileURLToPath(import.meta.url)
 const scriptDirectory = path.dirname(scriptPath)
 const defaultWebDirectory = path.resolve(scriptDirectory, '..', '..')
 export const packagedThirdPartyFiles = Object.freeze([
   'THIRD_PARTY_NOTICES.txt',
+  'licenses/go-winio-LICENSE.txt',
   'licenses/pi-LICENSE.txt',
   'licenses/cgofuse-LICENSE.txt',
   'licenses/WinFsp-LICENSE.txt',
@@ -129,37 +129,6 @@ export function sanitizePublishEnvironment(input) {
   return output
 }
 
-export function createElectronBuilderArguments({
-  platform,
-  arch,
-  outputDirectory,
-  version,
-}) {
-  const normalizedPlatform = normalizePlatform(platform)
-  const normalizedArch = normalizeArch(arch)
-  const targetArguments = targetArgumentsFor(
-    normalizedPlatform,
-    normalizedArch,
-  )
-
-  return [
-    'exec',
-    'electron-builder',
-    ...targetArguments,
-    '--config',
-    'electron-builder.json5',
-    `--config.directories.output=${outputDirectory}`,
-    `--config.extraMetadata.version=${version}`,
-    ...(
-      normalizedPlatform === 'darwin'
-        ? ['--config.mac.identity=null', '--config.mac.notarize=false']
-        : []
-    ),
-    '--publish',
-    'never',
-  ]
-}
-
 export async function validatePackageArtifacts({
   outputDirectory,
   platform,
@@ -212,19 +181,30 @@ export async function validatePackageArtifacts({
     normalizedPlatform,
     normalizedArch,
   )
+  // 系统通知直接读取此文件，归档内同名资源不能替代原生可访问的图标。
+  await assertFile(path.join(packagedResources, 'icon.png'), '包内原生图标 icon.png')
   // 与 Electron 的实际启动位置一致：macOS 为 Contents，其他平台为应用根目录。
   const packagedApplication = path.dirname(packagedResources)
   const corePaths = [path.join(packagedApplication, coreName)]
   const workerName = normalizedPlatform === 'win32' ? 'termous-rdp.exe' : 'termous-rdp'
+  const desktopName = normalizedPlatform === 'win32' ? 'termous-desktop.exe' : 'termous-desktop'
   for (const [binaryPath, label] of [
     [corePaths[0], `包内 Core ${coreName}`],
     [path.join(packagedApplication, workerName), '包内 RDP worker'],
+    [path.join(packagedApplication, desktopName), '包内桌面进程'],
+    ...(normalizedPlatform === 'win32' ? [
+      [path.join(packagedApplication, 'termous-desktopd.exe'), '包内桌面管理服务'],
+      [path.join(packagedApplication, 'desktop-bundle.json'), '桌面组件配套清单'],
+    ] : []),
   ]) {
     await assertFile(binaryPath, label)
     if (normalizedPlatform !== 'win32' && process.platform !== 'win32'
       && ((await lstat(binaryPath)).mode & 0o111) === 0) {
       throw new Error(`${label}不可执行: ${binaryPath}`)
     }
+  }
+  if (normalizedPlatform === 'win32') {
+    await validateDesktopBundle(packagedApplication, normalizedVersion)
   }
   const skillsDirectory = path.join(packagedResources, 'agent', 'skills')
   const skillsManifestPath = path.join(skillsDirectory, 'manifest.json')
@@ -251,10 +231,10 @@ export async function validatePackageArtifacts({
   }
 }
 
-export async function runLocalPackage(
-  options,
-  dependencies = {},
-) {
+export async function runLocalPackage(options) {
+  if (!options.verifyOnly) {
+    throw new Error('此入口仅支持校验已有打包产物；完整构建请使用 termous-buildtools，或 pnpm run build。')
+  }
   const webDirectory = path.resolve(options.webDirectory ?? defaultWebDirectory)
   const packageJson = await readPackageJson(webDirectory)
   const version = normalizeVersion(options.version ?? packageJson.version)
@@ -265,29 +245,6 @@ export async function runLocalPackage(
       ?? path.join(webDirectory, 'release', version),
   )
   await assertSafeOutputDirectory(outputDirectory, webDirectory)
-
-  if (!options.verifyOnly) {
-    await rm(outputDirectory, { force: true, recursive: true })
-    const spawnProcess = dependencies.spawnProcess ?? spawnAndWait
-    const environment = sanitizePublishEnvironment(process.env)
-    environment.VITE_TERMOUS_APP_VERSION = version
-    const builderArguments = createElectronBuilderArguments({
-      platform,
-      arch,
-      outputDirectory,
-      version,
-    })
-    const builderCli = path.join(
-      webDirectory,
-      'node_modules',
-      'electron-builder',
-      'cli.js',
-    )
-    await spawnProcess(process.execPath, [builderCli, ...builderArguments.slice(2)], {
-      cwd: webDirectory,
-      env: environment,
-    })
-  }
 
   return validatePackageArtifacts({
     outputDirectory,
@@ -437,19 +394,6 @@ function samePath(left, right) {
     : normalizedLeft === normalizedRight
 }
 
-function targetArgumentsFor(platform, arch) {
-  if (platform === 'win32' && arch === 'x64') {
-    return ['--win', 'nsis', '--x64']
-  }
-  if (platform === 'linux' && arch === 'x64') {
-    return ['--linux', 'AppImage', '--x64']
-  }
-  if (platform === 'darwin') {
-    return ['--mac', 'dmg', 'zip', arch === 'arm64' ? '--arm64' : '--x64']
-  }
-  throw new Error(`当前打包目标不受支持: ${platform}/${arch}`)
-}
-
 function expectedArtifacts(platform, arch, version) {
   const prefix = `Termous-${version}`
   if (platform === 'win32') {
@@ -582,7 +526,7 @@ async function validateManifest(manifest, expectation) {
   for (const payloadName of expectation.payloadNames) {
     const entry = files.get(payloadName)
     if (!entry) {
-      throw new Error(`${expectation.name} 未引用更新载荷: ${payloadName}`)
+      throw new Error(`${expectation.name} 未引用更新文件: ${payloadName}`)
     }
     const digest = await hashRegularFile(
       path.join(expectation.outputDirectory, payloadName),
@@ -643,33 +587,6 @@ async function findNamedFiles(root, name, maxDepth) {
     }
   }
   return matches
-}
-
-function spawnAndWait(executable, argumentsList, options) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(executable, argumentsList, {
-      ...options,
-      stdio: 'inherit',
-      shell: false,
-      windowsHide: true,
-    })
-    child.once('error', (error) => {
-      reject(new Error(`无法启动 electron-builder: ${error.message}`, {
-        cause: error,
-      }))
-    })
-    child.once('exit', (code, signal) => {
-      if (code === 0) {
-        resolve()
-        return
-      }
-      reject(new Error(
-        signal
-          ? `electron-builder 被信号 ${signal} 终止`
-          : `electron-builder 失败，退出码: ${code ?? 'unknown'}`,
-      ))
-    })
-  })
 }
 
 async function main() {

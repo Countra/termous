@@ -55,6 +55,10 @@ export function createAntdTheme(mode: ThemeMode): ThemeConfig {
         activeShadow: '0 0 0 3px rgba(31, 111, 235, 0.14)',
         borderRadius: 9,
       },
+      Message: {
+        // 复用公共单层投影，避免深色主题的默认多层浅色阴影形成叠层光晕。
+        boxShadow: 'var(--shadow-soft)',
+      },
       Modal: {
         borderRadiusLG: 16,
         contentBg: dark ? '#1d2028' : '#ffffff',

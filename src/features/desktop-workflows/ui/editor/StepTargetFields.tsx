@@ -1,6 +1,8 @@
 import { Collapse, InputNumber, Select, Switch } from 'antd'
 import { useTranslation } from 'react-i18next'
-import type { ImageTarget, Target } from '#entities/desktop-workflow'
+import type { ImageTarget, OCRParameters, Target } from '#entities/desktop-workflow'
+import { OCRTargetFields } from './OCRFields'
+import { newOCRQuery } from '../../model/ocr'
 import { blankImage } from '../../model/images'
 import styles from '../shared/WorkflowForms.module.scss'
 
@@ -20,12 +22,12 @@ export function ImageFields({ value, change }: { value?: ImageTarget; change: (n
   </>
 }
 
-export function TargetFields({ value, change }: { value?: Target; change: (next: Target) => void }) {
+export function TargetFields({ value, change, ocrDefaults, bound }: { value?: Target; change: (next: Target) => void; ocrDefaults?: OCRParameters; bound?: boolean }) {
   const { t } = useTranslation()
   const target = value ?? { kind: 'image' as const }
   return <>
-    <label>{t('desktopWorkflow.targetType')}<Select aria-label={t('desktopWorkflow.targetType')} value={target.kind} options={[{ value: 'image', label: t('desktopWorkflow.imageTarget') }, { value: 'point', label: t('desktopWorkflow.pointTarget') }]} onChange={(kind) => change(kind === 'image' ? { kind, image: blankImage() } : { kind, x: 0, y: 0 })} /></label>
-    {target.kind === 'image' ? <ImageFields value={target.image} change={(image) => change({ ...target, image })} /> : <>
+    <label>{t('desktopWorkflow.targetType')}<Select aria-label={t('desktopWorkflow.targetType')} value={target.kind} options={[{ value: 'image', label: t('desktopWorkflow.imageTarget') }, { value: 'point', label: t('desktopWorkflow.pointTarget') }, {value:'ocr',label:t('desktopWorkflow.ocr.target'),disabled:!ocrDefaults}]} onChange={(kind) => change(kind === 'image' ? { kind, image: blankImage() } : kind === 'ocr' && ocrDefaults ? {kind,ocr:{...newOCRQuery(ocrDefaults),offset:{x:0,y:0}}} : { kind:'point', x: 0, y: 0 })} /></label>
+    {target.kind === 'image' ? <ImageFields value={target.image} change={(image) => change({ ...target, image })} /> : target.kind === 'ocr' ? target.ocr && <OCRTargetFields value={target.ocr} bound={bound} change={ocr => change({...target,ocr})} /> : <>
       <div className={styles['field-pair']}>{(['x', 'y'] as const).map((axis) => <label key={axis}>{axis.toUpperCase()}<InputNumber min={0} value={target[axis] ?? 0} onChange={(v) => change({ ...target, [axis]: v ?? 0 })} /></label>)}</div>
       <div className={styles['field-pair']}>{(['reference_width', 'reference_height'] as const).map((field) => <label key={field}>{t(`desktopWorkflow.${field}`)}<InputNumber min={1} max={16384} value={target[field]} onChange={(v) => change({ ...target, [field]: v ?? undefined })} /></label>)}</div>
     </>}

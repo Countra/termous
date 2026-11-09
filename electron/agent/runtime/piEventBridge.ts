@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { AgentEvent, AgentMessage } from '@earendil-works/pi-agent-core'
+import { persistedImage } from '../contracts/runtimeResourceImages.ts'
 import type {
   AssistantMessage,
   AssistantMessageEvent,
@@ -16,6 +17,7 @@ import { isSkillResourceToolDetails } from '../tools/skillResourceTool.ts'
 import { projectToolTimelineValue } from './toolTimelineProjection.ts'
 import { runtimeProviderFailure, sanitizeRuntimeProviderError } from '../provider/runtimeProviderFailure.ts'
 import type { RuntimeEventKind } from '../contracts/runtimeEvents.ts'
+import type { DesktopTaskReceipt } from '../contracts/desktopTasks.ts'
 
 const maximumDeltaBytes = 240 * 1024
 
@@ -43,13 +45,18 @@ interface StreamPartRef {
 }
 
 export class PiEventBridge {
+  desktopTaskResult(receipt: DesktopTaskReceipt) {
+    const id = this.newPartID()
+    this.pushMessagePart(id, 'task_result', { task_result: receipt })
+    return id
+  }
   private readonly writer: RuntimeEventSink
   private readonly assistantMessageID: string
   private readonly originalToolName: (encodedName: string) => string | null
   private readonly now: () => number
   private readonly newPartID: () => string
   private readonly streamParts = new Map<number, StreamPartRef>()
-  private readonly toolStartedAt = new Map<string, number>()
+  private readonly toolStartedAt = new Map<string, { at: number; name: string; phase?: string }>()
   private messagePartSequence = 0
   private persistedAssistantPartID: string | undefined
   private runOutcome: PiRunOutcome = 'completed'
@@ -238,6 +245,7 @@ export class PiEventBridge {
           tool_call_id: content.id,
           tool_name: this.requireOriginalToolName(content.name),
           arguments: content.arguments,
+          ...(content.argumentsError ? { arguments_error: content.argumentsError.slice(0, 2048) } : {}),
         },
         ...metadata,
       })
@@ -252,7 +260,7 @@ export class PiEventBridge {
         tool_call_id: message.toolCallId,
         tool_name: this.requireOriginalToolName(message.toolName),
         // 事件属于持久化记录，不共享运行工作集随后会释放的图片内容块。
-        content: message.content.map(block => ({ ...block })),
+        content: message.content.map(block => ({ ...persistedImage(block) })),
         is_error: message.isError,
       },
     })
@@ -260,7 +268,7 @@ export class PiEventBridge {
   }
 
   private handleToolStart(toolCallID: string, encodedName: string, args: unknown) {
-    this.toolStartedAt.set(toolCallID, this.now())
+    this.toolStartedAt.set(toolCallID, { at: this.now(), name: this.requireOriginalToolName(encodedName) })
     this.writer.push('tool_started', {
       tool: {
         tool_call_id: toolCallID,
@@ -268,6 +276,14 @@ export class PiEventBridge {
         arguments: projectToolTimelineValue(args),
       },
     })
+  }
+
+  toolProgress(toolCallID: string, phase: 'preparing' | 'waiting' | 'executing') {
+    const active = this.toolStartedAt.get(toolCallID)
+    if (!active || active.phase === phase) return
+    active.phase = phase
+    // 本地等待工具内部会调用其他读取工具，展示仍绑定最外层真实工具调用。
+    this.writer.push('tool_progress', { tool: { tool_call_id: toolCallID, tool_name: active.name, phase } })
   }
 
   private handleToolEnd(
@@ -280,7 +296,7 @@ export class PiEventBridge {
     this.toolStartedAt.delete(toolCallID)
     const duration = startedAt === undefined
       ? 0
-      : Math.max(0, Math.round(this.now() - startedAt))
+      : Math.max(0, Math.round(this.now() - startedAt.at))
     const projected = projectToolResult(result)
     this.writer.push(isError ? 'tool_failed' : 'tool_completed', {
       tool: {
@@ -295,7 +311,7 @@ export class PiEventBridge {
 
   private pushMessagePart(
     id: string,
-    kind: 'text' | 'reasoning' | 'tool_call' | 'tool_result',
+    kind: 'text' | 'reasoning' | 'tool_call' | 'tool_result' | 'task_result',
     content: Record<string, unknown>,
   ) {
     this.writer.push('message_part', {

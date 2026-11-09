@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { App, ConfigProvider } from 'antd'
 import { describe, expect, it, vi } from 'vitest'
+import { screenAnalysisDefaults, type AnalysisRecord } from '#common/contracts'
 import type { Definition, Run, Script, WorkflowGateway } from '#entities/desktop-workflow'
 import type { RemoteDesktopAccessProfile, RemoteDesktopSession } from '#entities/remote-desktop'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
@@ -21,7 +22,7 @@ class SocketFixture {
   close() {}
 }
 function gateway(): WorkflowGateway {
-  return { list: vi.fn().mockResolvedValue([]), listRuns: vi.fn().mockResolvedValue([]), get: vi.fn(), save: vi.fn(), remove: vi.fn(), versions: vi.fn(), restore: vi.fn(), validate: vi.fn().mockResolvedValue([]), upload: vi.fn(), asset: vi.fn(), openPreview: vi.fn(), closePreview: vi.fn(), capture: vi.fn(), match: vi.fn(), run: vi.fn(), start: vi.fn(), control: vi.fn(), eventsURL: () => 'ws://127.0.0.1/events' }
+  return { list: vi.fn().mockResolvedValue([]), listRuns: vi.fn().mockResolvedValue([]), get: vi.fn(), save: vi.fn(), remove: vi.fn(), versions: vi.fn(), restore: vi.fn(), validate: vi.fn().mockResolvedValue([]), upload: vi.fn(), asset: vi.fn(), ocrDefaults: vi.fn().mockResolvedValue({text_confidence:.5,ocr_max_side:1600}), previewOCR: vi.fn(), ocrReport: vi.fn(), openPreview: vi.fn(), closePreview: vi.fn(), capture: vi.fn(), match: vi.fn(), validateAnalysisAction: vi.fn(), analysisFull: vi.fn(), renderAnalysisImage: vi.fn(), submitAnalysis: vi.fn(), getAnalysis: vi.fn(), listAnalyses: vi.fn(), cancelAnalysis: vi.fn(), clearAnalyses: vi.fn(), analysisElements: vi.fn(), analysisElement: vi.fn(), analysisSpans: vi.fn(), analysisSpan: vi.fn(), analysisGeometry: vi.fn(), analysisDiagnostics: vi.fn(), exportAnalysis: vi.fn(), analysisStorage: vi.fn(), analysisImage: vi.fn(), deleteAnalysis: vi.fn().mockResolvedValue(undefined), run: vi.fn(), start: vi.fn(), control: vi.fn(), eventsURL: () => 'ws://127.0.0.1/events' }
 }
 const wrapper = ({ children }: { children: React.ReactNode }) => <ConfigProvider theme={{ token: { motion: false } }}><App>{children}</App></ConfigProvider>
 
@@ -53,6 +54,35 @@ function RunReport({ gateway, id, revision, active = true, onView }: { gateway: 
 }
 
 describe('桌面脚本手动管理', () => {
+  it('从工作区进入分析记录，无桌面连接也能通过控制器加载列表和详情', async () => {
+    vi.stubGlobal('WebSocket', SocketFixture)
+    const api = gateway()
+    const record: AnalysisRecord = { id: 'analysis-history', state: 'succeeded', stage: 'complete',
+      creator: { origin: 'local' }, source: { kind: 'preview', id: 'closed-preview', name: '已断开的测试桌面' },
+      parameters: screenAnalysisDefaults, parameter_source: 'settings', settings_revision: 1,
+      created_at: '2026-10-23T00:00:00Z', expires_at: '2026-10-30T00:00:00Z',
+      reused: false, reuse_allowed: true, duration_ms: 10, inference_ms: 5, schema_version: 2,
+      summary: { element_count: 0, region_count: 0, text_count: 0, ocr_span_count: 0, truncated: false, truncation_reasons: [] } }
+    vi.mocked(api.listAnalyses).mockResolvedValue({ items: [record], total: 1, limited_by_inference: false })
+    vi.mocked(api.getAnalysis).mockResolvedValue(record)
+    vi.mocked(api.analysisElements).mockResolvedValue({ items: [], total: 0, limited_by_inference: false })
+    vi.mocked(api.analysisGeometry).mockResolvedValue([])
+    const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={() => undefined} onViewDesktop={() => undefined} />, { wrapper })
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.analysisWorkspace.title' }))
+      fireEvent.click(screen.getByRole('tab', { name: 'desktopWorkflow.analysisWorkspace.expandHistory' }))
+      fireEvent.click(await screen.findByRole('button', { name: /已断开的测试桌面/ }))
+      expect(screen.queryByText('desktopWorkflow.analysisWorkspace.readonly')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'desktopWorkflow.analysis.usePoint' })).not.toBeInTheDocument()
+      await waitFor(() => expect(api.analysisElements).toHaveBeenCalledWith(record.id, { cursor: undefined, limit: 20 }, expect.any(AbortSignal)))
+      expect(api.getAnalysis).toHaveBeenCalledWith(record.id, expect.any(AbortSignal))
+      expect(screen.queryByText('analysisCenter.readFailed')).not.toBeInTheDocument()
+      expect(api.openPreview).not.toHaveBeenCalled()
+    } finally { view.unmount(); vi.unstubAllGlobals() }
+    expect(api.cancelAnalysis).not.toHaveBeenCalled()
+    expect(api.deleteAnalysis).not.toHaveBeenCalled()
+  })
+
   it('校验反馈使用消息提示，重复校验可再次显示，诊断可以定位步骤且不占据编排区域', async () => {
     vi.stubGlobal('WebSocket', SocketFixture)
     const api = gateway()
@@ -151,15 +181,36 @@ describe('桌面脚本手动管理', () => {
     fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.editName' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'desktopWorkflow.scriptName' }), { target: { value: '保留中的草稿' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'desktopWorkflow.search' }), { target: { value: '流程库筛选' } })
-    fireEvent.click(screen.getAllByRole('button', { name: 'desktopWorkflow.executionHistory' })[0]!)
+    fireEvent.click(screen.getByRole('radio', { name: 'desktopWorkflow.executionHistory' }))
+    expect(screen.getByRole('radio', { name: 'desktopWorkflow.executionHistory' })).toBeChecked()
     expect(screen.getByRole('textbox', { name: 'desktopWorkflow.search' })).toHaveValue('')
     fireEvent.click(await screen.findByRole('button', { name: /最近任务/ }))
     expect(await screen.findByText('desktopWorkflow.executionCompleted')).toBeVisible()
-    fireEvent.click(within(screen.getByRole('complementary', { name: 'desktopWorkflow.runs' })).getByRole('button', { name: 'desktopWorkflow.backToEditor' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'desktopWorkflow.analysisWorkspace.workbench' }))
+    expect(screen.getByRole('radio', { name: 'desktopWorkflow.analysisWorkspace.workbench' })).toBeChecked()
     expect(screen.getByRole('button', { name: 'desktopWorkflow.editName' })).toHaveTextContent('保留中的草稿')
     expect(screen.getByRole('textbox', { name: 'desktopWorkflow.search' })).toHaveValue('流程库筛选')
     expect(screen.getByRole('button', { name: 'desktopWorkflow.run' })).toBeDisabled()
     expect(dirty).toHaveBeenLastCalledWith(true)
+    expect(api.save).not.toHaveBeenCalled()
+    expect(api.start).not.toHaveBeenCalled()
+    view.rerender(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={dirty} onViewDesktop={() => undefined} guided guideView={{ key: 1, workflowView: 'runs' }} />)
+    expect(screen.getByRole('radio', { name: 'desktopWorkflow.executionHistory' })).toBeChecked()
+    expect(await screen.findByText('desktopWorkflow.executionCompleted')).toBeVisible()
+    view.rerender(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={dirty} onViewDesktop={() => undefined} guided guideView={{ key: 2, workflowView: 'scripts' }} />)
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.editName' })).toHaveTextContent('保留中的草稿')
+    expect(screen.getByRole('textbox', { name: 'desktopWorkflow.search' })).toHaveValue('流程库筛选')
+    view.rerender(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={dirty} onViewDesktop={() => undefined} guided={false} guideView={{ key: 3, workflowView: 'runs' }} />)
+    expect(screen.getByRole('radio', { name: 'desktopWorkflow.analysisWorkspace.workbench' })).toBeChecked()
+    view.rerender(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={dirty} onViewDesktop={() => undefined} guided guideView={{ key: 3, workflowView: 'runs' }} />)
+    expect(screen.getByRole('radio', { name: 'desktopWorkflow.analysisWorkspace.workbench' })).toBeChecked()
+    view.rerender(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={dirty} onViewDesktop={() => undefined} guided guideView={{ key: 4, workflowView: 'runs' }} />)
+    expect(screen.getByRole('radio', { name: 'desktopWorkflow.executionHistory' })).toBeChecked()
+    fireEvent.click(screen.getByRole('radio', { name: 'desktopWorkflow.analysisWorkspace.workbench' }))
+    view.rerender(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={dirty} onViewDesktop={() => undefined} guided={false} guideView={{ key: 4, workflowView: 'runs' }} />)
+    view.rerender(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={dirty} onViewDesktop={() => undefined} guided guideView={{ key: 4, workflowView: 'runs' }} />)
+    expect(screen.getByRole('radio', { name: 'desktopWorkflow.analysisWorkspace.workbench' })).toBeChecked()
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.editName' })).toHaveTextContent('保留中的草稿')
     expect(api.save).not.toHaveBeenCalled()
     expect(api.start).not.toHaveBeenCalled()
     view.unmount(); vi.unstubAllGlobals()
@@ -348,7 +399,7 @@ describe('桌面脚本手动管理', () => {
       fireEvent.click(await screen.findByRole('button', { name: /待确认任务/ }))
       fireEvent.click(await screen.findByRole('button', { name: 'desktopWorkflow.singleStep' }))
       await waitFor(() => expect(screen.getByRole('button', { name: 'desktopWorkflow.singleStep' })).not.toBeDisabled())
-      fireEvent.click(within(screen.getByRole('complementary', { name: 'desktopWorkflow.runs' })).getByRole('button', { name: 'desktopWorkflow.backToEditor' }))
+      fireEvent.click(screen.getByRole('radio', { name: 'desktopWorkflow.analysisWorkspace.workbench' }))
       expect(screen.queryByRole('button', { name: 'desktopWorkflow.singleStep' })).not.toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: /待确认任务/ }))
       fireEvent.click(await screen.findByRole('button', { name: 'desktopWorkflow.singleStep' }))

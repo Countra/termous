@@ -25,6 +25,5 @@ export {
   type PersistedVNCProfileResult,
 } from './model/persistVNCProfile.ts'
 export { VNCProfileEditor } from './protocols/vnc/VNCProfileEditor.tsx'
-export { VNCTargetAuthSection } from './protocols/vnc/VNCTargetAuthSection.tsx'
 export { RemoteDesktopProfileEditor } from './ui/RemoteDesktopProfileEditor.tsx'
 export { createRemoteDesktopAccessProfileDraft, remoteDesktopAccessProfileToDraft, normalizeRemoteDesktopAccessProfileDraft, validateRemoteDesktopAccessProfileDraft, remoteDesktopAccessProfileDraftsEqual, type RemoteDesktopAccessProfileDraft } from './model/remoteDesktopAccessProfileDraft.ts'

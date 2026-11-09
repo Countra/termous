@@ -9,6 +9,7 @@ import type {
   AgentSession,
 } from '#entities/agent'
 import type { AgentWorkspaceSession } from '#widgets/agent-workspace'
+import { createAgentMessageProjector } from './agentMessageProjectionCache.ts'
 import {
   agentRunInteractionBlocked,
   agentWorkspaceInfrastructureReady,
@@ -19,6 +20,78 @@ import {
 } from './agentWorkspaceProjection.ts'
 
 describe('Agent 工作区页面投影', () => {
+  it('本地文件配对及独立结果均使用有界卡片，外部同名工具保留普通结果', () => {
+    const result = { id: 'result', message_id: 'message', sequence: 2, revision: 1, created_at: '', updated_at: '',
+      kind: 'tool_result' as const, tool_result: { tool_call_id: 'call', tool_name: 'termous.local.files.read', is_error: false,
+        content: [{ type: 'text', text: JSON.stringify({ path: 'C:/test.txt', text: 'x'.repeat(8000), size_bytes: 8000,
+          offset: 0, next_offset: 8000, truncated: false }) }] } }
+    const message: AgentMessage = { id: 'message', session_id: 'session', role: 'assistant', status: 'completed',
+      sequence: 2, revision: 1, created_at: '', updated_at: '', parts: [result], attachments: [] }
+    const call = { ...result, id: 'call-part', sequence: 1, kind: 'tool_call' as const,
+      tool_call: { tool_call_id: 'call', tool_name: result.tool_result.tool_name, arguments: { path: 'C:/test.txt' } } }
+    for (const parts of [[result], [call, result]]) {
+      const projected = projectAgentMessages([{ ...message, parts }], undefined, [])[0]!.parts
+      expect(projected).toHaveLength(1)
+      expect(projected[0]).toMatchObject({ local_file: { action: 'read', text: 'x'.repeat(4000), previewLimited: true } })
+    }
+    for (const tool_result of [{ ...result.tool_result, tool_name: 'external::termous.local.files.read' },
+      { ...result.tool_result, is_error: true }]) {
+      expect(projectAgentMessages([{ ...message, parts: [{ ...result, tool_result }] }], undefined, [])[0]!.parts[0])
+        .not.toHaveProperty('local_file', expect.anything())
+    }
+  })
+
+  it('准备阶段跟随当前调用，审批与终态优先于迟到的阶段', () => {
+    const run = activeRun()
+    const call = { id: 'call-part', message_id: run.assistant_message_id, sequence: 1, revision: 1, created_at: '', updated_at: '',
+      kind: 'tool_call' as const, tool_call: { tool_call_id: 'call', tool_name: 'termous.desktop_workflows.runs.start', arguments: {} } }
+    const message: AgentMessage = { id: run.assistant_message_id, session_id: run.session_id, role: 'assistant', status: 'streaming',
+      sequence: 2, revision: 1, created_at: '', updated_at: '', parts: [call], attachments: [] }
+    const progress: AgentRunEvent = { id: 'progress', run_id: run.id, generation: run.generation, sequence: 2, created_at: '',
+      kind: 'tool_progress', payload: { tool: { tool_call_id: 'call', tool_name: call.tool_call.tool_name, phase: 'preparing' } } }
+    expect(projectAgentMessages([message], run, [progress])[0]!.parts[0]).toMatchObject({ status: 'running', phase: 'preparing' })
+    expect(projectAgentMessages([message], { ...run, status: 'waiting_approval' }, [progress])[0]!.parts[0])
+      .toMatchObject({ status: 'waiting_approval', phase: 'preparing' })
+    const result = { ...call, id: 'result-part', sequence: 2, kind: 'tool_result' as const,
+      tool_result: { tool_call_id: 'call', tool_name: call.tool_call.tool_name, content: [], is_error: false } }
+    expect(projectAgentMessages([{ ...message, parts: [call, result] }], run, [progress])[0]!.parts[0])
+      .toMatchObject({ status: 'completed', phase: undefined })
+    expect(projectAgentMessages([message], run, [{ ...progress, generation: run.generation - 1 }])[0]!.parts[0])
+      .toMatchObject({ status: 'running', phase: undefined })
+  })
+
+  it('分页从工具结果开始时仍展示结果和图片，合并调用页后只显示一次', () => {
+    const result = { id: 'result', message_id: 'message', sequence: 2, revision: 1, created_at: '', updated_at: '',
+      kind: 'tool_result' as const, tool_result: { tool_call_id: 'call', tool_name: 'termous.screen_analyses.images.get',
+        content: [{ type: 'text', text: 'observation' }], is_error: false,
+        images: [{ content_index: 1, mime_type: 'image/png', size_bytes: 100 }],
+      } }
+    const message: AgentMessage = { id: 'message', session_id: 'session', role: 'assistant', status: 'completed',
+      sequence: 2, revision: 1, created_at: '', updated_at: '', parts: [result], attachments: [] }
+    const projected = projectAgentMessages([message], undefined, [])[0]!.parts
+    expect(projected).toHaveLength(1)
+    expect(projected[0]).toMatchObject({ kind: 'tool', status: 'completed', images: [{ part_id: 'result', content_index: 1 }] })
+    const call = { ...result, id: 'call-part', sequence: 1, kind: 'tool_call' as const,
+      tool_call: { tool_call_id: 'call', tool_name: result.tool_result.tool_name, arguments: { analysis_id: 'analysis' } } }
+    expect(projectAgentMessages([{ ...message, parts: [call, result] }], undefined, [])[0]!.parts).toHaveLength(1)
+  })
+
+  it('投影缓存跟随当前 Run 的状态与用量，后继任务不会借用上一轮元数据', () => {
+    const project = createAgentMessageProjector()
+    const message: AgentMessage = {
+      id: 'message-assistant', session_id: 'session-one', role: 'assistant', status: 'completed',
+      sequence: 2, revision: 1, created_at: '', updated_at: '', parts: [], attachments: [],
+    }
+    const first = activeRun({ status: 'completed', usage: tokenUsage(100) })
+    const initial = project([message], first, [])
+    const revised = { ...first, revision: first.revision + 1, usage: tokenUsage(200) }
+    expect(project([message], revised, [])[0]?.usage?.total_tokens).toBe(200)
+    expect(initial[0]?.usage?.total_tokens).toBe(100)
+    const next = activeRun({ id: 'next', assistant_message_id: 'next-assistant' })
+    expect(project([message], next, [])).toEqual(projectAgentMessages([message], next, []))
+    expect(project([message], next, [])[0]?.usage).toBeUndefined()
+  })
+
   it('仅在 Main Runtime 与当前 Run 的 generation 对齐后开放运行态交互', () => {
     const run = activeRun()
     expect(agentRunInteractionBlocked(run.id, run, {
@@ -61,7 +134,6 @@ describe('Agent 工作区页面投影', () => {
         context_compaction_threshold_percent: 80,
         connect_ssh_profile_on_bind: false,
         show_turn_token_usage: true, revision: 1,
-        created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:00Z',
       },
     }
 

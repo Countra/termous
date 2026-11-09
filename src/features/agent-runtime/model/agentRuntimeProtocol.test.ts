@@ -693,6 +693,14 @@ test('steer_applied 在实时与 HTTP 补偿页使用相同严格分支，兼容
   }
 })
 
+test('Core 接受的 1 MiB 输入可以完整恢复，仍拒绝超过合同的单片段', () => {
+  const text = '文'.repeat(300000)
+  const value = messageResponse({ role: 'user', parts: [partResponse('text', { text: { text } })] })
+  const decoded = decodeAgentMessage(value)
+  assert.equal(decoded.parts[0]?.kind === 'text' && decoded.parts[0].text, text)
+  assert.throws(() => decodeAgentMessage(messageResponse({ parts: [partResponse('text', { text: { text: 'x'.repeat(1024 * 1024 + 1) } })] })), /文本无效/u)
+})
+
 function messageResponse(overrides: Record<string, unknown> = {}) {
   return {
     id: 'agm-assistant',

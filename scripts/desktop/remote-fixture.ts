@@ -12,13 +12,14 @@ const api = async (path: string, input?: unknown) => {
 const wait = () => new Promise(resolve => setTimeout(resolve, 50))
 const assert = (value: unknown, message: string) => { if (!value) throw new Error(message) }
 let view: RemoteDesktopSession
+let step = 'connect', failure = ''
 void (async () => {
   let session = fromJson(SessionSchema, await api('session'))
   for (let i = 0; session.state !== 'ready'; i++) { if (i > 100) throw new Error('not ready'); await wait(); session = fromJson(SessionSchema, await api('session')) }
   let attachment: MessageInitShape<typeof DesktopRequestSchema> = {}
   const request = async (input: MessageInitShape<typeof DesktopRequestSchema>) => {
     const response = fromJson(ResponseSchema, await api('request', toJson(DesktopRequestSchema, create(DesktopRequestSchema, input))))
-    if (response.error) throw new Error(response.error.code)
+    if (response.error) throw new Error(`${input.action}: ${response.error.code}`)
     if (response.result.case !== 'desktop') throw new Error('wrong response')
     const r = response.result.value
     if (r.attachment) attachment = { sessionId: session.id, connectionGeneration: session.generation, attachmentId: r.attachment.id, mediaGeneration: r.attachment.mediaGeneration }
@@ -27,7 +28,7 @@ void (async () => {
   let phase = ''
   const legacyICE = new URLSearchParams(location.search).get('legacy_ice') === '1'
   view = new RemoteDesktopSession({ request, ice: async () => (await api(`ice?legacy=${legacyICE ? '1' : '0'}`)).ice_servers }, session.id, session.generation, {
-    state: () => {}, status: (value, reason) => { phase = value; if (reason) output.textContent = `FAILED: ${reason}` }, clipboard: () => {}, challenge: async () => ({ accept: false }),
+    state: () => {}, status: (value, reason) => { phase = value; if (reason) { failure = reason; output.textContent = `FAILED: ${reason}` } }, clipboard: () => {}, challenge: async () => ({ accept: false }),
   })
   await view.start(document.querySelector('#desktop')!, document.querySelector('#video')!)
   for (let i = 0; phase !== 'viewing'; i++) { if (phase === 'closed' || i > 160) throw new Error(`viewer not ready: ${phase}`); await wait() }
@@ -42,8 +43,10 @@ void (async () => {
     const pixel = context.getImageData(400, 300, 1, 1).data
     assert(pixel[0] > 150 && pixel[1] < 80 && pixel[2] < 80, 'H.264 decoded pixel channels')
   }
+  step = 'capture'
   const first = await request({ ...attachment, action: 'capture', capture: { maxWidth: 400 } })
   assert(first.image?.width === 400 && first.image.height === 300, 'remote screenshot scale')
+  step = 'click'
   view.input({ kind: 'click', button: 'left', x: 400, y: 300 })
   if (session.engine === 'rdp') {
     // worker 夹具延迟鼠标执行；此时续租应排队，不得把正常并发误报为桌面断开。
@@ -53,8 +56,10 @@ void (async () => {
     await request({ ...attachment, action: 'renew', control: current.state!.control })
     assert(phase === 'viewing', 'renewal interrupted active input')
   }
+  step = 'text'
   await view.command('text', 'Termous 中文')
   await wait()
+  step = 'after_sequence'
   const second = await request({ ...attachment, action: 'capture', capture: { afterSequence: first.image!.frameSequence, maxWidth: 400 } })
   assert(second.image!.frameSequence > first.image!.frameSequence, 'stale frame after input')
   const chunks: Uint8Array<ArrayBuffer>[] = []
@@ -74,8 +79,10 @@ void (async () => {
     await view.acquire(true)
     assert(view.owned, 'explicit takeover after revocation')
   }
+  step = 'release'
   await view.release()
   assert(!view.owned, 'control retained after release')
+  step = 'reacquire'
   await view.acquire(false)
   assert(view.owned, 'control reacquisition')
   if (session.engine === 'rdp') {
@@ -84,10 +91,11 @@ void (async () => {
     view.peer!.send({ kind: 'input', input: { kind: 'key', code: 'KeyA', down: true, control: current.state!.control, sequence: 60n, displayEpoch: current.state!.displayEpoch } })
     for (let i = 0; phase !== 'closed'; i++) { if (i > 100) throw new Error('invalid sequence did not close attachment'); await wait() }
   }
+  step = 'close'
   await view.close()
   if (session.engine === 'rdp') assert(document.querySelector<HTMLVideoElement>('#video')!.srcObject === null, 'video source retained after close')
   const state = await request({ sessionId: session.id, connectionGeneration: session.generation, action: 'describe' })
   assert(!state.state?.attachmentId, 'attachment not released')
   output.textContent = JSON.stringify({ passed: true, checks: ['独立 WebRTC', session.engine === 'rdp' ? 'OpenH264 + libyuv → worker WS → Pion → video 解码、无音频轨道' : 'noVNC Raw/CopyRect/Tight PNG', '执行 DataChannel', '控制申请／释放／重新申请', '程序点击', 'Unicode 输入', '截图分块', '附着完整回收'] }, null, 2)
   await api('result?passed=true', {})
-})().catch(async error => { output.textContent = `FAILED: ${String(error)}`; await view?.close(); await api('result?passed=false', {}).catch(() => {}) })
+})().catch(async error => { output.textContent = `FAILED: ${step}: ${String(error)}${failure ? `; channel=${failure}` : ''}`; await view?.close(); await api('result?passed=false', {}).catch(() => {}) })

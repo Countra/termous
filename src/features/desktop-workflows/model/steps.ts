@@ -1,6 +1,6 @@
 import type { Definition, Step, StepKind } from '#entities/desktop-workflow'
 
-export const newDefinition = (): Definition => ({ schema_version: 1, parameters: [], steps: [] })
+export const newDefinition = (): Definition => ({ schema_version: 2, parameters: [], steps: [] })
 export function newStep(kind: StepKind): Step {
   const action = kind === 'pointer.click' ? { button: 'left', count: 1 } : kind === 'pointer.scroll' ? { delta: 120 } : kind === 'pointer.drag' ? { button: 'left', duration_ms: 500 } : kind === 'keyboard.key' ? { code: 'Enter' } : kind === 'resize' ? { width: 1280, height: 720 } : {}
   return { id: crypto.randomUUID(), name: '', kind, action, ...(kind === 'delay' ? { delay_ms: 1000 } : {}), ...(kind === 'repeat' ? { iterations: 2, steps: [] } : {}), ...(kind === 'if' ? { steps: [], else: [] } : {}) }

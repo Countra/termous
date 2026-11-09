@@ -18,6 +18,8 @@ import type { AgentRuntimeStatus } from '#common/contracts'
 import { subscribeLocalWorkspace, type AgentWorkspaceSubscription, type AgentWorkspaceObserver } from '../api/agentSubscription.ts'
 import type { AgentWorkspaceGateway } from '../api/agentRuntimeGateway.ts'
 import { loadAgentMessages } from './loadAgentMessages.ts'
+import { applyAgentMessageRead } from '../model/agentMessageRead.ts'
+import { AgentContentWindow, mergeTimelineMessages, timelineBoundary } from '../model/agentContentWindow.ts'
 import {
   activeAgentRun,
   applyAgentWorkspaceEvent,
@@ -85,6 +87,7 @@ export class AgentWorkspaceControllerError extends Error {
 }
 
 export class AgentWorkspaceController {
+  private readonly contentWindow = new AgentContentWindow()
   private state = createAgentWorkspaceState()
   private readonly listeners = new Set<() => void>()
   private readonly gateway: AgentWorkspaceGateway
@@ -206,6 +209,52 @@ export class AgentWorkspaceController {
   updateDraft(sessionId: string, text: string) {
     this.commit(setAgentDraft(this.state, sessionId, text))
   }
+
+  async loadHistory(sessionId: string, direction: 'before' | 'after' = 'before') {
+    if (!this.gateway.timelineSupported || this.disposed) return
+    if (direction === 'before' && this.contentWindow.hasOlder.get(sessionId) === false) return
+    const values = this.state.messages[sessionId] ?? []
+    const boundary = direction === 'before' ? values[0] : values[values.length - 1]
+    if (!boundary) return
+    this.messageHydrations.get(sessionId)?.abort()
+    const controller = new AbortController()
+    this.messageHydrations.set(sessionId, controller)
+    const authority = this.authorityVersion
+    try {
+      const page = await this.gateway.messages(sessionId, { view: 'timeline', limit: 100, direction,
+        cursor: timelineBoundary(sessionId, boundary, direction === 'before' ? 'first' : 'last'), signal: controller.signal })
+      if (controller.signal.aborted || this.disposed || this.state.selected_session_id !== sessionId
+        || authority !== this.authorityVersion || this.messageHydrations.get(sessionId) !== controller) return
+      if (page.items.some(message => message.session_id !== sessionId)) throw new AgentWorkspaceControllerError('AGENT_MESSAGE_OWNER_INVALID')
+      if (direction === 'before') this.contentWindow.hasOlder.set(sessionId, Boolean(page.has_older))
+      if (!page.items.length) {
+        // 历史窗口可能仍包含最新片段；空后续页同样表示已追平，应恢复实时跟随。
+        if (direction === 'after' && !page.has_newer) {
+          this.contentWindow.historical.delete(sessionId)
+          this.contentWindow.retainOldest.delete(sessionId)
+        }
+        this.commit({ ...this.state })
+        return
+      }
+      if (direction === 'before' || page.has_newer) this.contentWindow.historical.add(sessionId)
+      else this.contentWindow.historical.delete(sessionId)
+      if (direction === 'before') this.contentWindow.retainOldest.add(sessionId)
+      else this.contentWindow.retainOldest.delete(sessionId)
+      const messages = mergeTimelineMessages(this.state.messages[sessionId] ?? [], page.items)
+      this.commit({ ...this.state, messages: { ...this.state.messages, [sessionId]: messages } })
+    } finally {
+      if (this.messageHydrations.get(sessionId) === controller) this.messageHydrations.delete(sessionId)
+    }
+  }
+
+  async loadLatest(sessionId: string) {
+    this.contentWindow.historical.delete(sessionId)
+    this.contentWindow.retainOldest.delete(sessionId)
+    await this.hydrateMessages(sessionId, true)
+  }
+
+  viewingHistory(sessionId: string) { return this.contentWindow.historical.has(sessionId) }
+  canLoadOlder(sessionId: string) { return this.contentWindow.hasOlder.get(sessionId) === true }
 
   setContextCompressionPending(sessionId: string, pending: boolean) {
     if (activeAgentRun(this.state, sessionId)) throw new AgentWorkspaceControllerError('AGENT_RUN_ACTIVE')
@@ -377,6 +426,12 @@ export class AgentWorkspaceController {
       if (this.state.drafts[sessionId] === submittedDraft) {
         this.commit(setAgentDraft(this.state, sessionId, ''))
       }
+      const messages = this.state.messages[sessionId] ?? []
+      if (!messages.some(({ id }) => id === run.user_message_id)
+        || !messages.some(({ id }) => id === run.assistant_message_id)) {
+        // HTTP 回执可能先于订阅消息到达，仅在缺少本轮消息时补读，不能依赖后续 token 才恢复占位。
+        void this.hydrateMessages(sessionId, true).catch((error) => this.captureError(error))
+      }
       // 唤醒失败不能撤销已受理的 Run；Core 队列与后续唤醒继续负责执行。
       if (!this.gateway.runtimeOwnedByHost) {
         void this.gateway.startRuntime(run).then((result) => {
@@ -532,6 +587,14 @@ export class AgentWorkspaceController {
         }
         const previousActiveRuns = Object.values(previousState.active_run_ids).map((id) => previousState.runs[id]!)
         const result = applyAgentWorkspaceEvent(previousState, event)
+        if (this.gateway.timelineSupported) {
+          // 历史阅读窗口独立于实时水位；新事件仍更新任务和审批，不挤走当前片段。
+          for (const id of this.contentWindow.historical) {
+            if (previousState.messages[id] && result.state.messages[id]) {
+              result.state.messages = { ...result.state.messages, [id]: previousState.messages[id]! }
+            }
+          }
+        }
         const streamNotification = this.streamNotificationForEvent(previousState, event)
         const changedContextModels = changedContextModelSessions(previousState, result.state)
         if (event.type === 'snapshot') this.snapshotSocket = socket
@@ -693,7 +756,16 @@ export class AgentWorkspaceController {
     entry.promise = (async () => {
       do {
         entry.dirty = false
-        await this.performRunHydration(runId, entry.controller.signal)
+        const authority = this.authorityVersion
+        const runAuthority = this.runAuthorityVersions.get(runId) ?? 0
+        try {
+          await this.performRunHydration(runId, entry.controller.signal)
+        } catch (error) {
+          // 实时更新已使旧读取失效时，沿用 dirty 补读最新状态，不传播旧请求的错误。
+          if (!this.disposed && !entry.controller.signal.aborted
+            && authority === this.authorityVersion
+            && runAuthority === (this.runAuthorityVersions.get(runId) ?? 0)) throw error
+        }
       } while (!this.disposed && !entry.controller.signal.aborted && entry.dirty)
     })().finally(() => {
       if (this.runHydrations.get(runId) === entry) this.runHydrations.delete(runId)
@@ -712,26 +784,33 @@ export class AgentWorkspaceController {
     const afterSequence = currentRun?.generation === run.generation
       ? this.state.run_event_sequences[run.id] ?? 0
       : 0
-    const [events, messages] = await Promise.all([
-      this.loadRunEvents(run, afterSequence, signal),
-      this.loadMessages(run.session_id, 0, signal),
-    ])
+    const messageBaseline = this.state.messages[run.session_id] ?? []
+    const historical = this.contentWindow.historical.has(run.session_id)
+    const page = historical ? undefined : await this.loadMessages(run.session_id, 0, signal)
     if (this.disposed || signal.aborted || this.removedSessionIDs.has(run.session_id)
       || authority !== this.authorityVersion || runAuthority !== (this.runAuthorityVersions.get(runId) ?? 0)) return
     let merged = replaceAgentRun(this.state, run)
-    merged = replaceAgentMessages(merged, run.session_id, messages)
-    const result = mergeAgentRunEvents(merged, run, events)
-    if (result.reconcile_run) {
-      throw new AgentWorkspaceControllerError('AGENT_RUN_EVENT_GAP')
+    if (page && !this.contentWindow.historical.has(run.session_id)) {
+      this.contentWindow.hasOlder.set(run.session_id, Boolean(page.has_older))
+      merged = applyAgentMessageRead(merged, run.session_id, page.items, messageBaseline)
     }
-    this.commit(result.state)
+    this.commit(merged)
+    await this.loadRunEvents(run, afterSequence, signal, events => {
+      if (this.disposed || signal.aborted || authority !== this.authorityVersion
+        || runAuthority !== (this.runAuthorityVersions.get(runId) ?? 0)) return
+      const result = mergeAgentRunEvents(this.state, run, events)
+      if (result.reconcile_run) throw new AgentWorkspaceControllerError('AGENT_RUN_EVENT_GAP')
+      if (this.contentWindow.historical.has(run.session_id)) result.state.messages = this.state.messages
+      this.commit(result.state)
+    })
+    if (this.disposed || signal.aborted || authority !== this.authorityVersion) return
     if (runUsageRequiresRefresh(currentRun, run)) this.scheduleUsageRefresh(run.session_id)
-    if (result.state.runs[run.id]?.generation !== run.generation
-      || run.model_id !== result.state.sessions.find(({ id }) => id === run.session_id)?.model_id
-      || Object.values(result.state.runs).some((candidate) => (
+    if (this.state.runs[run.id]?.generation !== run.generation
+      || run.model_id !== this.state.sessions.find(({ id }) => id === run.session_id)?.model_id
+      || Object.values(this.state.runs).some((candidate) => (
         candidate.session_id === run.session_id && candidate.generation > run.generation
       ))) return
-    const completedCompaction = [...(result.state.run_events[run.id] ?? [])].reverse().find((event) => (
+    const completedCompaction = [...(this.state.run_events[run.id] ?? [])].reverse().find((event) => (
       event.kind === 'compaction' && event.payload.compaction.status === 'completed'
     ))
     if (completedCompaction) {
@@ -996,20 +1075,30 @@ export class AgentWorkspaceController {
   }
 
   private async hydrateMessages(sessionId: string, authoritative: boolean) {
+    if (this.disposed || this.removedSessionIDs.has(sessionId)) return
+    if (this.gateway.timelineSupported && this.contentWindow.historical.has(sessionId)) return
     this.messageHydrations.get(sessionId)?.abort()
     const controller = new AbortController()
     this.messageHydrations.set(sessionId, controller)
     const authority = this.authorityVersion
+    const baseline = this.state.messages[sessionId] ?? []
     const after = authoritative ? 0 : lastMessageSequence(this.state.messages[sessionId] ?? [])
+    const isCurrent = () => !this.disposed && !controller.signal.aborted && !this.removedSessionIDs.has(sessionId)
+      && this.messageHydrations.get(sessionId) === controller && authority === this.authorityVersion
     try {
-      const messages = await this.loadMessages(sessionId, after, controller.signal)
-      if (this.disposed || controller.signal.aborted || this.messageHydrations.get(sessionId) !== controller || authority !== this.authorityVersion) return
+      const page = await this.loadMessages(sessionId, after, controller.signal)
+      if (!isCurrent()) return
+      // 分页边界与正文同时接纳，避免其他在途状态提交提前回收边界或迟到页污染当前窗口。
+      this.contentWindow.hasOlder.set(sessionId, Boolean(page.has_older))
       this.commit(authoritative
-        ? replaceAgentMessages(this.state, sessionId, messages)
+        ? applyAgentMessageRead(this.state, sessionId, page.items, baseline)
         : replaceAgentMessages(this.state, sessionId, [
             ...(this.state.messages[sessionId] ?? []),
-            ...messages,
+            ...page.items,
           ]))
+    } catch (error) {
+      // 旧读取的失败与成功回执遵守相同的代次边界，不能污染已经恢复的新状态。
+      if (isCurrent()) throw error
     } finally {
       if (this.messageHydrations.get(sessionId) === controller) {
         this.messageHydrations.delete(sessionId)
@@ -1244,13 +1333,19 @@ export class AgentWorkspaceController {
   }
 
   private async loadMessages(sessionId: string, afterSequence: number, signal?: AbortSignal) {
-    return loadAgentMessages(this.gateway, sessionId, afterSequence, signal, (code) => new AgentWorkspaceControllerError(code))
+    if (this.gateway.timelineSupported) {
+      const page = await this.gateway.messages(sessionId, { view: 'timeline', limit: 100, signal })
+      signal?.throwIfAborted()
+      if (page.items.some(message => message.session_id !== sessionId)) throw new AgentWorkspaceControllerError('AGENT_MESSAGE_OWNER_INVALID')
+      return page
+    }
+    return { items: await loadAgentMessages(this.gateway, sessionId, afterSequence, signal, (code) => new AgentWorkspaceControllerError(code)), has_older: false }
   }
 
-  private async loadRunEvents(run: AgentRun, afterSequence: number, signal?: AbortSignal) {
-    const events: AgentRunEvent[] = []
+  private async loadRunEvents(run: AgentRun, afterSequence: number, signal: AbortSignal, consume: (events: AgentRunEvent[]) => void) {
     let cursor = afterSequence
-    for (let page = 0; page < maximumPageCount; page += 1) {
+    for (;;) {
+      signal.throwIfAborted()
       const result = await this.gateway.runEvents(run.id, {
         generation: run.generation,
         afterSequence: cursor,
@@ -1265,16 +1360,15 @@ export class AgentWorkspaceController {
       if (result.items[0] && result.items[0].sequence !== cursor + 1) {
         throw new AgentWorkspaceControllerError('AGENT_RUN_EVENT_GAP')
       }
-      events.push(...result.items)
+      signal.throwIfAborted()
+      consume(result.items)
       if (!result.next_after_sequence) break
       if (result.next_after_sequence <= cursor) throw new AgentWorkspaceControllerError('AGENT_RUN_EVENT_CURSOR_INVALID')
       if (result.items[result.items.length - 1]?.sequence !== result.next_after_sequence) {
         throw new AgentWorkspaceControllerError('AGENT_RUN_EVENT_CURSOR_INVALID')
       }
       cursor = result.next_after_sequence
-      if (page === maximumPageCount - 1) throw new AgentWorkspaceControllerError('AGENT_RUN_EVENT_PAGE_LIMIT')
     }
-    return events
   }
 
   private observeRuntime() {
@@ -1366,7 +1460,7 @@ export class AgentWorkspaceController {
 
   private commit(next: AgentWorkspaceState, streamNotification?: AgentStreamNotification) {
     if (next === this.state) return
-    this.state = next
+    this.state = this.gateway.timelineSupported ? this.contentWindow.apply(next) : next
     if (streamNotification) {
       this.scheduleStreamNotification(streamNotification)
       return

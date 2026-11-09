@@ -1,13 +1,17 @@
-import type { WorkflowGateway } from '#entities/desktop-workflow'
+import { bindAnalysisGateway } from '#entities/screen-analysis'
+import type { WorkflowGateway, WorkflowExchangeGateway } from '#entities/desktop-workflow'
+import type { WorkflowFileBridge } from '#common/contracts'
+import { WorkflowExchangeController } from '../exchange/WorkflowExchangeController'
 import { newDefinition } from '../steps'
 import { sessionTarget } from '../target'
 import { WorkflowExecution } from './WorkflowExecution'
 import { workflowFailure, type WorkflowActions, type WorkflowEnvironment, type WorkflowState, type WorkflowSurfaceModel } from './types'
 import type { WorkflowMediaGateway } from './types'
+import { readWorkflowLayoutPreferences, saveWorkflowLayoutPreferences } from './workflowLayoutPreferences'
 
 export class WorkflowController {
   private state: WorkflowState = { dirty: false, view: 'scripts', busy: false,
-    presentation: { propertiesVisible: true, queries: { scripts: '', runs: '' }, runFilter: 'all' } }
+    presentation: { propertiesVisible: true, ...readWorkflowLayoutPreferences(), queries: { scripts: '', runs: '' }, runFilter: 'all' } }
   private data: Pick<WorkflowSurfaceModel, 'scripts' | 'runs' | 'loading' | 'dataError'> = { scripts: [], runs: [], loading: true }
   private environment: WorkflowEnvironment = { sessions: [], profiles: [] }
   private listeners = new Set<() => void>()
@@ -16,21 +20,47 @@ export class WorkflowController {
   private edits = 0
   private mediaTasks = new Set<Promise<unknown>>()
   readonly execution: WorkflowExecution
+  readonly media: WorkflowMediaGateway
+  readonly exchange: WorkflowExchangeController
   reload = () => {}
   onViewDesktop: (id: string) => void | Promise<void> = () => {}
+  runtimeStatus?: WorkflowMediaGateway['runtimeStatus']
+  warmupRuntime?: WorkflowMediaGateway['warmupRuntime']
+  onRuntimeSettings?: () => Promise<void>
 
-  constructor(private readonly gateway: WorkflowGateway) {
+  constructor(private readonly gateway: WorkflowGateway, exchangeGateway?: WorkflowExchangeGateway, files?: WorkflowFileBridge) {
+    this.exchange = new WorkflowExchangeController(exchangeGateway, files, gateway, {
+      context: () => ({ draft: this.state.draft, dirty: this.state.dirty, token: `${this.serial}:${this.edits}:${this.state.draft?.editingID}` }),
+      changed: exchange => this.update({ exchange }),
+      committed: async (receipt, context) => {
+        this.reload()
+        if (this.state.busy || context.token !== `${this.serial}:${this.edits}:${this.state.draft?.editingID}`) return
+        const value = await gateway.get(receipt.script.id)
+        if (context.token !== `${this.serial}:${this.edits}:${this.state.draft?.editingID}`) return
+        this.serial++
+        this.update({ view: 'scripts', draft: { editingID: crypto.randomUUID(), script: value.script, name: value.script.name,
+          description: value.script.description, tags: value.script.tags ?? [], definition: value.version.definition }, dirty: false, selected: undefined, versions: undefined })
+      },
+    })
+    this.state.exchange = this.exchange.getSnapshot()
+    // 原生类字段先于参数属性赋值；在构造函数内绑定，避免捕获未初始化的 gateway。
+    this.media = {
+      importAsset: (...args) => this.exchange.asset(...args),
+      runtimeStatus: async () => this.runtimeStatus?.() ?? {},
+      warmupRuntime: async () => { await this.warmupRuntime?.() },
+      openRuntimeSettings: async () => { await this.onRuntimeSettings?.() },
+      ...bindAnalysisGateway(gateway),
+      ocrDefaults: (...args) => this.gateway.ocrDefaults(...args), previewOCR: (...args) => this.gateway.previewOCR(...args), ocrReport: (...args) => this.gateway.ocrReport(...args),
+      openPreview: (...args) => this.gateway.openPreview(...args), closePreview: id => this.gateway.closePreview(id),
+      capture: (...args) => this.gateway.capture(...args), match: (...args) => this.gateway.match(...args), asset: (...args) => this.gateway.asset(...args),
+      upload: blob => {
+        const task = this.gateway.upload(blob); this.trackMediaTask(task)
+        return task
+      },
+    }
     this.execution = new WorkflowExecution(gateway, run => { this.update({ selectedRun: run.id, view: 'runs' }); this.reload() })
     this.execution.subscribe(() => this.publish())
     this.snapshot = this.project()
-  }
-  readonly media: WorkflowMediaGateway = {
-    openPreview: (...args) => this.gateway.openPreview(...args), closePreview: id => this.gateway.closePreview(id),
-    capture: (...args) => this.gateway.capture(...args), match: (...args) => this.gateway.match(...args), asset: (...args) => this.gateway.asset(...args),
-    upload: blob => {
-      const task = this.gateway.upload(blob); this.trackMediaTask(task)
-      return task
-    },
   }
   readonly trackMediaTask = (task: Promise<unknown>) => {
     this.mediaTasks.add(task)
@@ -55,11 +85,12 @@ export class WorkflowController {
     finally { this.update({ busy: false }) }
   }
   readonly actions: WorkflowActions = {
+    exchange: command => this.exchange.dispatch(command),
     create: name => {
       if (this.state.busy) return
       this.serial++
       this.update({ view: 'scripts', draft: { editingID: crypto.randomUUID(), name, description: '', tags: [], definition: newDefinition() },
-        dirty: true, selected: undefined, presentation: { ...this.state.presentation, foldedSteps: [] } })
+        dirty: true, selected: undefined, versions: undefined, presentation: { ...this.state.presentation, foldedSteps: [] } })
     },
     load: async id => {
       if (this.state.busy) return
@@ -67,7 +98,7 @@ export class WorkflowController {
       await this.work(async () => {
         const value = await this.gateway.get(id)
         if (serial === this.serial) this.update({ view: 'scripts', draft: { editingID: crypto.randomUUID(), script: value.script, name: value.script.name,
-          description: value.script.description, tags: value.script.tags ?? [], definition: value.version.definition }, dirty: false, selected: undefined,
+          description: value.script.description, tags: value.script.tags ?? [], definition: value.version.definition }, dirty: false, selected: undefined, versions: undefined,
           presentation: { ...this.state.presentation, foldedSteps: [] } })
       })
     },
@@ -112,12 +143,12 @@ export class WorkflowController {
       if (!script) return
       if (this.state.busy) return
       this.update({ busy: true })
-      try { await this.gateway.remove(script.id, script.revision); this.update({ draft: undefined, dirty: false }); this.reload() }
+      try { await this.gateway.remove(script.id, script.revision); this.update({ draft: undefined, dirty: false, versions: undefined }); this.reload() }
       catch (reason) { this.update({ notice: { id: crypto.randomUUID(), kind: 'error', error: workflowFailure(reason) } }); throw reason }
       finally { this.update({ busy: false }) }
     },
     copy: name => {
-      if (this.state.draft && !this.state.busy) this.update({ draft: { ...structuredClone(this.state.draft), editingID: crypto.randomUUID(), script: undefined, name }, dirty: true })
+      if (this.state.draft && !this.state.busy) this.update({ draft: { ...structuredClone(this.state.draft), editingID: crypto.randomUUID(), script: undefined, name }, dirty: true, versions: undefined })
     },
     openRun: debug => {
       const draft = this.state.draft
@@ -133,7 +164,14 @@ export class WorkflowController {
     refreshReport: () => this.execution.refreshReport(true),
     viewDesktop: async id => { try { await this.onViewDesktop(id) } catch (reason) { this.execution.reportError(reason) } },
     dismissNotice: id => { if (this.state.notice?.id === id) this.update({ notice: undefined }) },
-    presentation: patch => this.update({ presentation: { ...this.state.presentation, ...patch } }),
+    presentation: patch => {
+      const previous = this.state.presentation
+      const presentation = { ...previous, ...patch }
+      // 主窗口统一落盘，独立窗口沿用已有命令回传，避免两端分别保存旧快照。
+      saveWorkflowLayoutPreferences(previous, presentation)
+      this.update({ presentation })
+    },
   }
-  dispose() { this.serial++; this.execution.dispose() }
+  activate() { this.exchange.activate() }
+  dispose() { this.serial++; this.exchange.dispose(); this.execution.dispose() }
 }

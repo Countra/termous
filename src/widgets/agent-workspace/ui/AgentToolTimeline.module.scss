@@ -10,6 +10,14 @@
   margin: 6px 0 8px 25px;
 }
 
+.raw-details {
+  margin-left: 25px;
+
+  svg { transition: transform 160ms ease; }
+
+  &[aria-expanded='true'] svg { transform: rotate(90deg); }
+}
+
 .tool-row summary {
   display: grid;
   min-height: 34px;
@@ -130,6 +138,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .raw-details svg { transition: none; }
+
   .tool-disclosure {
     transition: none;
   }

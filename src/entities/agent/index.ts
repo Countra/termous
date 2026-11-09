@@ -188,3 +188,7 @@ export type { AgentSlashDesktopCandidate, AgentSlashDesktopSessionCandidate, Age
 
 export type { AgentProgressActivity, AgentProgressData } from '#common/contracts'
 export { mergeAgentProgress } from './model/agentProgress.ts'
+export { decodeAgentLocalDirectory, type AgentLocalDirectory } from './model/localDirectory.ts'
+export { readLocalFileResult, type AgentLocalFileResult } from './model/localFileResult.ts'
+export { readRuntimeWait, type AgentRuntimeWait } from './model/runtimeWait.ts'
+export { readWebSearchResult } from './model/webSearchResult.ts'

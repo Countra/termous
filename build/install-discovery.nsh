@@ -5,7 +5,7 @@
 
 !macro termousWriteInstallDiscovery
   ; 固定发现入口仅属于正式应用，不能由其他 appId 的验证安装包覆盖。
-  !if "${APP_ID}" == "dev.termous.app"
+  !if "${APP_ID}" == "com.termous.app"
     ; 先将记录标记为无效；失败则停止改写，不能留下仍被认可的部分记录。
     ClearErrors
     WriteRegDWORD SHELL_CONTEXT "${TERMOUS_INSTALL_DISCOVERY_KEY}" "SchemaVersion" 0
@@ -28,7 +28,7 @@
 !macroend
 
 !macro termousRemoveInstallDiscovery
-  !if "${APP_ID}" == "dev.termous.app"
+  !if "${APP_ID}" == "com.termous.app"
     ; 升级也清理旧范围，避免切换 HKCU/HKLM 后残留可被优先读取的旧版本。
     ; 只删除本安装目录拥有的子项，保留父项及其他自定义数据。
     Push $0

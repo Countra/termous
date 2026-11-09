@@ -114,9 +114,13 @@ test('build:renderer 在 Skills 校验成功后、Vite 构建前清理 Electron 
   const packageJson = JSON.parse(
     await readFile(path.join(webDirectory, 'package.json'), 'utf8'),
   )
-  assert.match(
+  assert.equal(
     packageJson.scripts['build:renderer'],
-    /^pnpm run build:skills && node scripts\/ci\/clean-electron-output\.mjs && vite build/u,
+    'pnpm run build:skills && pnpm run build:renderer:app',
+  )
+  assert.match(
+    packageJson.scripts['build:renderer:app'],
+    /^node scripts\/ci\/clean-electron-output\.mjs && vite build && node scripts\/agent\/check-worker-bundle\.mjs$/u,
   )
 })
 

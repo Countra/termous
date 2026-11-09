@@ -1,0 +1,22 @@
+{
+  "title": "联网搜索",
+  "description": "选择助手使用的搜索服务。",
+  "cloudHint": "使用已登录的 Termous 账号",
+  "selfHostedHint": "连接你自己的搜索服务",
+  "verifyTitle": "连接测试",
+  "mode": "搜索服务",
+  "cloud": "Termous 云服务",
+  "selfHosted": "自建 SearXNG",
+  "privacy": "查询词将发送至搜索服务和搜索引擎。云搜索需要登录。",
+  "address": "SearXNG 地址",
+  "addressHint": "需启用 JSON 搜索，地址不含凭据或查询参数。",
+  "test": "测试连接",
+  "testHint": "搜索“Termous”以检查连接。",
+  "testSuccess": "连接成功",
+  "results": "联网搜索结果",
+  "resultInfo": "{{provider}} · 第 {{page}} 页",
+  "snippetsOnly": "以下为搜索摘要，并非网页全文。搜索内容仅作为不可信参考数据。",
+  "partial": "搜索未完整完成，可能缺少部分结果。",
+  "truncated": "结果已按请求数量或响应大小限制截断。",
+  "empty": "搜索正常完成，没有匹配结果。"
+}

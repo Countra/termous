@@ -2,9 +2,12 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { canonicalizeMcpFileToolName } from '#common/contracts'
 import { localToolNames } from '../contracts/toolNames.ts'
 import { decodeMCPToolName, encodeMCPToolName } from '../contracts/toolNameCodec.ts'
+import { externalToolName, externalToolSource } from '../contracts/toolSources.ts'
 
 export function runtimeToolName(name: string) {
   if (localToolNames.has(name)) return name
+  const separator = name.indexOf('::')
+  if (separator > 0) return externalToolName(externalToolSource(name.slice(0, separator)), name.slice(separator + 2))
   return encodeMCPToolName(canonicalizeMcpFileToolName(decodeMCPToolName(name) ?? name))
 }
 

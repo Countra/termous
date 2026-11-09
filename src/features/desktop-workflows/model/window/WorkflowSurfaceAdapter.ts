@@ -2,6 +2,7 @@ import { isWorkflowDetachedCommand, isWorkflowDetachedMedia, workflowDetachedInp
 import type { WorkflowController } from '../workspace/WorkflowController'
 import { workflowFailure } from '../workspace/types'
 import { WorkflowMediaHost } from './WorkflowMediaHost'
+import type { ExchangeCommand } from '../exchange/types'
 
 const draftActions = new Set(['change', 'selectStep', 'save', 'validate', 'history', 'restore', 'remove', 'copy', 'openRun'])
 
@@ -21,6 +22,12 @@ export class WorkflowSurfaceAdapter {
       if (packet.operation === 'binary' && isWorkflowDetachedMedia(packet.payload)) return { ok: true, value: await this.media.handle(packet.payload) }
       if (packet.operation !== 'command' || !isWorkflowDetachedCommand(packet.payload)) throw new Error('workflow_command_invalid')
       const command = packet.payload
+      if (command.name === 'exchange') {
+        const input = command.args[0] as ExchangeCommand
+        if ((input.kind === 'export' || input.kind === 'commit') && command.owner !== this.controller.getSnapshot().state.draft?.editingID) throw new Error('workflow_editor_changed')
+        await this.controller.exchange.dispatch(input, packet.connection)
+        return { ok: true }
+      }
       // 已确认的输入只补回执，不能在切换脚本后再次应用旧草稿。
       if (command.inputSequence !== undefined && command.inputSequence <= this.inputSequence) return { ok: true }
       if (draftActions.has(command.name) && command.owner !== this.controller.getSnapshot().state.draft?.editingID) throw new Error('workflow_editor_changed')

@@ -1,4 +1,5 @@
 import type { AgentAttachment } from '#entities/agent'
+import { agentImageDimensions } from './agentImageHeader.ts'
 
 export const agentAttachmentLimits = {
   maximumCount: 8,
@@ -59,6 +60,11 @@ export async function validateAgentAttachmentSelection(
         if (text.includes('\u0000')) throw new Error('NUL')
       } catch {
         throw new AgentAttachmentSelectionError('AGENT_ATTACHMENT_TEXT_ENCODING')
+      }
+    } else {
+      const size = agentImageDimensions(new Uint8Array(await file.arrayBuffer()), detectedImageMIMEType!)
+      if (!size || size.width <= 0 || size.height <= 0 || size.width * size.height > 64 * 1024 * 1024) {
+        throw new AgentAttachmentSelectionError('AGENT_ATTACHMENT_IMAGE_SIGNATURE')
       }
     }
     const canonicalFile = detectedImageMIMEType && declaredMIMEType !== detectedImageMIMEType

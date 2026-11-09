@@ -2,23 +2,20 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import {
   chmod,
-  mkdtemp,
   mkdir,
   lstat,
   readFile,
-  realpath,
   rename,
   rm,
   symlink,
   writeFile,
 } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { stringify as stringifyYaml } from 'yaml'
+import { createCanonicalTempDirectory } from '../test-support/temp-directory.ts'
 import { hashRegularFile } from './release-manifest-contract.mjs'
 import {
-  createElectronBuilderArguments,
   packagedThirdPartyFiles,
   runLocalPackage,
   sanitizePublishEnvironment,
@@ -41,16 +38,23 @@ test('electron-builder 固定更新源、平台资产名称与 macOS 双格式',
     publishAutoUpdate: true,
   }])
   assert.deepEqual(config.mac.target, ['dmg', 'zip'])
+  assert.equal(config.mac.minimumSystemVersion, '13.0')
   assert.equal(config.mac.identity, null)
   assert.equal(config.mac.notarize, false)
   assert.equal(config.dmg.sign, false)
+  assert.equal(config.asar, true)
+  assert.deepEqual(config.extraResources.find(({ to }) => to === 'icon.png'), {
+    from: 'public/termous-icon.png', to: 'icon.png',
+  })
   assert.deepEqual(config.extraFiles.find(({ from }) => from === 'build/core').filter,
-    ['termous-core.exe', 'termous-core', 'termous-rdp.exe', 'termous-rdp'])
+    ['termous-core.exe', 'termous-core', 'termous-desktop.exe', 'termous-desktop', 'termous-desktopd.exe', 'desktop-bundle.json', 'termous-rdp.exe', 'termous-rdp'])
+  assert.equal(config.nsis.perMachine, true)
   assert.deepEqual(config.extraFiles.find(({ to }) => to === 'licenses/rdp'), {
     from: '../termous-rdp/licenses', to: 'licenses/rdp', filter: ['*-LICENSE.txt'],
   })
   const expectedSources = new Map([
     ['THIRD_PARTY_NOTICES.txt', 'THIRD_PARTY_NOTICES.txt'],
+    ['licenses/go-winio-LICENSE.txt', 'third_party_licenses/go-winio-LICENSE.txt'],
     ['licenses/pi-LICENSE.txt', 'third_party_licenses/pi-LICENSE.txt'],
     ['licenses/cgofuse-LICENSE.txt', 'third_party_licenses/cgofuse-LICENSE.txt'],
     ['licenses/WinFsp-LICENSE.txt', 'third_party_licenses/WinFsp-LICENSE.txt'],
@@ -123,34 +127,15 @@ test('本地打包入口固定禁用发布与代码签名', () => {
   assert.equal(environment.CSC_IDENTITY_AUTO_DISCOVERY, 'false')
   assert.equal(environment.PATH, 'path')
 
-  const args = createElectronBuilderArguments({
-    platform: 'darwin',
-    arch: 'arm64',
-    outputDirectory: '/tmp/termous',
-    version: '1.2.3',
-  })
-  assert.deepEqual(args.slice(0, 7), [
-    'exec',
-    'electron-builder',
-    '--mac',
-    'dmg',
-    'zip',
-    '--arm64',
-    '--config',
-  ])
-  assert.equal(args.includes('--config.forceCodeSigning=true'), false)
-  assert.equal(args.includes('--config.mac.identity=null'), true)
-  assert.equal(args.includes('--config.mac.notarize=false'), true)
-  assert.deepEqual(args.slice(-2), ['--publish', 'never'])
+
 })
 
 test('三平台产物门禁接受完整 manifest、载荷与 blockmap', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-contract-'))
+  const root = await createCanonicalTempDirectory('termous-package-contract-')
   try {
     for (const target of [
       { platform: 'win32', arch: 'x64' },
       { platform: 'linux', arch: 'x64' },
-      { platform: 'darwin', arch: 'x64' },
       { platform: 'darwin', arch: 'arm64' },
     ]) {
       const outputDirectory = path.join(
@@ -186,6 +171,14 @@ test('三平台产物门禁接受完整 manifest、载荷与 blockmap', async ()
       }
       const decoy = path.join(outputDirectory, 'decoy')
       await mkdir(decoy)
+      const desktopPath = path.join(path.dirname(result.corePaths[0]),
+        target.platform === 'win32' ? 'termous-desktop.exe' : 'termous-desktop')
+      const movedDesktop = path.join(decoy, path.basename(desktopPath))
+      await rename(desktopPath, movedDesktop)
+      await assert.rejects(validatePackageArtifacts({
+        outputDirectory, version: '1.2.3', ...target,
+      }), /包内桌面进程不存在/u)
+      await rename(movedDesktop, desktopPath)
       await rename(workerPath, path.join(decoy, path.basename(workerPath)))
       await assert.rejects(validatePackageArtifacts({
         outputDirectory, version: '1.2.3', ...target,
@@ -201,7 +194,7 @@ test('三平台产物门禁接受完整 manifest、载荷与 blockmap', async ()
 })
 
 test('产物门禁拒绝由输出树旁路 Skills Bundle 掩盖应用漏打包', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-decoy-'))
+  const root = await createCanonicalTempDirectory('termous-package-decoy-')
   try {
     await writeCompleteFixture({
       outputDirectory: root,
@@ -241,7 +234,7 @@ test('产物门禁拒绝由输出树旁路 Skills Bundle 掩盖应用漏打包',
 })
 
 test('产物门禁拒绝缺失 Agent 第三方许可证', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-license-'))
+  const root = await createCanonicalTempDirectory('termous-package-license-')
   try {
     await writeCompleteFixture({
       outputDirectory: root,
@@ -265,7 +258,7 @@ test('产物门禁拒绝缺失 Agent 第三方许可证', async () => {
 })
 
 test('产物门禁拒绝缺失产品向导第三方许可证', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-tour-license-'))
+  const root = await createCanonicalTempDirectory('termous-package-tour-license-')
   try {
     await writeCompleteFixture({
       outputDirectory: root,
@@ -294,7 +287,7 @@ test('产物门禁拒绝缺失产品向导第三方许可证', async () => {
 })
 
 test('产物门禁拒绝符号链接形式的第三方许可证', async (context) => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-license-link-'))
+  const root = await createCanonicalTempDirectory('termous-package-license-link-')
   try {
     await writeCompleteFixture({
       outputDirectory: root,
@@ -334,8 +327,27 @@ test('产物门禁拒绝符号链接形式的第三方许可证', async (context
   }
 })
 
+test('各平台发布包缺少归档外原生图标时拒绝发布', async (context) => {
+  for (const [platform, arch, resources] of [
+    ['win32', 'x64', 'win-unpacked/resources'],
+    ['linux', 'x64', 'linux-unpacked/resources'],
+    ['darwin', 'arm64', 'mac-arm64/Termous.app/Contents/Resources'],
+  ]) await context.test(`${platform}/${arch}`, async () => {
+    const root = await createCanonicalTempDirectory('termous-package-native-resource-')
+    try {
+      const options = { outputDirectory: root, platform, arch, version: '1.2.3' }
+      await writeCompleteFixture(options)
+      await validatePackageArtifacts(options)
+      await rm(path.join(root, resources, 'icon.png'))
+      await assert.rejects(validatePackageArtifacts(options), /包内原生图标 icon\.png不存在/u)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})
+
 test('产物门禁拒绝缺失 blockmap 和错误 app-update provider', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-invalid-'))
+  const root = await createCanonicalTempDirectory('termous-package-invalid-')
   try {
     await writeCompleteFixture({
       outputDirectory: root,
@@ -397,51 +409,11 @@ test('产物门禁拒绝缺失 blockmap 和错误 app-update provider', async ()
   }
 })
 
-test('构建完成后才校验产物且子进程看不到发布凭据', async () => {
-  const root = await createCanonicalTempDirectory('termous-package-run-')
-  const webDirectory = path.join(root, 'web')
-  const outputDirectory = path.join(root, 'build', 'output')
-  try {
-    await mkdir(webDirectory, { recursive: true })
-    await writeFile(
-      path.join(webDirectory, 'package.json'),
-      JSON.stringify({ version: '1.2.3' }),
-    )
-    await mkdir(outputDirectory, { recursive: true })
-    await writeFile(path.join(outputDirectory, 'stale.txt'), 'stale')
-    let invocation
-    await runLocalPackage({
-      webDirectory,
-      outputDirectory,
-      platform: 'win32',
-      arch: 'x64',
-      version: '1.2.3',
-    }, {
-      spawnProcess: async (executable, args, options) => {
-        invocation = { executable, args, options }
-        await assert.rejects(
-          readFile(path.join(outputDirectory, 'stale.txt'), 'utf8'),
-          /ENOENT/,
-        )
-        await writeCompleteFixture({
-          outputDirectory,
-          platform: 'win32',
-          arch: 'x64',
-          version: '1.2.3',
-        })
-      },
-    })
-
-    assert.ok(invocation)
-    assert.deepEqual(invocation.args.slice(-2), ['--publish', 'never'])
-    assert.equal(invocation.options.env.GH_TOKEN, undefined)
-    assert.equal(invocation.options.env.GITHUB_TOKEN, undefined)
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
+test('旧打包入口明确拒绝绕过统一准备流程', async () => {
+  await assert.rejects(runLocalPackage({}), /termous-buildtools/)
 })
 
-test('本地打包拒绝通过输出目录祖先联接清理工作区外文件', async (context) => {
+test('已有产物验证拒绝通过输出目录祖先联接访问工作区外文件', async (context) => {
   const root = await createCanonicalTempDirectory(
     'termous-package-output-root-',
   )
@@ -483,10 +455,7 @@ test('本地打包拒绝通过输出目录祖先联接清理工作区外文件',
         platform: 'win32',
         arch: 'x64',
         version: '1.2.3',
-      }, {
-        spawnProcess: async () => {
-          throw new Error('不应启动打包进程')
-        },
+        verifyOnly: true,
       }),
       (error) => {
         assert.match(error.message, /打包输出目录祖先/)
@@ -500,11 +469,6 @@ test('本地打包拒绝通过输出目录祖先联接清理工作区外文件',
     await rm(externalRoot, { recursive: true, force: true })
   }
 })
-
-async function createCanonicalTempDirectory(prefix) {
-  const canonicalTempRoot = await realpath(tmpdir())
-  return realpath(await mkdtemp(path.join(canonicalTempRoot, prefix)))
-}
 
 async function writeCompleteFixture({
   outputDirectory,
@@ -548,6 +512,7 @@ async function writeCompleteFixture({
   await mkdir(resourcesDirectory, {
     recursive: true,
   })
+  await writeFile(path.join(resourcesDirectory, 'icon.png'), await readFile(new URL('../../public/termous-icon.png', import.meta.url)))
   for (const fileName of files) {
     await writeFile(path.join(outputDirectory, fileName), `fixture:${fileName}`)
   }
@@ -592,6 +557,15 @@ async function writeCompleteFixture({
     { mode: 0o755 },
   )
   await writeFile(path.join(applicationDirectory, platform === 'win32' ? 'termous-rdp.exe' : 'termous-rdp'), 'fixture-rdp', { mode: 0o755 })
+  await writeFile(path.join(applicationDirectory, platform === 'win32' ? 'termous-desktop.exe' : 'termous-desktop'), 'fixture-desktop', { mode: 0o755 })
+  if (platform === 'win32') {
+    await writeFile(path.join(applicationDirectory, 'termous-desktopd.exe'), 'fixture-desktopd')
+    const sha256 = {}
+    for (const name of ['termous-core.exe', 'termous-desktop.exe', 'termous-desktopd.exe']) {
+      sha256[name] = (await hashRegularFile(path.join(applicationDirectory, name))).sha256
+    }
+    await writeFile(path.join(applicationDirectory, 'desktop-bundle.json'), JSON.stringify({ protocol_version: 2, build_version: version, sha256 }))
+  }
   const rdpLicenses = path.join(applicationDirectory, 'licenses', 'rdp')
   await mkdir(rdpLicenses, { recursive: true })
   for (const library of ['FreeRDP', 'OpenSSL', 'OpenH264', 'zlib', 'libyuv', 'GCC-GPLv3', 'GCC-Runtime-Exception', 'MinGW-winpthreads']) {

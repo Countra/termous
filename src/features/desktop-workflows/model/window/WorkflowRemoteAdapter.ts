@@ -1,8 +1,9 @@
-import { isWorkflowDetachedCommand, isWorkflowDetachedMedia, workflowDetachedActions, workflowDetachedInputs,
+import { isWorkflowDetachedCommand, isWorkflowDetachedMedia, isWorkflowDetachedNoArgumentAction, workflowDetachedActions, workflowDetachedInputs,
   type WorkflowDetachedCommand, type WorkflowDetachedMedia } from '#common/contracts'
 import { TermousApiError } from '#shared/api'
 import type { DetachedClient } from '#shared/detached-window'
 import type { Asset, ImageTarget, Located, Preview, Snapshot } from '#entities/desktop-workflow'
+import { analysisRemoteGateway } from '#entities/screen-analysis'
 import type { WorkflowActions, WorkflowFailure, WorkflowMediaGateway, WorkflowSurfaceModel } from '../workspace/types'
 
 interface Echo { sequence: number; command: WorkflowDetachedCommand }
@@ -26,8 +27,8 @@ export class WorkflowRemoteAdapter {
     void operation.catch(this.report)
     return operation
   }
-  private async request(operation: 'binary' | 'command', payload: unknown, id?: string) {
-    const response = await this.client.peer.request(operation, payload, 120000, id) as { ok: boolean; value?: unknown; error?: WorkflowFailure }
+  private async request(operation: 'binary' | 'command', payload: unknown, id?: string, timeout = 120000) {
+    const response = await this.client.peer.request(operation, payload, timeout, id) as { ok: boolean; value?: unknown; error?: WorkflowFailure }
     if (!response.ok) throw new TermousApiError(response.error?.message ?? 'Request failed', response.error?.code ?? 'detached_operation_failed', response.error?.status ?? 0)
     return response.value
   }
@@ -52,8 +53,10 @@ export class WorkflowRemoteAdapter {
     for (const [key, echo] of this.echoes) if (echo.sequence <= acknowledged) this.echoes.delete(key)
     let next = structuredClone(model)
     for (const echo of [...this.echoes.values()].sort((a, b) => a.sequence - b.sequence)) next = optimistic(next, echo.command)
-    const actions = Object.fromEntries(workflowDetachedActions.map(name => [name, (...args: unknown[]) => {
+    const actions = Object.fromEntries(workflowDetachedActions.map(name => [name, (...suppliedArgs: unknown[]) => {
       if (!this.interactive) return this.failed('detached_editor_inactive')
+      // 只序列化契约声明的业务参数，避免按钮或对话框事件泄漏到 IPC。
+      const args = isWorkflowDetachedNoArgumentAction(name) ? [] : suppliedArgs
       const owner = this.model?.state.draft?.editingID
       const input = (workflowDetachedInputs as readonly string[]).includes(name)
       const command: WorkflowDetachedCommand = { name, args, owner, ...(input ? { inputSequence: ++this.sequence } : {}) }
@@ -67,7 +70,7 @@ export class WorkflowRemoteAdapter {
         this.echoes.set(key, { sequence: command.inputSequence!, command: echo }); this.changed()
         this.inputs.push({ id: crypto.randomUUID(), command })
         operation = this.flushInputs(false)
-      } else operation = this.flushInputs(false).then(() => this.request('command', command))
+      } else operation = this.flushInputs(false).then(() => this.request('command', command, undefined, name === 'exchange' ? 360000 : 120000))
       void operation.catch(this.report)
       return operation
     }])) as unknown as WorkflowActions
@@ -75,7 +78,36 @@ export class WorkflowRemoteAdapter {
     return this.model
   }
   readonly media: WorkflowMediaGateway = {
-    openPreview: (session, generation) => this.mediaRequest({ kind: 'open', session, generation }) as Promise<Preview>,
+    importAsset: async (id, hash, signal) => {
+      signal?.throwIfAborted()
+      const result = await this.mediaRequest({ kind: 'import-asset', id, hash }) as Binary
+      signal?.throwIfAborted(); return blob(result)
+    },
+    ocrDefaults: async signal => { signal?.throwIfAborted(); const result = await this.mediaRequest({kind:'ocr-defaults'}) as Awaited<ReturnType<WorkflowMediaGateway['ocrDefaults']>>; signal?.throwIfAborted(); return result },
+    ocrReport: async (id,index,offset=0,limit=20,signal) => { signal?.throwIfAborted(); const result = await this.mediaRequest({kind:'ocr-report',id,index,offset,limit}) as Awaited<ReturnType<WorkflowMediaGateway['ocrReport']>>; signal?.throwIfAborted(); return result },
+    previewOCR: async (id,query,signal) => {
+      signal?.throwIfAborted()
+      const request = crypto.randomUUID()
+      const cancel = () => { void this.mediaRequest({kind:'ocr-cancel',id,request}).catch(this.report) }
+      signal?.addEventListener('abort',cancel,{once:true})
+      try {
+        const result = await this.mediaRequest({kind:'ocr-preview',id,request,query}) as Binary & Omit<Awaited<ReturnType<WorkflowMediaGateway['previewOCR']>>, 'image'>
+        signal?.throwIfAborted(); return {capture:result.capture,observation:result.observation,image:blob(result)}
+      } finally { signal?.removeEventListener('abort',cancel) }
+    },
+    runtimeStatus: () => this.mediaRequest({ kind: 'runtime-status' }) as ReturnType<NonNullable<WorkflowMediaGateway['runtimeStatus']>>,
+    warmupRuntime: async () => { await this.mediaRequest({ kind: 'runtime-warmup' }) },
+    openRuntimeSettings: async () => { await this.mediaRequest({ kind: 'runtime-settings' }) },
+    ...analysisRemoteGateway(async (request, signal) => {
+      if (!signal || ['submit', 'cancel', 'delete', 'clear'].includes(request.operation)) return this.mediaRequest({ kind: 'analysis', request })
+      signal.throwIfAborted()
+      const id = crypto.randomUUID()
+      const cancel = () => { void this.mediaRequest({ kind: 'analysis-read-cancel', id }).catch(this.report) }
+      signal.addEventListener('abort', cancel, { once: true })
+      try { return await this.mediaRequest({ kind: 'analysis', request, read_id: id }) }
+      finally { signal.removeEventListener('abort', cancel) }
+    }),
+    openPreview: (session, generation, target) => this.mediaRequest(target ? { kind: 'open-host', target } : { kind: 'open', session, generation }) as Promise<Preview>,
     closePreview: async id => { await this.mediaRequest({ kind: 'close', id }) },
     upload: async blob => this.mediaRequest({ kind: 'upload', type: blob.type, bytes: await blob.arrayBuffer() }) as Promise<Asset>,
     asset: async (id, signal) => {
@@ -96,7 +128,7 @@ export class WorkflowRemoteAdapter {
   }
   private mediaRequest(payload: WorkflowDetachedMedia) {
     if (!isWorkflowDetachedMedia(payload)) return Promise.reject(new Error('workflow_media_invalid'))
-    const task = this.request('binary', payload)
+    const task = this.request('binary', payload, undefined, 120000)
     this.trackMediaTask(task)
     return task
   }
@@ -118,7 +150,7 @@ function optimistic(model: Omit<WorkflowSurfaceModel, 'actions'>, command: Workf
   switch (command.name) {
     case 'change': if (state.draft && state.draft.editingID === command.owner) { state.draft = { ...state.draft, ...arg as object }; state.dirty = true }; break
     case 'selectStep': state.selected = arg as string | undefined; break
-    case 'view': state.view = arg as 'scripts' | 'runs'; break
+    case 'view': state.view = arg as WorkflowSurfaceModel['state']['view']; break
     case 'target': state.chosenTarget = arg as WorkflowSurfaceModel['target']; model.target = state.chosenTarget
       if (model.execution.launch && !model.execution.launch.request) model.execution.launch.target = model.target
       break

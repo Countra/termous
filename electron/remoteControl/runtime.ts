@@ -2,12 +2,13 @@ import { randomUUID } from 'node:crypto'
 import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { fromJson, toJson, type JsonValue } from '@bufbuild/protobuf'
 import { RequestSchema } from '@termous/remote-protocol'
-import type { AppLanguage, AppTheme, RemoteBootstrap, RemoteConnection, RemoteDevice, RemotePolicy, RemoteLocalTask, RemoteLocalSelection } from '#common/contracts'
+import type { AppLanguage, AppTheme, RemoteBootstrap, RemoteConnection, RemoteDevice, RemotePolicy, RemoteLocalTask, RemoteLocalSelection, SettingsSnapshot } from '#common/contracts'
 import { appDebugModeArgument } from '#common/contracts'
 import { RemoteCore, RemoteCoreError, result, validId } from './core'
 import { RemoteTerminalStream } from './stream'
 import { RemoteLocalTransfers } from './files'
 import { RemoteAgentContent } from './agentContent'
+import { RemotePolicyEditorSession } from './policyEditor'
 
 interface Options {
   core: RemoteCore
@@ -79,6 +80,37 @@ export class RemoteControlRuntime {
   }
 
   private register() {
+    const editor = new RemotePolicyEditorSession(this.options.core)
+    ipcMain.handle('remote:edit-policy', (event, generation: string, id: string) => result(() => {
+      this.main(event, generation)
+      return editor.open(event.sender.id, generation, id)
+    }))
+    ipcMain.handle('remote:close-policy-editor', (event, id: string) => result(async () => {
+      this.main(event)
+      return editor.close(event.sender.id, id)
+    }))
+    ipcMain.handle('remote:change-policy', (event, generation: string, id: string, revision: number, change: unknown) => result(() => {
+      this.main(event, generation)
+      return editor.change(event.sender.id, generation, id, revision, change)
+    }))
+    ipcMain.handle('remote:select-policy-directory', (event, generation: string, id: string) => result(() => {
+      this.main(event, generation)
+      return editor.select(event.sender.id, generation, id, async () => {
+        const window = BrowserWindow.fromWebContents(event.sender)
+        if (!window) throw new RemoteCoreError('remote_ipc_forbidden')
+        const selection = await dialog.showOpenDialog(window, { properties: ['openDirectory'] })
+        return selection.canceled ? undefined : selection.filePaths[0]
+      })
+    }))
+    ipcMain.handle('remote:host-desktop-accesses', (event, generation: string) => result(async () => {
+      this.main(event, generation)
+      return this.options.core.request(`/remote-control/host-desktop-accesses?generation=${encodeURIComponent(generation)}`)
+    }))
+    ipcMain.handle('remote:stop-host-desktop-access', (event, generation: string, id: string) => result(async () => {
+      this.main(event, generation)
+      if (!validId(id)) throw new RemoteCoreError('remote_invalid_request')
+      return this.options.core.request(`/remote-control/host-desktop-accesses/${encodeURIComponent(id)}/stop`, { generation })
+    }))
     // 只允许远控窗口的主 frame 操作其自身窗口，窗口按钮不依赖远端连接状态。
     ipcMain.handle('remote:window-minimize', event => result(async () => {
       this.own(event).window.minimize()
@@ -108,6 +140,11 @@ export class RemoteControlRuntime {
       if (!Number.isSafeInteger(revision) || revision < 0 || typeof enabled !== 'boolean') throw new RemoteCoreError('remote_invalid_request')
       return this.options.core.request<RemotePolicy>('/remote-control/agent-policy', { generation, revision, enabled }, 'PUT')
     }))
+	  ipcMain.handle('remote:configure-host-desktop', (event, generation: string, revision: number, observe: boolean, control: boolean, secureCapture: boolean, secureControl: boolean) => result(async () => {
+		this.main(event, generation)
+		if (!Number.isSafeInteger(revision) || revision < 0 || typeof observe !== 'boolean' || typeof control !== 'boolean' || typeof secureCapture !== 'boolean' || typeof secureControl !== 'boolean' || control && !observe || secureCapture && !observe || secureControl && (!control || !secureCapture)) throw new RemoteCoreError('remote_invalid_request')
+		return this.options.core.request<RemotePolicy>('/remote-control/host-desktop-policy', { generation, revision, observe, control, secure_capture: secureCapture, secure_control: secureControl }, 'PUT')
+	  }))
     ipcMain.handle('remote:agent-upload', (event, data: unknown, mime: unknown, id: string) => result(async () => {
       const { entry, base } = await this.active(event, id)
       return this.agentContent.upload(base, entry.bootstrap.generation, data, mime)
@@ -115,6 +152,11 @@ export class RemoteControlRuntime {
     ipcMain.handle('remote:desktop-ice', (event, id: string) => result(async () => {
       const { entry, base } = await this.active(event, id)
       return (await this.options.core.request<{ ice_servers: RTCIceServer[] }>(`${base}/desktop-ice`, { generation: entry.bootstrap.generation })).ice_servers
+    }))
+    ipcMain.handle('remote:desktop-quality-defaults', (event, id: string) => result(async () => {
+      await this.active(event, id)
+      // 只读取观看端的固定模块，不向独立窗口开放任意设置路径或修改宿主策略的能力。
+      return this.options.core.request<SettingsSnapshot>('/settings/desktop_presentation')
     }))
     ipcMain.handle('remote:configure-desktops', (event, generation: string, revision: number, profiles: unknown, exchangeProfiles: unknown) => result(async () => {
       this.main(event, generation)
@@ -142,10 +184,11 @@ export class RemoteControlRuntime {
       return (await this.options.core.request<{ devices: RemoteDevice[] }>(`/remote-control/devices?generation=${encodeURIComponent(generation)}`)).devices ?? []
     }))
     ipcMain.handle('remote:policy', (event, generation: string) => result(async () => { this.main(event, generation); return this.policy(generation) }))
-    ipcMain.handle('remote:configure', (event, generation: string, revision: number, enabled: boolean, ids: string[]) => result(async () => {
+    ipcMain.handle('remote:configure', (event, generation: string, revision: number, enabled: boolean, ids: unknown, accessMode: unknown) => result(async () => {
       this.main(event, generation)
-      if (!Number.isSafeInteger(revision) || typeof enabled !== 'boolean' || !Array.isArray(ids) || ids.length > 256 || !ids.every(validId)) throw new RemoteCoreError('remote_invalid_request')
-      return this.options.core.request<RemotePolicy>('/remote-control/policy', { generation, revision, enabled, host_ids: ids }, 'PUT')
+      if (!Number.isSafeInteger(revision) || revision < 0 || typeof enabled !== 'boolean' || (accessMode !== 'full' && accessMode !== 'custom')) throw new RemoteCoreError('remote_invalid_request')
+      if (ids !== undefined && (!Array.isArray(ids) || ids.length > 256 || !ids.every(validId))) throw new RemoteCoreError('remote_invalid_request')
+      return this.options.core.request<RemotePolicy>('/remote-control/policy', { generation, revision, enabled, host_ids: ids, access_mode: accessMode }, 'PUT')
     }))
     ipcMain.handle('remote:hosts', event => result(async () => {
       this.main(event)

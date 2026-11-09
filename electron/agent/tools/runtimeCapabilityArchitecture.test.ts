@@ -14,10 +14,17 @@ const result = (data: Record<string, unknown>, readOnly = true) => ({ content: [
 } })
 const names = runtimeCapabilities.flatMap((capability) => capability.steps.flatMap((step) => capabilityTools(capability, step.tools)))
 
-test('全部 MCP 工具具有唯一职责与真实 Skill，新增工具不能静默落入缺省导航', () => {
+test('MCP 与内部本地工具分别具有唯一职责，内部工具不加入公开 MCP 合同', () => {
   const contract = JSON.parse(readFileSync(new URL('../../../../termous-skills/contracts/mcp-tools.json', import.meta.url), 'utf8')) as { tools: Array<{ name: string; skill: string }> }
+  const catalog = JSON.parse(readFileSync(new URL('../../../../termous-skills/contracts/agent-capabilities.json', import.meta.url), 'utf8')) as { runtimeTools: Record<string, { transport: string }> }
+  const runtimeNames = Object.keys(catalog.runtimeTools)
+  for (const name of runtimeNames) {
+    assert.equal(catalog.runtimeTools[name]!.transport, 'runtime')
+    assert.ok(!contract.tools.some(tool => tool.name === name))
+    assert.equal(runtimeCapability(name)?.skill, name === 'termous.web.search' ? 'skill://termous-web-search/SKILL.md' : 'skill://termous-local-tools/SKILL.md')
+  }
   assert.equal(new Set(names).size, names.length)
-  assert.deepEqual([...names].sort(), [...contract.tools.map((tool) => tool.name), 'wait_workflow_run'].sort())
+  assert.deepEqual([...names].sort(), [...contract.tools.map((tool) => tool.name), ...runtimeNames, 'wait', 'wait_workflow_run', 'wait_screen_analysis', 'wait_desktop_execution'].sort())
   for (const tool of contract.tools) {
     const capability = runtimeCapability(tool.name)!
     assert.ok(capability.skill.startsWith(`skill://${tool.skill}/`), tool.name)
@@ -66,6 +73,10 @@ test('跨领域生命周期共用提交、查询、取消、结果导航，不�
 })
 
 test('异步状态来自各领域真实字段，未知结构不能伪造成功或永久等待', () => {
+  assert.equal(runtimeToolOutcome('termous.local.commands.wait', { task: { status: 'running' } }), 'pending')
+  assert.equal(runtimeToolOutcome('termous.local.commands.wait', { task: { status: 'completed' } }), 'settled')
+  assert.equal(runtimeToolOutcome('termous.local.commands.wait', { task: { status: 'uncertain' } }), 'failed')
+  assert.equal(runtimeToolOutcome('termous.local.files.read', { text: '{"status":"running"}' }), 'unknown')
   for (const [name, data] of [
     ['termous.files.transfers.get', { transfer: { status: 'failed' } }],
     ['termous.remoteops.services.operations.get', { operation: { phase: 'failed' } }],

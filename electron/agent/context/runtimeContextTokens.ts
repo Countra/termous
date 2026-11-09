@@ -1,13 +1,14 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { estimatedImageTokens, runtimeImageDimensions } from './runtimeImageDimensions.ts'
 import { estimateMessageTokens } from '@earendil-works/pi-ai/utils/estimate'
+import { isRuntimeImage, isResourceImage } from '../contracts/runtimeResourceImages.ts'
 
 export function estimateRuntimeMessageTokens(message: AgentMessage) {
   if ((message.role !== 'user' && message.role !== 'toolResult') || typeof message.content === 'string') return estimateMessageTokens(message)
-  const images = message.content.filter((part) => part.type === 'image')
+  const images = message.content.filter(isRuntimeImage)
   if (!images.length) return estimateMessageTokens(message)
-  return estimateMessageTokens({ ...message, content: message.content.filter((part) => part.type !== 'image') })
-    + images.reduce((sum, image) => sum + estimatedImageTokens(runtimeImageDimensions(image.data)), 0)
+  return estimateMessageTokens({ ...message, content: message.content.filter((part) => !isRuntimeImage(part)) })
+    + images.reduce((sum, image) => sum + estimatedImageTokens(isResourceImage(image) ? image.resource_image.image : runtimeImageDimensions(image.data)), 0)
 }
 
 // 消息估算与 Provider 保持一致；用量有效性由调用方按模型身份和 checkpoint 边界确定。

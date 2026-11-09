@@ -5,7 +5,8 @@ import {
 import { ArrowLeft, Workflow } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { WorkflowGateway } from '#entities/desktop-workflow'
+import type { WorkflowGateway, WorkflowExchangeGateway } from '#entities/desktop-workflow'
+import type { AIRuntimeGateway } from '#entities/ai-runtime'
 import type { DetachedAppearance } from '#common/contracts'
 import type { RemoteDesktopAccessProfile } from '#entities/remote-desktop'
 import { WorkflowWorkspace } from '#features/desktop-workflows'
@@ -13,7 +14,10 @@ import { useRemoteDesktopRuntime } from '#features/remote-desktop'
 import styles from './RemoteDesktopPage.module.scss'
 
 export type RemoteDesktopPageProps = Omit<RemoteDesktopWorkspaceProps, 'tools' | 'toolsButtonRef'> & {
+  aiRuntimeGateway?: AIRuntimeGateway
+  onOpenAnalysisSettings?: () => Promise<void>
   workflow: WorkflowGateway
+  workflowExchange?: WorkflowExchangeGateway
   profiles: RemoteDesktopAccessProfile[]
   onDirtyChange: (dirty: boolean) => void
   active?: boolean
@@ -21,22 +25,25 @@ export type RemoteDesktopPageProps = Omit<RemoteDesktopWorkspaceProps, 'tools' |
   workflowResetKey?: number
   onReturnToPage?: () => Promise<boolean>
   onDetachedChange?: (detached: boolean) => void
-  guideIntent?: { key: number; view: 'desktops' | 'workflow' }
+  guideIntent?: { key: number; view: 'desktops' | 'workflow'; workflowView?: 'scripts' | 'runs' }
   guided?: boolean
 }
 
-export function RemoteDesktopPage({ workflow, profiles, onDirtyChange, active = true, appearance, workflowResetKey, onReturnToPage, onDetachedChange, guideIntent, guided, ...props }: RemoteDesktopPageProps) {
+export function RemoteDesktopPage({ workflow, workflowExchange, aiRuntimeGateway, onOpenAnalysisSettings, profiles, onDirtyChange, active = true, appearance, workflowResetKey, onReturnToPage, onDetachedChange, guideIntent, guided, ...props }: RemoteDesktopPageProps) {
   const { t } = useTranslation()
   const runtime = useRemoteDesktopRuntime()
   const [view, setView] = useState<'desktops' | 'workflow'>('desktops')
   const [workflowOpened, setWorkflowOpened] = useState(false)
   const entry = useRef<HTMLButtonElement>(null)
   const automation = useRef<HTMLDivElement>(null)
+  const handledGuideIntent = useRef<number | null>(null)
   useEffect(() => {
-    if (!guideIntent) return
+    if (!guideIntent || handledGuideIntent.current === guideIntent.key) return
+    handledGuideIntent.current = guideIntent.key
+    if (!guided) return
     if (guideIntent.view === 'workflow') setWorkflowOpened(true)
     setView(guideIntent.view)
-  }, [guideIntent])
+  }, [guideIntent, guided])
   useEffect(() => {
     if (!active) return
     if (view === 'workflow') automation.current?.focus({ preventScroll: true })
@@ -47,7 +54,8 @@ export function RemoteDesktopPage({ workflow, profiles, onDirtyChange, active = 
       { key: 'automation', label: t('desktopWorkflow.workflow'), icon: <Workflow size={17} />, onClick: () => { setWorkflowOpened(true); setView('workflow') } },
     ]} />}</div>
     {workflowOpened && <div ref={automation} id="remote-desktop-workflow" className={styles.content} role="region" aria-label={t('desktopWorkflow.workflow')} tabIndex={-1} hidden={view !== 'workflow'} inert={view !== 'workflow'}><WorkflowWorkspace key={workflowResetKey} gateway={workflow} sessions={runtime.sessions} activeSessionId={runtime.activeSessionId ?? undefined} profiles={profiles} onDirtyChange={onDirtyChange}
-      guided={guided} appearance={appearance} onDetachedChange={onDetachedChange} onReturnToPage={async () => {
+      exchangeGateway={workflowExchange} aiRuntimeGateway={aiRuntimeGateway} onOpenAnalysisSettings={onOpenAnalysisSettings} active={active && view === 'workflow'} guided={guided}
+      guideView={guideIntent?.view === 'workflow' ? guideIntent : undefined} appearance={appearance} onDetachedChange={onDetachedChange} onReturnToPage={async () => {
         if (onReturnToPage && !await onReturnToPage()) return false
         setView('workflow'); return true
       }} headerActions={

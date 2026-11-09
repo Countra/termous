@@ -28,8 +28,24 @@ test('认证流程分组可达，切换模式保留邮箱并清理密码与验�
   expect(screen.getByLabelText('邮件验证串')).toHaveValue('')
   fireEvent.change(screen.getByLabelText('邮件验证串'), { target: { value: 'reset-token' } })
   fireEvent.change(screen.getByLabelText('密码'), { target: { value: ' synthetic-password ' } })
+  fireEvent.change(screen.getByLabelText('确认密码'), { target: { value: ' synthetic-password ' } })
   fireEvent.click(screen.getByRole('button', { name: '重置密码' }))
   await waitFor(() => expect(api.auth).toHaveBeenCalledWith('password-reset/confirm', expect.objectContaining({ generation: 'fixture', token: 'reset-token', password: ' synthetic-password ' })))
+  expect(api.login).not.toHaveBeenCalled()
+})
+
+test('切换认证页面清除邮箱校验提示并保留输入，再提交时仍执行校验', async () => {
+  const api = { login: vi.fn() } as unknown as CloudGateway
+  render(<AccountAuth api={api} generation="fixture" busy={false} run={run} />)
+  fireEvent.click(screen.getByRole('button', { name: '注册账号' }))
+  fireEvent.change(screen.getByLabelText('邮箱'), { target: { value: 'invalid-email' } })
+  fireEvent.click(screen.getByRole('button', { name: '注册账号' }))
+  expect(await screen.findByText('请输入有效的邮箱')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '返回登录' }))
+  await waitFor(() => expect(screen.queryByText('请输入有效的邮箱')).not.toBeInTheDocument())
+  expect(screen.getByLabelText('邮箱')).toHaveValue('invalid-email')
+  fireEvent.click(screen.getByRole('button', { name: /^登\s*录$/ }))
+  expect(await screen.findByText('请输入有效的邮箱')).toBeInTheDocument()
   expect(api.login).not.toHaveBeenCalled()
 })
 
@@ -86,4 +102,58 @@ test('扫码页保留账号操作入口，转入注册会取消扫码并保留�
   expect(screen.getByLabelText('邮箱')).toHaveValue('fixture@example.test')
   expect(screen.getByLabelText('密码')).toHaveValue('')
   expect(login).not.toHaveBeenCalled()
+})
+
+test('注册必须确认密码，密码变化后重新校验确认值，协议不携带确认字段', async () => {
+  const api = { auth: vi.fn(async () => undefined) } as unknown as CloudGateway
+  render(<AccountAuth api={api} generation="fixture" busy={false} run={run} />)
+  fireEvent.click(screen.getByRole('button', { name: '注册账号' }))
+  fireEvent.change(screen.getByLabelText('邮箱'), { target: { value: 'fixture@example.test' } })
+  fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'synthetic-password' } })
+  fireEvent.click(screen.getByRole('button', { name: '注册账号' }))
+  expect(await screen.findByText('请再次输入密码')).toBeInTheDocument()
+  expect(api.auth).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByLabelText('确认密码'), { target: { value: 'synthetic-password' } })
+  fireEvent.change(screen.getByLabelText('密码'), { target: { value: ' synthetic-password ' } })
+  expect(await screen.findByText('两次输入的密码不一致')).toBeInTheDocument()
+  expect(api.auth).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByLabelText('确认密码'), { target: { value: ' synthetic-password ' } })
+  fireEvent.click(screen.getByRole('button', { name: '注册账号' }))
+  await waitFor(() => expect(api.auth).toHaveBeenCalledOnce())
+  const input = vi.mocked(api.auth).mock.calls[0][1]
+  expect(input.password).toBe(' synthetic-password ')
+  expect(input).not.toHaveProperty('confirmPassword')
+  expect(await screen.findByText('请查收验证邮件')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '验证邮箱' }))
+  expect(screen.getByLabelText('邮件验证串')).toHaveValue('')
+})
+
+test('注册空密码只显示必填错误，不叠加长度提示；新密码长度错误只显示一次', async () => {
+  const api = { auth: vi.fn() } as unknown as CloudGateway
+  render(<AccountAuth api={api} generation="fixture" busy={false} run={run} />)
+  fireEvent.click(screen.getByRole('button', { name: '注册账号' }))
+  fireEvent.click(screen.getByRole('button', { name: '注册账号' }))
+  expect(await screen.findByText('请输入密码')).toBeInTheDocument()
+  expect(screen.queryByText('密码需要 12～256 个 UTF-8 字节')).not.toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'short' } })
+  expect(await screen.findAllByText('密码需要 12～256 个 UTF-8 字节')).toHaveLength(1)
+  expect(api.auth).not.toHaveBeenCalled()
+})
+
+test.each([
+  { name: '不足 12 字节', password: 'a'.repeat(11), accepted: false },
+  { name: '超过 256 字节', password: 'a'.repeat(257), accepted: false },
+  { name: '汉字按 UTF-8 字节计数', password: '密码测试', accepted: true },
+])('登录遵循 Core 密码边界：$name', async ({ password, accepted }) => {
+  const login = vi.fn(async (): Promise<CloudLoginResult> => ({ state: 'authenticated', status: {} as CloudStatus }))
+  const api = { login } as unknown as CloudGateway
+  render(<AccountAuth api={api} generation="fixture" busy={false} run={run} />)
+  fireEvent.change(screen.getByLabelText('邮箱'), { target: { value: 'fixture@example.test' } })
+  fireEvent.change(screen.getByLabelText('密码'), { target: { value: password } })
+  fireEvent.click(screen.getByRole('button', { name: /^登\s*录$/ }))
+  if (accepted) await waitFor(() => expect(login).toHaveBeenCalledWith('fixture', 'fixture@example.test', password))
+  else {
+    expect(await screen.findAllByText('密码需要 12～256 个 UTF-8 字节')).toHaveLength(1)
+    expect(login).not.toHaveBeenCalled()
+  }
 })

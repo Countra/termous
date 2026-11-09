@@ -1,0 +1,43 @@
+.scope {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.summary {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+
+  strong {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+}
+
+.bounds {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.warning {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--warning);
+  font-size: 12px;
+  line-height: 1.6;
+}

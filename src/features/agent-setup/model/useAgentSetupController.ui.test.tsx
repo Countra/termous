@@ -604,7 +604,6 @@ function readinessFixture(revision = 1, defaultModelId = '', reasoning: 'off' | 
       max_concurrent_runs: 4,
       context_compaction_threshold_percent: 80,
       connect_ssh_profile_on_bind: false,
-      created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
     },
   }
 }

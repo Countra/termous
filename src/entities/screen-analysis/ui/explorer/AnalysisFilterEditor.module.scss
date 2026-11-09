@@ -1,0 +1,58 @@
+.form {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  font-size: 12px;
+}
+
+.fields {
+  display: grid;
+  min-height: 0;
+  gap: 14px;
+  padding: 12px 0 0;
+}
+
+.fields > label {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 20px;
+}
+
+.fields :global(.ant-collapse-header) {
+  padding: 0 !important;
+  font-size: 12px;
+}
+
+.fields :global(.ant-collapse-body) { padding: 0 !important; }
+.fields .fields { padding: 16px 0 0; }
+
+.number[class] { width: 100%; }
+
+.popup {
+  width: min(296px, calc(100vw - 72px));
+  max-height: min(560px, calc(100dvh - 120px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.popup > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.count {
+  min-width: 16px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 15%);
+  font-size: 11px;
+}

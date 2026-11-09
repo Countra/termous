@@ -1,5 +1,6 @@
 import { isRecord } from './validation.ts'
 import { isAgentTerminalReferenceOrigin, type AgentTerminalReferenceOrigin } from '#common/contracts'
+import { isImageResourceReference, isTextResourceReference, type ImageResourceReference, type TextResourceReference } from '#common/contracts'
 
 export const maximumRuntimeAttachments = 8
 export const maximumTextAttachmentBytes = 256 * 1024
@@ -21,7 +22,8 @@ export interface RuntimeMessageAttachment {
   id: string
   kind: 'text' | 'image'
   mime_type: string
-  content_base64: string
+  content_base64?: string
+  resource?: ImageResourceReference | TextResourceReference
   origin?: AgentTerminalReferenceOrigin
 }
 
@@ -39,7 +41,7 @@ export function isRuntimeMessageAttachmentList(
       return false
     }
     ids.add(attachment.id)
-    const size = decodedBase64Length(attachment.content_base64)
+    const size = attachment.resource?.size_bytes ?? decodedBase64Length(attachment.content_base64 ?? '')
     if (attachment.kind === 'text') {
       textBytes += size
       if (size > maximumTextAttachmentBytes || textBytes > maximumTextAttachmentTotalBytes) {
@@ -57,7 +59,7 @@ export function isRuntimeMessageAttachmentList(
 
 export function decodeRuntimeAttachment(attachment: RuntimeMessageAttachment) {
   if (!validRuntimeAttachmentMIME(attachment)
-    || !validBase64(attachment.content_base64)
+    || typeof attachment.content_base64 !== 'string' || !validBase64(attachment.content_base64)
     || (attachment.origin !== undefined && (attachment.kind !== 'text' || attachment.mime_type !== 'text/plain' || !isAgentTerminalReferenceOrigin(attachment.origin)))) {
     throw new Error('AGENT_RUNTIME_ATTACHMENT_INVALID')
   }
@@ -95,9 +97,10 @@ function isRuntimeMessageAttachment(value: unknown): value is RuntimeMessageAtta
     && value.mime_type.length > 0
     && value.mime_type.length <= 128
     && validRuntimeAttachmentMIMEValue(value.kind, value.mime_type)
-    && typeof value.content_base64 === 'string'
-    && validBase64(value.content_base64)
-    && value.content_base64.length <= maxRuntimeAttachmentBase64Length(value.kind)
+    && ((value.kind === 'image' && isImageResourceReference(value.resource) || value.kind === 'text' && isTextResourceReference(value.resource))
+      && value.resource.mime_type === value.mime_type && value.content_base64 === undefined
+      || value.resource === undefined && typeof value.content_base64 === 'string' && validBase64(value.content_base64)
+        && value.content_base64.length <= maxRuntimeAttachmentBase64Length(value.kind))
     && (value.origin === undefined || (value.kind === 'text' && value.mime_type === 'text/plain' && isAgentTerminalReferenceOrigin(value.origin)))
 }
 

@@ -1,4 +1,5 @@
 import { isRecord } from './validation.ts'
+import { isHostDesktopTarget, type HostDesktopTarget } from '#common/contracts'
 
 interface DesktopBinding {
   desktop_profile_id: string
@@ -16,11 +17,20 @@ export interface RuntimeWorkflowBinding {
   kind: 'desktop_workflow'; workflow_id: string; workflow_name: string; workflow_version: number
   host_name: string; bound_at: string
 }
-export type RuntimeDesktopResourceBinding = RuntimeDesktopBinding | RuntimeWorkflowBinding
+export interface RuntimeHostDesktopBinding {
+  kind: 'host_desktop'
+  desktop_target: HostDesktopTarget
+  host_name: ''
+  bound_at: string
+}
+export type RuntimeDesktopResourceBinding = RuntimeDesktopBinding | RuntimeWorkflowBinding | RuntimeHostDesktopBinding
 
 export function isRuntimeDesktopBinding(value: unknown): value is RuntimeDesktopResourceBinding {
   if (!isRecord(value) || typeof value.bound_at !== 'string' || value.bound_at.length > 64 || !Number.isFinite(Date.parse(value.bound_at))) return false
   const common = ['kind', 'host_name', 'bound_at']
+  if (value.kind === 'host_desktop') return exact(value, [...common, 'desktop_target'])
+    && value.host_name === '' && isHostDesktopTarget(value.desktop_target)
+    && value.desktop_target.host.kind === 'screen' && name(value.desktop_target.host.title)
   if (value.kind === 'desktop_workflow') return exact(value, [...common, 'workflow_id', 'workflow_name', 'workflow_version'])
     && id(value.workflow_id) && name(value.workflow_name) && positive(value.workflow_version) && value.host_name === ''
   const fields = [...common, 'desktop_profile_id', 'desktop_profile_name', 'host_id', 'protocol']
@@ -32,6 +42,10 @@ export function isRuntimeDesktopBinding(value: unknown): value is RuntimeDesktop
 }
 
 export function runtimeDesktopIdentity(binding: RuntimeDesktopResourceBinding) {
+  if (binding.kind === 'host_desktop') return { kind: binding.kind, binding_mode: 'exact', target: {
+    kind: 'host_desktop', instance_id: binding.desktop_target.instance_id,
+    host: { id: binding.desktop_target.host.id, kind: binding.desktop_target.host.kind, generation: binding.desktop_target.host.generation },
+  } }
   return binding.kind === 'desktop_workflow'
     ? { kind: binding.kind, script_id: binding.workflow_id, version: binding.workflow_version, binding_mode: 'exact' }
     : { kind: binding.kind, profile_id: binding.desktop_profile_id, host_id: binding.host_id, protocol: binding.protocol, binding_mode: 'exact',

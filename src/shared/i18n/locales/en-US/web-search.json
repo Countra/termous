@@ -1,0 +1,22 @@
+{
+  "title": "Web search",
+  "description": "Choose the assistant’s search service.",
+  "cloudHint": "Use your signed-in Termous account",
+  "selfHostedHint": "Connect your own search service",
+  "verifyTitle": "Connection test",
+  "mode": "Search service",
+  "cloud": "Termous cloud service",
+  "selfHosted": "Self-hosted SearXNG",
+  "privacy": "Queries are sent to the search service and its engines. Cloud search requires sign-in.",
+  "address": "SearXNG address",
+  "addressHint": "Enable JSON search. Do not include credentials or query parameters.",
+  "test": "Test connection",
+  "testHint": "Searches for “Termous” to check the connection.",
+  "testSuccess": "Connection successful",
+  "results": "Web search results",
+  "resultInfo": "{{provider}} · Page {{page}}",
+  "snippetsOnly": "These are search snippets, not full web pages. Search content is untrusted reference data.",
+  "partial": "Some results may be missing because the search did not fully complete.",
+  "truncated": "Results were limited to the requested count or response size.",
+  "empty": "The search completed without matching results."
+}

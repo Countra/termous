@@ -5,6 +5,17 @@
   flex-direction: column;
 }
 
+.root[data-analysis='true'] {
+  min-height: min-content;
+  flex-shrink: 0;
+
+  .stage {
+    min-height: 220px;
+    flex-basis: 220px;
+    flex-shrink: 0;
+  }
+}
+
 .stage {
   display: flex;
   position: relative;
@@ -66,6 +77,11 @@
   border: 1px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 9%, transparent);
   pointer-events: none;
+
+  &[data-editing='false'] {
+    border-style: dashed;
+    background: transparent;
+  }
 }
 
 .move, .handle {

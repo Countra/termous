@@ -102,7 +102,9 @@
 .disconnect { font-size: 12px; }
 
 .details {
-  max-width: min(420px, calc(100vw - 56px));
+  max-width: min(480px, calc(100vw - 56px));
+  max-height: min(680px, calc(100vh - 120px));
+  overflow-y: auto;
   overflow-wrap: anywhere;
 }
 

@@ -18,6 +18,7 @@ for (const response of responses) {
   const core = new WorkerCoreClient({ fetch: async (input, init) => {
     const path = new URL(String(input)).pathname
     if (path === '/api/v1/agent/runtime/bootstrap') return Response.json(response)
+    if (path === '/api/v1/agent/runtime/web/context') return Response.json({ tools: JSON.parse(readFileSync(new URL('../../../backend/internal/service/agent/search/tools.generated.json', import.meta.url), 'utf8')) })
     const body = JSON.parse(String(init?.body))
     if (path.endsWith('/runtime-events')) {
       events.push(...body.events)

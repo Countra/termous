@@ -146,6 +146,29 @@ test('终态诊断仅包含模型、用量和计时，取消后到达的用量�
   assert.equal(await runtime.stop(), true)
 })
 
+test('工作目录预检失败立即返回且不占用下一次补全名额', async () => {
+  const worker = new FakeWorker()
+  let attempts = 0
+  const runtime = new TerminalCompletionRuntime({
+    bootstrap: async () => completionTestBootstrap(),
+    workerFactory: { create: () => {
+      if (++attempts === 1) throw new Error('AGENT_RUNTIME_WORKING_DIRECTORY_INVALID')
+      return worker
+    } },
+  })
+  const first = await runtime.generate(completionTestRequest(), 1)
+  assert.equal(first.status, 'failed')
+  const next = runtime.generate(completionTestRequest(), 1)
+  await setImmediate()
+  assert.equal(attempts, 2)
+  worker.spawn?.()
+  worker.exit?.(9)
+  const second = await next
+  assert.equal(second.status, 'failed')
+  if (second.status === 'failed') assert.equal(second.code, 'TERMINAL_AI_WORKER_EXITED')
+  assert.equal(await runtime.stop(), true)
+})
+
 class FakeWorker implements AgentWorkerProcess {
   messages: unknown[] = []
   kills = 0

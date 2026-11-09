@@ -93,3 +93,19 @@ test('刷新期间离开且响应丢失，清理 Core 中已创建的新流程',
   })
   expect(api.qrLogin).toHaveBeenLastCalledWith(expect.objectContaining({ action: 'cancel', id: 'replacement' }))
 })
+
+test.each([
+  ['approved', '正在完成登录', false],
+  ['issued', '正在完成登录', false],
+  ['completed', '登录完成', false],
+  ['rejected', '手机已拒绝登录', true],
+] as const)('扫码 %s 状态不被旧二维码倒计时误报为过期', async (state, label, refresh) => {
+  const { api, item } = fixture(state)
+  item.remaining_seconds = 0
+  render(<AccountQRLogin api={api} generation="fixture" reauthenticate={false} />)
+  await waitFor(() => expect(api.qrLogin).toHaveBeenCalledOnce())
+  expect(screen.getByRole('status')).toHaveTextContent(label)
+  expect(screen.queryByText('二维码已过期')).not.toBeInTheDocument()
+  expect(Boolean(screen.queryByRole('button', { name: '刷新二维码' }))).toBe(refresh)
+  expect(screen.queryByText('0 秒后失效')).not.toBeInTheDocument()
+})

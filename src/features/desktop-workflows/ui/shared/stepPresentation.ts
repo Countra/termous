@@ -8,12 +8,14 @@ export const stepIcons = {
   'keyboard.key': Keyboard, 'keyboard.shortcut': Hand, 'keyboard.text': TextCursorInput,
   'clipboard.set_text': Clipboard, resize: Maximize, capture: Camera, delay: Clock3,
   'image.wait': ScanSearch, 'image.assert': ScanLine, if: GitBranch, repeat: Repeat2, breakpoint: Pause,
+  'ocr.read': ScrollText, 'ocr.wait': ScanSearch, 'ocr.assert': ScanLine,
 } satisfies Record<StepKind, typeof MousePointer2>
 
 export const stepGroups: { key: string; kinds: StepKind[] }[] = [
   { key: 'pointer', kinds: ['pointer.click', 'pointer.move', 'pointer.scroll', 'pointer.drag'] },
   { key: 'keyboard', kinds: ['keyboard.key', 'keyboard.shortcut', 'keyboard.text', 'clipboard.set_text'] },
   { key: 'image', kinds: ['image.wait', 'image.assert', 'capture', 'resize'] },
+  { key: 'ocr', kinds: ['ocr.read', 'ocr.wait', 'ocr.assert'] },
   { key: 'flow', kinds: ['delay', 'if', 'repeat', 'breakpoint'] },
 ]
 

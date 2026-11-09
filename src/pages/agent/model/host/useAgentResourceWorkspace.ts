@@ -171,7 +171,7 @@ export function useAgentResourceWorkspace({ controller, notificationRef, tRef, g
       binding,
       resources,
       (binding.kind === 'desktop_workflow' ? workflowResourcesReady
-        : binding.kind === 'desktop_session' || binding.kind === 'desktop_profile' ? desktopResourcesReady
+        : binding.kind === 'host_desktop' || binding.kind === 'desktop_session' || binding.kind === 'desktop_profile' ? desktopResourcesReady
           : binding.kind === 'file_profile'
             ? fileResourcesReady
             : binding.kind === 'ssh_profile' ? sshProfileResourcesReady : sshResourcesReady)

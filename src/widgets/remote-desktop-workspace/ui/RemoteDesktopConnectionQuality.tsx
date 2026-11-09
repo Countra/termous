@@ -74,6 +74,7 @@ export function RemoteDesktopConnectionQuality({
     >
       <button
         type="button"
+        data-tour="desktop-quality"
         className={`${styles.summary} ${healthClassName}`}
         aria-label={t('remoteDesktop.connectionQuality.details')}
       >

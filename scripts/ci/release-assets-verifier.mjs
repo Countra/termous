@@ -53,7 +53,7 @@ function validateReleaseMetadata(release, { tag, version }) {
     );
   }
   if (release.draft !== true) {
-    throw new Error("Release 必须保持 Draft，才能执行公开前门禁");
+    throw new Error("Release 必须保持 Draft（草稿）状态，才能执行发布前校验");
   }
   if (release.prerelease !== expectedPrerelease(version)) {
     throw new Error("Release prerelease 标志与版本不一致");
@@ -240,10 +240,10 @@ function indexReleaseAssets(release, tag) {
   return assets;
 }
 
-function compareAssetSets(actual, expected, contract) {
+function compareAssetSets(actual, expected) {
   const actualNames = new Set(actual.keys());
   const expectedNames = new Set(expected);
-  const partials = contract.partials.filter((name) => actualNames.has(name));
+  const partials = [...actualNames].filter((name) => /^latest-mac\..+\.partial\.yml$/u.test(name));
   if (partials.length > 0) {
     throw new Error(`Release 仍包含 macOS partial: ${partials.join(", ")}`);
   }
@@ -382,7 +382,7 @@ export async function verifyReleaseAssets({
       ? [...contract.finalAssets, ...contract.receipts]
       : contract.finalAssets;
   const apiAssets = indexReleaseAssets(release, tag);
-  compareAssetSets(apiAssets, expectedNames, contract);
+  compareAssetSets(apiAssets, expectedNames);
   await assertDirectoryMatches(assetsDirectory, expectedNames);
   const digestFor = await createDigestReader(assetsDirectory, apiAssets);
   const contentEntries = await Promise.all(

@@ -74,4 +74,12 @@ describe('SMB 文件配置', () => {
     fireEvent.click(screen.getByRole('button', { name: 'files.smb.advanced' }))
     expect(screen.queryByLabelText('files.smb.root_path')).not.toBeInTheDocument()
   })
+
+  it('忙碌时高级开关不可操作，已展开的错误字段仍与提示关联', () => {
+    const draft = smbEditor.createDraft('host', [])
+    render(<FileAccessProfileEditor mode="edit" draft={draft} sshProfiles={[]} disabled errors={{ port: 'invalid' }} onChange={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'files.smb.advanced' })).toBeDisabled()
+    expect(screen.getByRole('spinbutton')).toBeDisabled()
+    expect(screen.getByRole('spinbutton')).toHaveAccessibleDescription('files.smb.errors.port')
+  })
 })

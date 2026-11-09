@@ -1,4 +1,4 @@
-import { App as AntdApp } from 'antd'
+import { App as AntdApp, ConfigProvider } from 'antd'
 import { act, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -48,6 +48,27 @@ describe('AgentWorkspace', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(props.onRemoveResourceBinding).not.toHaveBeenCalled()
     expect(screen.getByPlaceholderText('agent.composer.placeholder')).toHaveValue('保留用户草稿')
+  })
+
+  it.each(['extensions.title', 'localTools.workspace'])('助手页隐藏时收起 %s，返回后不恢复旧弹层', async name => {
+    const props = fixtureProps({
+      composerActive: true,
+      onReadIntegrations: vi.fn(async () => ({ sources: [], policies: [] })),
+      onChangeIntegration: vi.fn(async () => {}),
+      onReadLocalDirectory: vi.fn(async () => ({ path: 'D:/workspace', revision: 1, managed: true })),
+      onChangeLocalDirectory: vi.fn(),
+    })
+    const view = render(<AgentWorkspace {...props} />, {
+      wrapper: ({ children }) => <ConfigProvider theme={{ token: { motion: false } }}><AntdApp>{children}</AntdApp></ConfigProvider>,
+    })
+    fireEvent.click(screen.getByRole('button', { name }))
+    expect(screen.getByRole('button', { name })).toHaveAttribute('aria-expanded', 'true')
+    view.rerender(<AgentWorkspace {...props} composerActive={false} />)
+    await waitFor(() => expect(screen.queryByRole('region', {
+      name: name === 'extensions.title' ? 'extensions.picker.title' : 'localTools.workspace',
+    })).not.toBeInTheDocument())
+    view.rerender(<AgentWorkspace {...props} composerActive />)
+    expect(screen.getByRole('button', { name })).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('将立即连接策略传递至 SSH Profile 资源卡换绑入口', async () => {
@@ -215,6 +236,17 @@ describe('AgentWorkspace', () => {
     expect(props.onQueueTurn).toHaveBeenCalledWith('adjust', [])
     await user.click(screen.getByRole('button', { name: 'agent.composer.stop' }))
     expect(props.onStop).toHaveBeenCalledTimes(1)
+  })
+
+  it('停止状态仍允许重试，只在停止请求在途时禁用按钮', () => {
+    const props = fixtureProps({ sessions: [{ ...fixtureProps().sessions[0]!, run_status: 'stopping' }], stop_busy: false })
+    const view = renderWorkspace(props)
+    const stop = screen.getByRole('button', { name: 'agent.composer.stop' })
+    expect(stop).toBeEnabled()
+    fireEvent.click(stop)
+    expect(props.onStop).toHaveBeenCalledTimes(1)
+    view.rerender(<AntdApp><AgentWorkspace {...props} stop_busy /></AntdApp>)
+    expect(stop).toBeDisabled()
   })
 
   it('排队或普通请求在途时仍可独立停止活动 Run', async () => {
@@ -1034,15 +1066,19 @@ describe('AgentWorkspace', () => {
   it('检查器跨响应式断点时保留用户的打开意图', async () => {
     let notifyResize: ((width: number) => void) | undefined
     class ResizeObserverMock {
+      private readonly notify: (width: number) => void
       constructor(callback: ResizeObserverCallback) {
-        notifyResize = (width) => callback([{
+        this.notify = (width) => callback([{
           contentRect: { width } as DOMRectReadOnly,
         } as ResizeObserverEntry], this as unknown as ResizeObserver)
       }
 
-      observe() {}
+      observe(target: Element) {
+        // 正文跟随与响应式布局各自观察不同节点，断点夹具只驱动工作区容器。
+        if (target.hasAttribute('data-agent-workspace')) notifyResize = this.notify
+      }
       unobserve() {}
-      disconnect() {}
+      disconnect() { if (notifyResize === this.notify) notifyResize = undefined }
     }
     vi.stubGlobal('ResizeObserver', ResizeObserverMock)
     const user = userEvent.setup()

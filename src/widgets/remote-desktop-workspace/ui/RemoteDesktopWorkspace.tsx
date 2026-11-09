@@ -2,7 +2,6 @@ import {
   App as AntdApp,
   Button,
   Dropdown,
-  Segmented,
   Switch,
   Tooltip,
   type MenuProps,
@@ -12,21 +11,17 @@ import {
   ClipboardPaste,
   Expand,
   Keyboard,
-  Maximize2,
   Minimize2,
   MonitorPlay,
   MoreHorizontal,
   Pin,
   PinOff,
   RefreshCw,
-  Scaling,
-  Scan,
   Unplug,
 } from 'lucide-react'
-import { useEffect, useRef, useState, type Ref } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
-  RemoteDesktopDisplayMode,
   RemoteDesktopSession,
 } from '#entities/remote-desktop'
 import { readClipboardText, writeClipboardText } from '#shared/clipboard'
@@ -39,6 +34,7 @@ import {
 import {
   RemoteDesktopViewport,
   type RemoteDesktopViewerState,
+  type DesktopScaleMode,
   useRemoteDesktopRuntime,
 } from '#features/remote-desktop'
 import { useRemoteDesktopFullscreen } from '../model/useRemoteDesktopFullscreen.ts'
@@ -48,6 +44,9 @@ import styles from './RemoteDesktopWorkspace.module.scss'
 import { DesktopFilesPanel, type DesktopFilesTab } from './files/DesktopFilesPanel.tsx'
 import { DesktopAutomationStatus } from './DesktopAutomationStatus.tsx'
 import { RemoteDesktopWorkspaceActions, type RemoteDesktopWorkspaceTool } from './RemoteDesktopWorkspaceActions.tsx'
+import { RemoteDesktopDisplayControls } from './RemoteDesktopDisplayControls.tsx'
+import { DesktopPresentationControls } from '#entities/desktop-presentation'
+import type { PresentationSettings } from '#entities/remote-desktop'
 
 export interface RemoteDesktopWorkspaceProps extends Omit<RemoteDesktopSessionTabsProps, 'onOpenLauncher' | 'onClose'> {
   onOpenConnectionLauncher?: () => void
@@ -74,6 +73,13 @@ export function RemoteDesktopWorkspace({
   const filesTab = filesSelection?.sessionKey === filesSessionKey ? filesSelection.tab : undefined
   const viewerState = activeSession ? runtime.viewerStates[activeSession.id] : undefined
   const fullscreen = useRemoteDesktopFullscreen()
+  const clipboardRequest = useRef({ revision: 0 })
+
+  useLayoutEffect(() => {
+    // 系统读取完成前切换会话、重连或交接控制，旧的手动发送不能落到新上下文。
+    const request = clipboardRequest.current
+    return () => { request.revision++ }
+  }, [activeSession?.id, activeSession?.connection_generation, viewerState?.connection, viewerState?.viewOnly, viewerState?.controlOwned, viewerState?.controlLease?.id, viewerState?.controlLease?.generation])
 
   useEffect(() => {
     if (fullscreen.isFullscreen && !wasFullscreenRef.current && activeSession) {
@@ -105,14 +111,22 @@ export function RemoteDesktopWorkspace({
   }
 
   const sendClipboard = async () => {
-    if (!activeSession || viewerState?.viewOnly || viewerState?.controlOwned === false) return
+    if (!activeSession || viewerState?.connection !== 'connected' || viewerState.viewOnly || viewerState.controlOwned === false) return
+    const request = clipboardRequest.current
+    const revision = ++request.revision
     try {
-      runtime.sendClipboard(activeSession.id, await readClipboardText())
+      const text = await readClipboardText()
+      if (revision !== request.revision) return
+      await runtime.sendClipboard(activeSession.id, text)
+      if (revision !== request.revision) return
       notification.success({ title: t('remoteDesktop.clipboardSent'), duration: 2, className: termousNotificationClassName })
     } catch (error) {
+      if (revision !== request.revision) return
       notification.error({
         title: t('remoteDesktop.clipboardFailed'),
-        description: publicError(error, t('remoteDesktop.viewerErrors.clipboard_too_large')),
+        description: error instanceof Error && ['clipboard_failed', 'clipboard_too_large', 'clipboard_unavailable', 'clipboard_timeout'].includes(error.message)
+          ? t(`remoteDesktop.viewerErrors.${error.message}`)
+          : publicError(error, t('remoteDesktop.viewerErrors.clipboard_too_large')),
         className: termousNotificationClassName,
       })
     }
@@ -205,6 +219,9 @@ export function RemoteDesktopWorkspace({
             fullscreenPinned={fullscreen.toolbarPinned}
             onToggleFullscreenPin={fullscreen.toggleToolbarPinned}
             onDisplayMode={(mode) => runtime.setDisplayMode(activeSession.id, mode)}
+            onFollowWindow={(value) => runtime.setFollowWindow(activeSession.id, value)}
+            onResize={(width, height) => runtime.resizeDesktop?.(activeSession.id, width, height)}
+            onPresentation={(value) => runtime.setPresentation?.(activeSession.id, value)}
             onViewOnly={(viewOnly) => runtime.setViewOnly(activeSession.id, viewOnly)}
             onSendClipboard={() => void sendClipboard()}
             onReceiveClipboard={() => void receiveClipboard()}
@@ -219,7 +236,7 @@ export function RemoteDesktopWorkspace({
       {activeSession ? (
         <>
           <main className={styles.viewer}>
-            <DesktopAutomationStatus key={activeSession.id} session={activeSession} />
+            <DesktopAutomationStatus key={activeSession.id} session={activeSession} onReclaimFailed={() => notification.error({ title: t('remoteDesktop.automation.actionFailed'), className: termousNotificationClassName })} />
             <RemoteDesktopViewport sessionId={activeSession.id} />
             {!activeSession.automation_host_id && <ViewerOverlay session={activeSession} viewerState={viewerState} />}
           </main>
@@ -254,6 +271,9 @@ function RemoteDesktopToolbar({
   fullscreenPinned,
   onToggleFullscreenPin,
   onDisplayMode,
+  onFollowWindow,
+  onPresentation,
+  onResize,
   onViewOnly,
   onSendClipboard,
   onReceiveClipboard,
@@ -268,7 +288,10 @@ function RemoteDesktopToolbar({
   fullscreen: boolean
   fullscreenPinned: boolean
   onToggleFullscreenPin: () => void
-  onDisplayMode: (mode: RemoteDesktopDisplayMode) => void
+  onDisplayMode: (mode: DesktopScaleMode) => void
+  onFollowWindow: (value: boolean) => void
+  onResize: (width: number, height: number) => void
+  onPresentation: (value: PresentationSettings) => void
   onViewOnly: (value: boolean) => void
   onSendClipboard: () => void
   onReceiveClipboard: () => void
@@ -300,19 +323,11 @@ function RemoteDesktopToolbar({
   }
   return (
     <div className={styles.toolbar}>
-      <Segmented<RemoteDesktopDisplayMode>
-        size="small"
-        value={viewerState?.displayMode ?? 'fit'}
-        options={[
-          { value: 'fit', label: <span className={styles['mode-option']}><Scaling size={14} />{t('remoteDesktop.display.fit')}</span> },
-          { value: 'resize', label: <span className={styles['mode-option']}><Scan size={14} />{t('remoteDesktop.display.resize')}</span> },
-          { value: 'actual', label: <span className={styles['mode-option']}><Maximize2 size={14} />{t('remoteDesktop.display.actual')}</span> },
-        ]}
-        onChange={onDisplayMode}
-      />
+      <RemoteDesktopDisplayControls state={viewerState} onScale={onDisplayMode} onFollow={onFollowWindow} />
+      <DesktopPresentationControls sessionKey={`${session.id}:${session.connection_generation}`} state={viewerState?.presentation} disabled={!connected} onChange={onPresentation} scale={viewerState?.displayMode} onScale={onDisplayMode} onResize={onResize} resizeSupported={viewerState?.resolution?.supported === true} resizeAvailable={viewerState?.resolution?.supported === true && viewerState?.controlOwned === true && !viewOnly} resolutionStatus={viewerState?.resolution?.status} />
       <span className={styles.divider} />
       <label className={styles['view-only']}>
-        <Switch size="small" checked={viewOnly} onChange={onViewOnly} />
+        <Switch size="small" aria-label={t('remoteDesktop.disableInput')} checked={viewOnly} onChange={onViewOnly} />
         <span>{t('remoteDesktop.disableInput')}</span>
       </label>
       {connected && viewerState?.controlOwned === false && !viewOnly ? (

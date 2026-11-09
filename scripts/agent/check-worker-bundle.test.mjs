@@ -5,7 +5,7 @@ import path from 'node:path'
 import test from 'node:test'
 import {
   checkAgentWorkerBundle,
-  maximumAgentWorkerBundleBytes,
+  workerBundleSizeReferences,
 } from './check-worker-bundle.mjs'
 
 test('Agent Worker 产物门禁接受受控体积的普通文件', async (context) => {
@@ -17,11 +17,58 @@ test('Agent Worker 产物门禁接受受控体积的普通文件', async (contex
   assert.equal(await checkAgentWorkerBundle(bundlePath), Buffer.byteLength(content))
 })
 
-test('Agent Worker 产物门禁拒绝超限文件', async (context) => {
+test('体积超出参考值仍接受合规产物，并只提示一次完整闭包大小', async (context) => {
   const directory = await temporaryDirectory(context)
-  const oversizedPath = path.join(directory, 'oversized.js')
-  await writeFile(oversizedPath, Buffer.alloc(maximumAgentWorkerBundleBytes + 1))
-  await assert.rejects(checkAgentWorkerBundle(oversizedPath), /超过/u)
+  const entry = "import './provider.js'; export { model } from './provider.js';"
+  const provider = `${validWorkerBundle()}\nexport const model = 1;`
+  const file = path.join(directory, 'agent-worker.js')
+  await writeFile(file, entry)
+  await writeFile(path.join(directory, 'provider.js'), provider)
+  const size = Buffer.byteLength(entry + provider)
+  const warnings = []
+  const options = { referenceBytes: size, onWarning: message => warnings.push(message) }
+  assert.equal(await checkAgentWorkerBundle(file, options), size)
+  assert.deepEqual(warnings, [])
+  assert.equal(await checkAgentWorkerBundle(file, { ...options, referenceBytes: size - 1 }), size)
+  assert.equal(warnings.length, 1)
+  assert.match(warnings[0], new RegExp(`${size} bytes`, 'u'))
+  assert.match(warnings[0], /构建继续/u)
+  assert.match(warnings[0], /不要.*删减功能/u)
+})
+
+test('合理增长可以超过旧硬上限，继续执行依赖检查而不要求缩减功能', async (context) => {
+  const directory = await temporaryDirectory(context)
+  const file = path.join(directory, 'agent-worker.js')
+  const content = validWorkerBundle() + '\n/*' + 'x'.repeat(1664 * 1024) + '*/'
+  const warnings = []
+  await writeFile(file, content)
+  assert.equal(await checkAgentWorkerBundle(file, { onWarning: message => warnings.push(message) }), Buffer.byteLength(content))
+  assert.deepEqual(warnings, [])
+  await writeFile(file, `${content}\n//#region node_modules/lodash/index.js`)
+  await assert.rejects(checkAgentWorkerBundle(file, { referenceBytes: 1, onWarning: message => warnings.push(message) }), /未授权运行时依赖/u)
+  assert.deepEqual(warnings, [])
+})
+
+test('终端补全使用独立参考值，同一合规产物可提示但不会被体积阻断', async (context) => {
+  const directory = await temporaryDirectory(context)
+  const file = path.join(directory, 'terminal-completion-worker.js')
+  const content = `${validWorkerBundle()}\n/*${'x'.repeat(workerBundleSizeReferences.terminalCompletion)}*/`
+  const warnings = []
+  await writeFile(file, content)
+  await checkAgentWorkerBundle(file, { referenceBytes: workerBundleSizeReferences.terminalCompletion, onWarning: message => warnings.push(message) })
+  assert.equal(warnings.length, 1)
+  warnings.length = 0
+  await checkAgentWorkerBundle(file, { referenceBytes: workerBundleSizeReferences.agent, onWarning: message => warnings.push(message) })
+  assert.deepEqual(warnings, [])
+})
+
+test('无效参考值明确失败，不静默失去体积提示', async (context) => {
+  const directory = await temporaryDirectory(context)
+  const file = path.join(directory, 'agent-worker.js')
+  await writeFile(file, validWorkerBundle())
+  for (const referenceBytes of [0, -1, NaN, Infinity, 1.5]) {
+    await assert.rejects(checkAgentWorkerBundle(file, { referenceBytes }), /参考值必须为正整数/u)
+  }
 })
 
 test('Agent Worker 产物门禁拒绝符号链接', async (context) => {
@@ -131,6 +178,7 @@ function isWindowsSymlinkPermissionError(error) {
 
 function validWorkerBundle() {
   return [
+    '//#region node_modules/@earendil-works/pi-schema/dist/index.js',
     piAPIModuleMarker('openai-completions.js'),
     piAPIModuleMarker('openai-responses-shared.js'),
     piAPIModuleMarker('openai-responses.js'),

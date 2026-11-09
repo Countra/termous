@@ -4,6 +4,53 @@ import { VncDesktopExecution } from './desktopExecution.ts'
 
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
+test('公布的键码目录与实际 VNC 输入转换一致且不暴露内部可变数组', () => {
+  const rfb = { localInputEnabled: true, viewOnly: false, sendKey: vi.fn(), sendPointer: vi.fn(), desktopState: { width: 800, height: 600, displayEpoch: 1, sequence: 1 } }
+  const execution = new VncDesktopExecution(rfb as unknown as RFB, 1, vi.fn())
+  execution.setControl({ id: 'lease', owner: 'program', generation: 1, expires_at: new Date().toISOString(), remaining_ms: 30000 })
+  try {
+    const keys = execution.describe().supported_keys!
+    expect(keys).toContain('ControlLeft')
+    expect(keys).not.toContain('InvalidKeyCode')
+    expect(new Set(keys).size).toBe(keys.length)
+    keys.forEach((code, index) => execution.execute({ expected_connection_generation: 1, lease_id: 'lease', control_generation: 1, sequence: index + 1, display_epoch: 1, operation: { kind: 'shortcut', codes: [code] } }))
+    expect(rfb.sendKey).toHaveBeenCalledTimes(keys.length * 2)
+    keys.length = 0
+    expect(execution.describe().supported_keys).toContain('ControlLeft')
+  } finally { execution.dispose() }
+})
+
+test.each([false, true])('异步尺寸调整期间续租不恢复人工输入，结束后遵守最新控制权（释放：%s）', async released => {
+  class Rfb extends EventTarget {
+    inputEnabled = false
+    set localInputEnabled(value: boolean) { this.inputEnabled = value }
+    viewOnly = false
+    capabilities = { resize: true }
+    desktopState = { width: 800, height: 600, displayEpoch: 1, sequence: 1 }
+    sendKey = vi.fn()
+    sendPointer = vi.fn()
+    requestDesktopSize = vi.fn(() => true)
+  }
+  const rfb = new Rfb(), changed = vi.fn()
+  const execution = new VncDesktopExecution(rfb as unknown as RFB, 1, changed)
+  const lease = { id: 'lease', owner: 'local-viewer', generation: 1, expires_at: '2040-01-01T00:00:00Z', remaining_ms: 30000 }
+  execution.setControl(lease)
+  expect(changed).toHaveBeenLastCalledWith(true)
+  const pending = execution.execute({ expected_connection_generation: 1, lease_id: lease.id, control_generation: 1, sequence: 1, display_epoch: 1, operation: { kind: 'resize', width: 1280, height: 720 } })
+  execution.setControl({ ...lease, expires_at: '2040-01-01T00:00:10Z' }, true)
+  expect(rfb.inputEnabled).toBe(false)
+  expect(changed).toHaveBeenLastCalledWith(false)
+  if (released) execution.setControl(null)
+  rfb.dispatchEvent(new CustomEvent('desktopresize', { detail: { success: true } }))
+  expect(rfb.inputEnabled).toBe(false)
+  rfb.desktopState = { width: 1280, height: 720, displayEpoch: 2, sequence: 2 }
+  rfb.dispatchEvent(new Event('desktopframe'))
+  await pending
+  expect(rfb.inputEnabled).toBe(!released)
+  expect(changed).toHaveBeenLastCalledWith(!released)
+  execution.dispose()
+})
+
 test.each([false, true])('到期回调延迟时重复租约不能重新启用输入（续租：%s）', (renew) => {
   vi.useFakeTimers()
   const clock = vi.spyOn(performance, 'now').mockReturnValue(0)

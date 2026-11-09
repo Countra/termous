@@ -79,6 +79,7 @@ describe('AgentAttachmentThumbnail', () => {
     expect(load).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'attachment-image' }),
       expect.any(AbortSignal),
+      'thumbnail',
     )
     expect(createObjectURL).toHaveBeenCalledWith(blob)
 

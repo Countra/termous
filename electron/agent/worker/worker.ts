@@ -7,6 +7,7 @@ if (!parentPort) {
 }
 
 const runtime = new AgentWorkerRuntime({
+  sendIntegration: message => parentPort.postMessage(message),
   send: (message) => parentPort.postMessage(message),
   finish: () => {
     if (exitScheduled) {

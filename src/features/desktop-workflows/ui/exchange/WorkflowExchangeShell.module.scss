@@ -1,0 +1,128 @@
+.dialog :global(.ant-modal-container) {
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: rgb(from var(--surface) r g b / 100%);
+  box-shadow: var(--shadow);
+}
+
+.dialog :global(.ant-modal-header) {
+  margin: 0;
+  padding: 24px 26px 20px;
+  background: transparent;
+}
+
+.dialog :global(.ant-modal-footer) { margin: 0; }
+
+.dialog :global(.ant-modal-close) {
+  top: 18px;
+  inset-inline-end: 18px;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding-inline-end: 24px;
+}
+
+.heading h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  line-height: 1.4;
+}
+
+.heading p {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.heading-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+  border-radius: 12px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.heading-icon[data-success] {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 20%, var(--border));
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-height: calc(100dvh - 250px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0 26px 24px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.notice > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.notice p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.8;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 26px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-subtle);
+}
+
+.footer > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+
+@media (width <= 600px) {
+  .dialog :global(.ant-modal-header) { padding: 20px 18px 18px; }
+
+  .body {
+    max-height: calc(100dvh - 230px);
+    padding-inline: 18px;
+    gap: 18px;
+  }
+
+  .heading-icon { display: none; }
+
+  .footer { padding: 14px 18px; }
+
+}

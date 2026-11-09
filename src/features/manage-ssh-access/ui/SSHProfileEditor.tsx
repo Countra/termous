@@ -113,7 +113,7 @@ export function SSHProfileEditor({
 
   return (
     <div className={styles.form}>
-      <section className={styles.section} aria-labelledby={connectionSectionId}>
+      <section className={`${styles.section} ${styles['connection-section']}`} aria-labelledby={connectionSectionId}>
         <div className={styles['section-inner']}>
           <ProfileEditorSectionHeading
             classNames={styles}
@@ -148,7 +148,6 @@ export function SSHProfileEditor({
             ) : null}
             <ProfileEditorField
               classNames={styles}
-              className={styles['address-field']}
               label={t('hosts.address')}
               error={addressError}
             >
@@ -167,7 +166,6 @@ export function SSHProfileEditor({
             </ProfileEditorField>
             <ProfileEditorField
               classNames={styles}
-              className={styles['port-field']}
               label={t('hosts.port')}
               error={portError}
             >
@@ -187,7 +185,7 @@ export function SSHProfileEditor({
         </div>
       </section>
 
-      <section className={styles.section} aria-labelledby={authenticationSectionId}>
+      <section className={`${styles.section} ${styles['authentication-section']}`} aria-labelledby={authenticationSectionId}>
         <div className={styles['section-inner']}>
           <ProfileEditorSectionHeading
             classNames={styles}
@@ -196,10 +194,11 @@ export function SSHProfileEditor({
             title={t('hosts.access.ssh.authentication')}
           />
           <div className={`${styles.grid} ${styles['authentication-grid']}`}>
-            <div className={`${styles.field} ${styles['auth-method-field']}`}>
+            <div className={styles.field}>
               <span>{t('hosts.authMethod')}</span>
               <Segmented<SSHAccessProfileDraft['auth_method']>
                 block
+                name={`${authenticationSectionId}-method`}
                 className={styles['auth-methods']}
                 value={draft.auth_method}
                 disabled={disabled}
@@ -220,7 +219,6 @@ export function SSHProfileEditor({
             </div>
             <ProfileEditorField
               classNames={styles}
-              className={styles['username-field']}
               label={t('hosts.username')}
               error={usernameError}
             >
@@ -263,7 +261,7 @@ export function SSHProfileEditor({
         </div>
       </section>
 
-      <section className={styles.section} aria-labelledby={routeSectionId}>
+      <section className={`${styles.section} ${styles['route-section']}`} aria-labelledby={routeSectionId}>
         <div className={styles['section-inner']}>
           <ProfileEditorSectionHeading
             classNames={styles}
@@ -285,7 +283,7 @@ export function SSHProfileEditor({
           />
           <div className={`${styles.grid} ${styles['route-grid']}`}>
             <div
-              className={`${styles.field} ${styles['proxy-field']}`}
+              className={styles.field}
               data-invalid={errorMessages.proxy ? 'true' : 'false'}
             >
               <CustomSelect
@@ -312,7 +310,7 @@ export function SSHProfileEditor({
               />
             </div>
             <div
-              className={`${styles.field} ${styles['jump-field']}`}
+              className={styles.field}
               data-invalid={jumpError ? 'true' : 'false'}
             >
               <SSHJumpProfileSelect

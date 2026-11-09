@@ -19,7 +19,7 @@ export function AgentDesktopReferenceControl({ context, binding, disabled, onRep
   const [selected, setSelected] = useState<AgentResourceState>()
   const workflow = binding.kind === 'desktop_workflow'
   const Icon = workflow ? Workflow : Monitor
-  const label = workflow ? `${binding.workflow_name} · v${binding.workflow_version}` : `${binding.host_name} · ${binding.desktop_profile_name}`
+  const label = workflow ? `${binding.workflow_name} · v${binding.workflow_version}` : binding.kind === 'host_desktop' ? binding.desktop_target.host.title : `${binding.host_name} · ${binding.desktop_profile_name}`
   const candidates = context.candidates.filter((source) => !resourceBindingMatchesSource(binding, source))
   const candidate = selected && candidates.find((source) => sameAgentResourceSource(selected, source))
   const key = (source: AgentResourceState) => JSON.stringify(resourceReference(source))
@@ -49,7 +49,7 @@ export function AgentDesktopReferenceControl({ context, binding, disabled, onRep
           <dl className={styles.details}>
             <div><dt>{t('agent.desktopResource.type')}</dt><dd>{t(`agent.message.resourceKind.${binding.kind}`)}</dd></div>
             <div><dt>ID</dt><dd>{resourceReferenceId(resourceReference(binding))}</dd></div>
-            {!workflow && <div><dt>{t('agent.desktopResource.protocol')}</dt><dd>{binding.protocol.toUpperCase()}</dd></div>}
+            {'protocol' in binding && <div><dt>{t('agent.desktopResource.protocol')}</dt><dd>{binding.protocol.toUpperCase()}</dd></div>}
           </dl>
           <p className={context.status === 'unavailable' || context.status === 'stale' ? styles.warning : styles['reference-hint']} role="status">{t(context.status === 'checking' ? 'agent.desktopResource.status.checking'
             : context.status !== 'ready' ? 'agent.desktopResource.unavailable' : workflow ? 'agent.desktopResource.fixedVersion' : 'agent.desktopResource.referenceOnly')}</p>

@@ -22,7 +22,7 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 it('报告刷新和打开大图不重新读取缩略图，关闭预览只释放大图资源', async () => {
-  const gateway = { asset: vi.fn().mockResolvedValue(blob()) }
+  const gateway = { ocrReport: vi.fn(), asset: vi.fn().mockResolvedValue(blob()) }
   function Report({ state }: { state: string }) {
     const [image, setImage] = useState<ImagePreviewSource>()
     return <ConfigProvider theme={{ token: { motion: false } }}>
@@ -60,7 +60,7 @@ it('固定版本的图像任务、图像定位和拖动两端显示各自模板�
     { id: 'drag', name: '', kind: 'pointer.drag', action: {}, target: { kind: 'image', image: image('drag-start') }, end_target: { kind: 'image', image: image('drag-end') } },
   ])
   const steps = configured.steps.map((step, index) => ({ ...base, index: index + 1, step_id: step.id, kind: step.kind }))
-  const gateway = { asset: vi.fn().mockResolvedValue(blob()) }
+  const gateway = { ocrReport: vi.fn(), asset: vi.fn().mockResolvedValue(blob()) }
   const onImage = vi.fn()
   const view = render(<RunStepTimeline steps={steps} definition={configured} gateway={gateway} onImage={onImage} expansion={expanded} />)
   await waitFor(() => expect(gateway.asset).toHaveBeenCalledTimes(6))
@@ -84,7 +84,7 @@ it('固定版本的图像任务、图像定位和拖动两端显示各自模板�
 
 it('证据读取失败不影响模板与执行信息，迟到的旧资源不会覆盖替换后的图片', async () => {
   let finish!: (value: Blob) => void
-  const gateway: Pick<WorkflowMediaGateway, 'asset'> = { asset: vi.fn((id: string) => id === 'evidence'
+  const gateway: Pick<WorkflowMediaGateway, 'asset' | 'ocrReport'> = { ocrReport: vi.fn(), asset: vi.fn((id: string) => id === 'evidence'
     ? Promise.reject(new Error('证据已清理')) : id === 'old' ? new Promise<Blob>(done => { finish = done }) : Promise.resolve(blob())) }
   const configured = (asset: string) => definition([{ id: base.step_id, name: '', kind: 'image.assert', action: {}, image: { asset_id: asset, offset: { x: 0, y: 0 } } }])
   const props = { steps: [{ ...base, kind: 'image.assert' as const, asset_id: 'evidence' }], gateway, onImage: vi.fn(), expansion: expanded }

@@ -9,6 +9,7 @@ import type {
   AgentSSHSlotResourceBinding,
 } from './types.ts'
 import { sameTerminalReferenceSource, type AgentReferenceTargetsSnapshot } from './terminalReference.ts'
+import { hostDesktopTargetKey } from '#common/contracts'
 
 export type AgentConnectionReferenceLaunch = Omit<Extract<AgentLaunchIntent, { source: 'connection_reference' }>, 'key'>
 export type AgentConnectionResourceReference = AgentConnectionReferenceLaunch['resource_reference']
@@ -21,7 +22,7 @@ export function getAgentResourceBinding<K extends AgentResourceKind>(bindings: r
 }
 
 export function agentResourceSlot(kind: AgentResourceKind): AgentResourceSlot {
-  if (kind === 'desktop_session' || kind === 'desktop_profile') return 'desktop'
+  if (kind === 'desktop_session' || kind === 'desktop_profile' || kind === 'host_desktop') return 'desktop'
   if (kind === 'desktop_workflow') return 'workflow'
   return kind === 'file_profile' ? 'file' : 'ssh'
 }
@@ -48,6 +49,7 @@ export function getAgentResourceBindingBySlot(
 export function resourceReference(source: AgentConnectionResourceState): AgentConnectionResourceReference
 export function resourceReference(source: AgentResourceState | AgentResourceBinding): AgentResourceReference
 export function resourceReference(source: AgentResourceState | AgentResourceBinding): AgentResourceReference {
+  if ('desktop_target' in source) return { kind: 'host_desktop', desktop_target: source.desktop_target }
   if ('workflow_id' in source) return { kind: 'desktop_workflow', workflow_id: source.workflow_id, workflow_version: source.workflow_version }
   if ('desktop_profile_id' in source) return source.kind === 'desktop_session'
     ? { kind: 'desktop_session', session_id: source.session_id, connection_generation: source.connection_generation }
@@ -60,6 +62,7 @@ export function resourceReference(source: AgentResourceState | AgentResourceBind
 }
 
 export function resourceReferenceId(reference: AgentResourceReference) {
+  if (reference.kind === 'host_desktop') return hostDesktopTargetKey(reference.desktop_target)
   if (reference.kind === 'desktop_session') return reference.session_id
   if (reference.kind === 'desktop_profile') return reference.desktop_profile_id
   if (reference.kind === 'desktop_workflow') return reference.workflow_id
@@ -70,6 +73,7 @@ export function resourceReferenceId(reference: AgentResourceReference) {
 // 确认只属于当时的引用身份；展示名称变化无需中断操作，重新绑定则必须重新确认。
 export function agentResourceBindingKey(binding: AgentResourceBinding | null | undefined): string {
   if (!binding) return JSON.stringify(null)
+  if (binding.kind === 'host_desktop') return JSON.stringify([resourceReference(binding), binding.bound_at])
   if (binding.kind === 'desktop_workflow' || binding.kind === 'desktop_profile' || binding.kind === 'desktop_session') {
     return JSON.stringify([resourceReference(binding), 'protocol' in binding ? binding.protocol : undefined, binding.host_id, binding.bound_at])
   }
@@ -83,6 +87,7 @@ export function agentResourceBindingKey(binding: AgentResourceBinding | null | u
 }
 
 export function resourceProfileName(resource: AgentResourceState) {
+  if ('desktop_target' in resource) return resource.desktop_target.host.title
   if ('workflow_id' in resource) return `${resource.workflow_name} · v${resource.workflow_version}`
   if ('desktop_profile_id' in resource) return resource.desktop_profile_name
   return 'file_access_profile_name' in resource ? resource.file_access_profile_name : resource.ssh_profile_name

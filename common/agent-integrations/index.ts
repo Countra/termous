@@ -1,0 +1,2 @@
+export type { SkillExecutionContext, MCPIntegrationConfig, ImportedSkillFile, ImportedSkillManifest, AgentIntegrationSource, IntegrationSkillRead, MCPIntegrationInput, SkillImportPreview, IntegrationToolSummary, IntegrationCallReceipt, IntegrationContentReference, IntegrationToolResult, IntegrationConnectionStatus } from '#common/contracts'
+export type { MCPDependency, MCPDependencyLaunch, MCPDependencyOutput } from '#common/contracts'

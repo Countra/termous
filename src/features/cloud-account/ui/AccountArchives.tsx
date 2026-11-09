@@ -94,7 +94,7 @@ export function AccountArchives({ api, status, busy, mfaEnabled, mfaRevision, ru
             if (startedPolicy !== policy.current) throw new Error('mfa_revision_conflict')
             await api.deleteArchive(generation, deleting.id, deleting.revision)
             if (current()) { closeDelete(); await load() }
-          } finally { if (current() && startedPolicy === policy.current) proof.resetFields() }
+          } finally { if (current() && startedPolicy === policy.current) proof.resetFields(['password']) }
         })}>
           <AccountStepUpFields enabled={mfaEnabled} revision={mfaRevision} disabled={inactive} />
           <Button type="primary" danger htmlType="submit" loading={inactive} disabled={mfaEnabled === undefined}>{t('cloud.safeguards.deleteArchive')}</Button>

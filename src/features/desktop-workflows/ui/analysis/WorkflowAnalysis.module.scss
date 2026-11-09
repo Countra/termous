@@ -1,0 +1,131 @@
+.dialog[class] {
+  display: flex;
+  height: min(920px, calc(100dvh - 48px));
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  color: var(--text-primary);
+  background: rgb(from var(--surface) r g b / 100%);
+}
+
+.header[class] {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+}
+
+.body[class] {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  min-height: 64px;
+  flex: 0 0 auto;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.sessions { width: 260px; }
+.mode { width: 160px; }
+.spacer { flex: 1; }
+
+.summary {
+  display: flex;
+  min-height: 40px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  overflow: auto;
+  padding: 4px 16px;
+  border-block: 1px solid var(--border);
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--app-bg) 35%, var(--surface));
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.summary time {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.summary strong {
+  margin-left: auto;
+  font-weight: 500;
+}
+
+.content {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding-right: 28px;
+}
+
+.apply {
+  display: flex;
+  gap: 8px;
+}
+
+.feedback {
+  display: inline-flex;
+  max-width: min(520px, calc(100vw - 96px));
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.feedback-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.feedback-retry[class] {
+  height: auto;
+  flex: 0 0 auto;
+  padding: 0;
+  font: inherit;
+}
+
+
+@media (width < 848px) {
+  .dialog[class] { height: calc(100dvh - 24px); }
+
+  .toolbar {
+    gap: 6px;
+    padding: 10px 12px;
+  }
+
+  .sessions {
+    min-width: 120px;
+    flex: 1;
+  }
+
+  .mode { width: 142px; }
+  .spacer { display: none; }
+
+
+}

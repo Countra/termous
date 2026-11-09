@@ -42,9 +42,9 @@ export function AccountVerification({ api, generation, mfa, unavailable, busy, a
           if (proof.method === 'backup_code') await reload()
         }
       } catch (cause) {
-        if (current() && isCloudMFAUncertainError(cause)) { form.resetFields(); await reload() }
+        if (current() && isCloudMFAUncertainError(cause)) await reload()
         throw cause
-      } finally { if (current() && startedPolicy === policy.current) form.resetFields() }
+      } finally { if (current() && startedPolicy === policy.current) form.resetFields(['password']) }
     })}>
       {mfa ? <AccountStepUpFields enabled={mfa.enabled} revision={mfa.revision} disabled={disabled || unavailable} autoFocus={false} /> : null}
       <Button type="primary" htmlType="submit" loading={disabled}>{t('cloud.auth.reauthenticate')}</Button>

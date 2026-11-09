@@ -17,7 +17,7 @@ export function projectCurrentAgentSlashCandidates(
   const workflow = getAgentResourceBindingBySlot(bindings, 'workflow')
   const mark = <Candidate extends AgentSlashCandidate>(candidate: Candidate): Candidate => ({
     ...candidate,
-    current: candidate.kind === 'desktop_session' || candidate.kind === 'desktop_profile' ? slashCandidateMatchesBinding(candidate, desktop)
+    current: candidate.kind === 'host_desktop' || candidate.kind === 'desktop_session' || candidate.kind === 'desktop_profile' ? slashCandidateMatchesBinding(candidate, desktop)
       : candidate.kind === 'desktop_workflow' ? slashCandidateMatchesBinding(candidate, workflow)
       : candidate.kind === 'ssh_session'
       ? sshBinding?.kind === 'ssh_session' && candidate.session_id === sshBinding.session_id

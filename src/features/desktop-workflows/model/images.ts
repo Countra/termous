@@ -8,6 +8,7 @@ export function setStepImage(step: Step, slot: ImageSlot, image: ImageTarget): S
 export function setStepTarget(step: Step, slot: 'target' | 'end_target', target: Target): Step {
   const bindings = { ...step.bindings }
   if (slot === 'target' && target.kind !== 'point') { delete bindings.x; delete bindings.y }
+  if (target.kind !== 'ocr') delete bindings[slot === 'target' ? 'target_ocr_text' : 'end_target_ocr_text']
   return { ...step, [slot]: target, bindings }
 }
 export const blankImage = (): ImageTarget => ({ asset_id: '', threshold: .95, scales: [1], offset: { x: 0, y: 0 } })

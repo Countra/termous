@@ -6,6 +6,96 @@ import { WorkflowSurfaceAdapter } from './WorkflowSurfaceAdapter'
 import { WorkflowMediaHost } from './WorkflowMediaHost'
 
 const connection = { module: 'desktop-workflow', instance: 'workspace', generation: 'test' }
+
+it('独立窗口 OCR 只接受所属预览，取消后拒绝迟到结果', async () => {
+  const { gateway, controller } = fixture()
+  vi.mocked(gateway.openPreview).mockResolvedValue({ id: 'owned', state: 'ready' })
+  let finish!: (value: unknown) => void
+  gateway.previewOCR = vi.fn().mockImplementation(() => new Promise(resolve => { finish = resolve }))
+  const media = new WorkflowMediaHost(gateway, controller)
+  const query = { text_confidence: .5, ocr_max_side: 1600 }
+  await expect(media.handle({ kind: 'ocr-preview', id: 'foreign', request: 'request', query })).rejects.toThrow('workflow_preview_unavailable')
+  await media.handle({ kind: 'open', session: 'desktop', generation: 1 })
+  const pending = media.handle({ kind: 'ocr-preview', id: 'owned', request: 'request', query })
+  const rejected = expect(pending).rejects.toThrow()
+  await media.handle({ kind: 'ocr-cancel', id: 'owned', request: 'request' })
+  expect(vi.mocked(gateway.previewOCR).mock.calls[0][2]?.aborted).toBe(true)
+  finish({})
+  await rejected
+  await media.reset()
+  controller.dispose()
+})
+
+it('OCR 图片传输准备期间取消预览也拒绝迟到响应', async () => {
+  const { gateway, controller } = fixture()
+  vi.mocked(gateway.openPreview).mockResolvedValue({ id: 'owned', state: 'ready' })
+  const image = new Blob(['image'], { type: 'image/png' })
+  let finish!: (value: ArrayBuffer) => void
+  const bytes = vi.spyOn(image, 'arrayBuffer').mockImplementation(() => new Promise(resolve => { finish = resolve }))
+  gateway.previewOCR = vi.fn().mockResolvedValue({ image })
+  const media = new WorkflowMediaHost(gateway, controller)
+  await media.handle({ kind: 'open', session: 'desktop', generation: 1 })
+  const pending = media.handle({ kind: 'ocr-preview', id: 'owned', request: 'request', query: { text_confidence: .5, ocr_max_side: 1600 } })
+  const rejected = expect(pending).rejects.toThrow()
+  await waitFor(() => expect(bytes).toHaveBeenCalledOnce())
+  await media.handle({ kind: 'close', id: 'owned' })
+  finish(new ArrayBuffer(0))
+  await rejected
+  controller.dispose()
+})
+
+it('OCR 明细读取完成前切换报告或释放窗口，不再交付旧报告正文', async () => {
+  for (const reset of [false, true]) {
+    const { gateway, controller } = fixture()
+    const run = { id: 'run' } as Run
+    vi.mocked(gateway.run).mockResolvedValue({ run, steps: [] })
+    controller.execution.selectReport(run.id, true)
+    await waitFor(() => expect(controller.getSnapshot().execution.report.value?.run.id).toBe('run'))
+    let finish!: (value: unknown) => void
+    gateway.ocrReport = vi.fn().mockImplementation(() => new Promise(resolve => { finish = resolve }))
+    const media = new WorkflowMediaHost(gateway, controller)
+    const pending = media.handle({ kind: 'ocr-report', id: 'run', index: 1, offset: 0, limit: 20 })
+    const rejected = expect(pending).rejects.toThrow('workflow_report_unavailable')
+    if (reset) await media.reset()
+    else {
+      vi.mocked(gateway.run).mockResolvedValue({ run: { ...run, id: 'next' }, steps: [] })
+      controller.execution.selectReport('next', true)
+      await waitFor(() => expect(controller.getSnapshot().execution.report.value?.run.id).toBe('next'))
+    }
+    finish({ items: [] })
+    await rejected
+    controller.dispose()
+  }
+})
+
+it('独立窗口接收宿主提供的真实推理设备，不依赖组件检查记录', async () => {
+  const { controller } = fixture()
+  controller.runtimeStatus = async () => ({ service: { state: 'ready', device: 'cuda' } })
+  controller.warmupRuntime = vi.fn().mockResolvedValue(undefined)
+  const media = new WorkflowMediaHost(controller.media, controller)
+  expect(await media.handle({ kind: 'runtime-status' })).toEqual({ service: { state: 'ready', device: 'cuda' } })
+  await media.handle({ kind: 'runtime-warmup' })
+  expect(controller.warmupRuntime).toHaveBeenCalledTimes(1)
+  controller.dispose()
+})
+
+it('独立窗口只允许从所属预览提交，关闭预览不取消已接受任务', async () => {
+  const { gateway, controller } = fixture()
+  gateway.submitAnalysis = vi.fn().mockResolvedValue({ id: 'analysis' })
+  gateway.cancelAnalysis = vi.fn()
+  gateway.getAnalysis = vi.fn().mockResolvedValue({ id: 'analysis', state: 'succeeded' })
+  vi.mocked(gateway.openPreview).mockResolvedValue({ id: 'owned', state: 'ready' })
+  const media = new WorkflowMediaHost(gateway, controller)
+  await expect(media.handle({ kind: 'analysis', request: { operation: 'submit', input: { request_id: 'request', source: { kind: 'preview', id: 'foreign' } } } })).rejects.toThrow('workflow_preview_unavailable')
+  await media.handle({ kind: 'open', session: 'desktop', generation: 1 })
+  await media.handle({ kind: 'analysis', request: { operation: 'submit', input: { request_id: 'request', source: { kind: 'preview', id: 'owned' } } } })
+  await media.reset()
+  expect(gateway.cancelAnalysis).not.toHaveBeenCalled()
+  expect(await media.handle({ kind: 'analysis', request: { operation: 'get', id: 'analysis' } })).toMatchObject({ state: 'succeeded' })
+  await media.handle({ kind: 'analysis', request: { operation: 'cancel', id: 'analysis' } })
+  expect(gateway.cancelAnalysis).toHaveBeenCalledWith('analysis')
+  controller.dispose()
+})
 function fixture() {
   const gateway = { save: vi.fn(), start: vi.fn(), control: vi.fn(), openPreview: vi.fn(), closePreview: vi.fn().mockResolvedValue(undefined), capture: vi.fn(), upload: vi.fn(), asset: vi.fn(), run: vi.fn() } as unknown as WorkflowGateway
   const controller = new WorkflowController(gateway)
@@ -107,5 +197,24 @@ it('独立窗口仅能读取当前执行固定版本的模板，切换报告后�
   await waitFor(() => expect(controller.getSnapshot().execution.report.definition?.status).toBe('unavailable'))
   await expect(media.handle({ kind: 'asset', id: 'historical-template' })).rejects.toThrow('workflow_asset_unavailable')
   expect(gateway.asset).toHaveBeenCalledOnce()
+  controller.dispose()
+})
+
+it('独立窗口取消图像读取会传到宿主，不调用任务取消', async () => {
+  const { gateway, controller } = fixture()
+  let observed: AbortSignal | undefined
+  gateway.analysisImage = vi.fn((_id, _kind, signal) => new Promise<Blob>((_resolve, reject) => {
+    observed = signal
+    signal?.addEventListener('abort', () => reject(new DOMException('cancelled', 'AbortError')), { once: true })
+  }))
+  gateway.cancelAnalysis = vi.fn()
+  const media = new WorkflowMediaHost(gateway, controller)
+  const pending = media.handle({ kind: 'analysis', read_id: 'read', request: { operation: 'image', id: 'analysis', image: 'original' } })
+  const rejection = expect(pending).rejects.toThrow('cancelled')
+  await media.handle({ kind: 'analysis-read-cancel', id: 'read' })
+  await rejection
+  expect(observed?.aborted).toBe(true)
+  expect(gateway.cancelAnalysis).not.toHaveBeenCalled()
+  await media.reset()
   controller.dispose()
 })

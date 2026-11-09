@@ -11,6 +11,8 @@ import { RemoteAgentTransport, revision } from './agentTransport.ts'
 export function reference(value?: AgentResourceReference) {
   if (!value) return undefined
   return { kind: value.kind, sessionId: value.kind === 'ssh_session' ? value.session_id : undefined,
+    desktopTarget: value.kind === 'host_desktop' ? { kind: 'host_desktop', instanceId: value.desktop_target.instance_id,
+      sourceId: value.desktop_target.host.id, sourceKind: value.desktop_target.host.kind, sourceGeneration: BigInt(value.desktop_target.host.generation) } : undefined,
     sshProfileId: value.kind === 'ssh_profile' ? value.ssh_profile_id : undefined,
     fileAccessProfileId: value.kind === 'file_profile' ? value.file_access_profile_id : undefined }
 }

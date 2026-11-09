@@ -78,7 +78,7 @@ export function RemoteAgentSurface({ client, active, target, quote }: { client: 
   </section>
   return <section className={styles.surface}>
     <div className={styles.toolbar}><span className={styles.title}><Bot size={17} />{copy.agent}</span><RemoteAgentApprovals transport={transport} target={target} /></div>
-    <div className={styles.workspace}><AgentPage launchIntent={launch} onLaunchIntentHandled={setHandledQuote} gateway={gateway} setupGateway={setup} enabled active={active} remote notificationSessionId={target?.id !== handled ? target?.sessionId : undefined} onNotificationSessionHandled={handledNotification} sshResources={resources.ssh} fileResources={resources.files} slashCandidates={resources.catalog} sshResourcesReady={ready} fileResourcesReady={ready} sshProfileResourcesReady={ready} /></div>
+    <div className={styles.workspace}><AgentPage launchIntent={launch} onLaunchIntentHandled={setHandledQuote} gateway={gateway} setupGateway={setup} enabled active={active} remote notificationSessionId={target?.id !== handled ? target?.sessionId : undefined} onNotificationSessionHandled={handledNotification} sshResources={resources.ssh} fileResources={resources.files} desktopResources={resources.desktops} desktopResourcesReady={ready} slashCandidates={resources.catalog} sshResourcesReady={ready} fileResourcesReady={ready} sshProfileResourcesReady={ready} /></div>
     <RemoteFeedbackStack>
       {resourceFailed ? <RemoteFeedback message={copy.agentResourcesUnavailable} action={<Button size="small" onClick={() => setResourceAttempt(value => value + 1)}>{t('app.retry')}</Button>} /> : null}
     </RemoteFeedbackStack>

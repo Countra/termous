@@ -8,6 +8,7 @@ export function prepareRuntimeCompaction(
   settings: RuntimeCompactionSettings,
   project?: (messages: AgentMessage[]) => AgentMessage[],
   retainToolCall?: (messages: AgentMessage[]) => string | undefined,
+  retainMessage?: (message: AgentMessage) => boolean,
 ): RuntimeCompactionPreparation | undefined {
   const covered = checkpoint?.coveredRawLength ?? 0
   if (!Number.isSafeInteger(covered) || covered < 0 || covered > raw.length) {
@@ -37,8 +38,11 @@ export function prepareRuntimeCompaction(
     }
   }
   const retainedCall = retainToolCall?.(messages)
-  const retainedIndex = retainedCall ? messages.findIndex((message) => message.role === 'toolResult' && message.toolCallId === retainedCall) : -1
+  const callIndex = retainedCall ? messages.findIndex((message) => message.role === 'toolResult' && message.toolCallId === retainedCall) : -1
+  const messageIndex = retainMessage ? messages.findIndex(retainMessage) : -1
+  const retainedIndex = callIndex < 0 ? messageIndex : messageIndex < 0 ? callIndex : Math.min(callIndex, messageIndex)
   if (retainedIndex >= 0) {
+    // 未进入业务模型请求的观察必须保留原文；如在工具组内，仍回退到完整组边界。
     const safeCut = [...cuts].reverse().find((candidate) => candidate <= retainedIndex) ?? 0
     cut = Math.min(cut, safeCut)
   }

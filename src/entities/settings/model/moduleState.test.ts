@@ -5,9 +5,25 @@ import { SettingsModuleStore, decodeSettingsCatalogue, decodeSettingsSnapshot } 
 
 const snapshot = (id: SettingsModuleId, revision = 1, value = { enabled: true }): SettingsSnapshot => ({ id, schema_version: 1, revision, value, state: { status: 'applied' } })
 
+test('默认质量已保存状态不伪装成当前目标连接已应用', () => {
+  const value = { ...snapshot('desktop_presentation'), state: { status: 'saved', apply: 'next_connection' } }
+  assert.equal(decodeSettingsSnapshot(value).state.status, 'saved')
+})
+
 test('连接模块支持旧版本和 RDP 回收设置版本，拒绝未来版本', () => {
   for (const version of [1, 2]) assert.equal(decodeSettingsSnapshot({ ...snapshot('connection'), schema_version: version }).schema_version, version)
   assert.throws(() => decodeSettingsSnapshot({ ...snapshot('connection'), schema_version: 3 }), /SETTINGS_UNSUPPORTED_VERSION/)
+})
+
+test('画面分析目录和快照接纳双模型开关版本，拒绝旧版及未来版本', () => {
+  const analysis = { ...snapshot('screen_analysis'), schema_version: 2, value: { detector_enabled: false, ocr_enabled: true } }
+  const entry = { id: 'screen_analysis', schema_version: 2, backup: 'include', apply: 'immediate', snapshot: analysis }
+  assert.deepEqual(decodeSettingsCatalogue({ instance_id: 'core', modules: [entry] }).modules[0].snapshot, analysis)
+  assert.deepEqual(decodeSettingsSnapshot(analysis, 'screen_analysis'), analysis)
+  for (const version of [1, 3, '2', null]) {
+    assert.throws(() => decodeSettingsSnapshot({ ...analysis, schema_version: version }), /SETTINGS_UNSUPPORTED_VERSION/)
+    assert.throws(() => decodeSettingsCatalogue({ instance_id: 'core', modules: [{ ...entry, schema_version: version }] }), /SETTINGS_UNSUPPORTED_VERSION/)
+  }
 })
 function deferred<T>() {
   let resolve!: (value: T) => void

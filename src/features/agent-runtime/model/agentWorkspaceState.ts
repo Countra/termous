@@ -407,7 +407,11 @@ function appendRunEvent(current: AgentWorkspaceState, event: AgentRunEvent) {
       ),
     }
   }
-  const retainedEvents = [...(current.run_events[event.run_id] ?? []), event]
+  if (event.kind === 'tool_prepared') return { state: stateWithCursor, gap: false }
+  const previousEvents = current.run_events[event.run_id] ?? []
+  // 同一调用只保留最新阶段，终态收回阶段事件，不随内部轮询累积。
+  const callID = 'tool' in event.payload ? event.payload.tool.tool_call_id : undefined
+  const retainedEvents = [...previousEvents.filter((previous) => previous.kind !== 'tool_progress' || previous.payload.tool.tool_call_id !== callID), event]
   if (event.kind === 'request_usage') {
     // 保留足够的水合回放窗口，长任务不在事件缓存中另存一份无限统计历史。
     let remaining = maxAgentMessageRequestUsage
@@ -476,7 +480,9 @@ function mergeRetryEvent(message: AgentMessage, event: Extract<AgentRunEvent, { 
 }
 
 function runRequiresReconcile(state: AgentWorkspaceState, run: AgentRun) {
+  // 工作区快照不包含消息，排队任务即使还没有事件，也需要补齐缺失的助手占位。
   return run.event_sequence > (state.run_event_sequences[run.id] ?? 0)
+    || !state.messages[run.session_id]?.some(({ id }) => id === run.assistant_message_id)
 }
 
 function removeEntity(
@@ -697,6 +703,7 @@ function runEventMessageProjectionValid(
   run: AgentRun,
   event: AgentRunEvent,
 ) {
+  if (!current.messages[run.session_id]) return true
   if (event.kind === 'compaction') {
     return event.payload.compaction.assistant_message_id === run.assistant_message_id
       && Boolean(current.messages[run.session_id]?.some(({ id }) => id === run.assistant_message_id))

@@ -192,36 +192,6 @@
   line-height: 1.7;
 }
 
-.history-button {
-  flex: 0 0 auto;
-  padding: 13px 16px;
-  border: 0;
-  border-top: 1px solid var(--border);
-  color: var(--text-secondary);
-  background: transparent;
-  font: inherit;
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.history-button:hover {
-  background: var(--surface-subtle);
-  color: var(--text-primary);
-}
-
-.history-button > span:first-of-type {
-  flex: 1;
-}
-
-.active {
-  padding: 1px 6px;
-  border-radius: 4px;
-  color: var(--accent);
-  background: var(--accent-soft);
-  font-size: 10px;
-}
-
 .footer {
   justify-content: space-between;
   padding: 5px 12px;

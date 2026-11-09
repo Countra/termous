@@ -25,7 +25,9 @@ test('授权和附着查询后的下一阶段包含实际输入，普通截图�
     for (const input of inputs) assert.ok(navigation.names.includes(input), input)
     assert.ok(!navigation.names.includes(acquire))
   }
-  assert.deepEqual(runtimeToolNavigation('termous.desktops.capture', receipt({ capture: { screenshot_id: 'shot' } }))!.names, [])
+  const next = runtimeToolNavigation('termous.desktops.capture', receipt({ capture: { screenshot_id: 'shot' } }))!.names
+  assert.ok(next.includes('termous.desktops.pointer.click'))
+  assert.ok(next.every((name) => name.startsWith('termous.desktops.')))
 })
 
 test('嵌套审批终态、未取得授权和过期授权不被当作已可输入', () => {
@@ -45,7 +47,9 @@ test('已持有与旧版占用错误都引导核验，不建议释放或自动�
   for (const code of ['desktop_control_already_held', 'desktop_control_locked']) {
     const navigation = runtimeToolNavigation(acquire, receipt({ error: { code } }), [], true)!
     assert.deepEqual(navigation.names, [get])
-    assert.match(navigation.guidance, /查询|核验/)
+    assert.match(navigation.guidance, /Query the current attachment_id/)
+    assert.match(navigation.guidance, /takeover only with user authorization/)
+    assert.match(navigation.guidance, /not a reason to release or acquire repeatedly/)
   }
 })
 
@@ -87,7 +91,7 @@ test('能力组入口优先，自动加载候选不改变实际能力偏好', as
   const discovery = new RuntimeToolDiscovery(mapped.tools, (name) => mapped.originalNames.get(name) ?? null, [])
   const found = await discovery.tool.execute('find', { group: 'desktop_input' })
   const data = JSON.parse(found.content[0]!.type === 'text' ? found.content[0].text : '{}') as { tools: { original_name: string }[] }
-  assert.deepEqual(data.tools.slice(0, 4).map((tool) => tool.original_name), [acquire, inputs[0], inputs[2], inputs[3]])
+  assert.deepEqual(new Set(data.tools.slice(0, 5).map(tool => tool.original_name)), new Set(['termous.desktops.execute', inputs[0], inputs[2], inputs[3], inputs[4]]))
   discovery.loadNames(['termous.desktop_workflows.captures.create'])
   const subsequent = await discovery.tool.execute('find-next', { operation: 'text', query: '目标应用内容' })
   assert.match(JSON.stringify(subsequent.content), /keyboard/)

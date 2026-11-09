@@ -65,6 +65,24 @@ function session(protocol = 'rdp', generation = 2) {
 }
 const attachment = { id: 'attach_one', session_id: 'desk_one', connection_generation: 2, execution_generation: 1 }
 
+test('路由窗口淘汰旧附着后拒绝旧身份，迟到查询不能恢复它', async () => {
+  const f = fixture([desktop])
+  f.respond({ session: session() })
+  await f.tool('termous.desktops.get').execute('get', { session_id: 'desk_one' })
+  f.respond({ attachment: { ...attachment, state: 'ready' } })
+  await f.tool('termous.desktops.attach').execute('attach', { session_id: 'desk_one', connection_generation: 2 })
+  const finish = f.deferNext()
+  const pending = f.tool('termous.desktops.get').execute('old-get', { attachment_id: 'attach_one' })
+  for (let i = 0; i < 257; i++) {
+    f.respond({ attachment: { ...attachment, id: `attach_${i + 2}`, state: 'ready' } })
+    await f.tool('termous.desktops.attach').execute(`attach-${i}`, { session_id: 'desk_one', connection_generation: 2 })
+  }
+  finish()
+  await pending
+  assert.throws(() => f.tool('termous.desktops.pointer.click').prepareArguments!({ attachment_id: 'attach_one' }), /AGENT_RESOURCE_BINDING_MISMATCH/u)
+  assert.doesNotThrow(() => f.tool('termous.desktops.pointer.click').prepareArguments!({ attachment_id: 'attach_258' }))
+})
+
 test('明确不存在的会话不再提示重复 get，未知失败仍保留查询前置条件', async () => {
   for (const code of ['REMOTE_DESKTOP_SESSION_NOT_FOUND', 'MCP_INTERNAL']) {
     const f = fixture([profile])
@@ -97,6 +115,29 @@ test('Profile 已有会话可直接用于 workflow，复用不恢复旧附着授
   await assert.rejects(f.tool('termous.desktops.pointer.click').execute('old-grant', { attachment_id: 'previous-run' }), /AGENT_RESOURCE_BINDING_MISMATCH/)
 })
 
+test('Profile 误用历史附着时明确提示查询列表，已有本轮会话仍按原流程核验', async () => {
+  const f = fixture([profile])
+  const acquire = f.tool('termous.desktops.control.acquire')
+  assert.throws(() => acquire.prepareArguments?.({ attachment_id: 'previous-run' }), (error: Error) => {
+    const detail = JSON.parse(error.message)
+    assert.equal(detail.dispatched, false)
+    assert.equal(detail.required_tool, 'termous.desktops.list')
+    assert.deepEqual(detail.required_arguments, {})
+    assert.equal(detail.expected_arguments, undefined)
+    return true
+  })
+  assert.equal(f.calls.length, 0)
+  f.respond({ sessions: [session('vnc')] })
+  await f.tool('termous.desktops.list').execute('list', {})
+  await assert.rejects(f.tool('termous.desktops.attach').execute('unverified', { session_id: 'desk_one', connection_generation: 2 }), /AGENT_RESOURCE_BINDING_MISMATCH/)
+  f.respond({ session: session('vnc') })
+  await f.tool('termous.desktops.get').execute('get', { session_id: 'desk_one' })
+  f.respond({ attachment })
+  await f.tool('termous.desktops.attach').execute('attach', { session_id: 'desk_one', connection_generation: 2 })
+  await acquire.execute('acquire', { attachment_id: 'attach_one' })
+  assert.deepEqual(f.calls.map((call) => call.name), ['termous.desktops.list', 'termous.desktops.get', 'termous.desktops.attach', 'termous.desktops.control.acquire'])
+})
+
 test('桌面引用校验精确代次，必须先查询，再建立本轮附着', async () => {
   const f = fixture([desktop])
   const attach = f.tool('termous.desktops.attach')
@@ -113,7 +154,13 @@ test('桌面引用校验精确代次，必须先查询，再建立本轮附着',
     return true
   })
   assert.match(attach.description, /本轮必须先用 termous.desktops.get/)
-  assert.throws(() => click.prepareArguments?.({ attachment_id: 'old_attach' }), /AGENT_RESOURCE_BINDING_MISMATCH/)
+  assert.throws(() => click.prepareArguments?.({ attachment_id: 'old_attach' }), (error: Error) => {
+    const detail = JSON.parse(error.message)
+    assert.equal(detail.code, 'AGENT_RESOURCE_BINDING_MISMATCH')
+    assert.deepEqual(detail.required_arguments, { session_id: 'desk_one' })
+    assert.equal(detail.expected_arguments, undefined)
+    return true
+  })
   const get = f.tool('termous.desktops.get')
   await assert.rejects(get.execute('wrong', { session_id: 'another' }), /AGENT_RESOURCE_BINDING_MISMATCH/)
   f.respond({ session: session() }, true)

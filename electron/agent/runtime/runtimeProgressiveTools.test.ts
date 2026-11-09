@@ -8,8 +8,9 @@ import { RuntimeImageWorkingSet, pendingPreviewCall } from '../context/runtimeIm
 import { prepareRuntimeCompaction } from '../context/compaction/runtimeCompactionPreparation.ts'
 import { encodeMCPToolName } from '../contracts/toolNameCodec.ts'
 import { createWorkflowWaitTool } from '../tools/runtimeWorkflowWait.ts'
+import { identifyTool, termousToolSource } from '../contracts/toolSources.ts'
 
-const tool = (name: string): AgentTool => ({ name, label: name, description: `测试能力 ${name}`, parameters: Type.Object({ id: Type.String() }), execute: async () => ({ content: [{ type: 'text', text: 'ok' }], details: {} }) })
+const tool = (name: string): AgentTool => identifyTool({ name, label: name, description: `测试能力 ${name}`, parameters: Type.Object({ id: Type.String() }), execute: async () => ({ content: [{ type: 'text', text: 'ok' }], details: {} }) }, termousToolSource)
 
 test('134 个工具不进入初始声明；按轮发布、精确加载和 LRU 上限不扩权', async () => {
   const names = Array.from({ length: 134 }, (_, i) => `termous.fixture.tool${i}`)
@@ -33,7 +34,7 @@ test('134 个工具不进入初始声明；按轮发布、精确加载和 LRU �
   assert.ok(batched.publish().length <= 32)
 })
 
-test('中文意图可发现输入工具；资源控制与清理入口不会因其他领域加载被卸载', async () => {
+test('中文意图可发现输入工具，活动输入声明保留必要清理依赖', async () => {
   const names = ['termous.desktops.pointer.click', 'termous.desktops.keyboard.text', 'termous.desktops.control.release', 'termous.desktops.detach']
   const discovery = new RuntimeToolDiscovery(names.map(tool), (name) => name, [])
   await discovery.tool.execute('find', { query: '帮我点击远程桌面并输入文字' })
@@ -42,11 +43,12 @@ test('中文意图可发现输入工具；资源控制与清理入口不会因�
   assert.ok(discovery.publish().some((tool) => tool.name.endsWith('control.release')))
 })
 
-test('桌面图片只保留两个观察组及待确认预览，持久化原消息不变', () => {
+test('桌面、分析和 OCR 图片共用两个观察组及待确认预览，持久化原消息不变', () => {
   const images = new RuntimeContextImages({ context: { estimated_tokens: 0, warning: false }, messages: [] })
   const messages: AgentMessage[] = []
+  const names = ['termous.desktop_workflows.templates.preview', 'termous.screen_analyses.images.get', 'termous.desktop_workflows.ocr.test', 'termous.desktops.capture', 'termous.screen_analyses.images.get']
   for (let i = 0; i < 5; i++) {
-    const message: AgentMessage = { role: 'toolResult', toolCallId: `call${i}`, toolName: encodeMCPToolName(i === 0 ? 'termous.desktop_workflows.templates.preview' : 'termous.desktops.capture'), content: [{ type: 'image', mimeType: 'image/png', data: Buffer.from(`image${i}`).toString('base64') }], isError: false, timestamp: i }
+    const message: AgentMessage = { role: 'toolResult', toolCallId: `call${i}`, toolName: encodeMCPToolName(names[i]!), content: [{ type: 'image', mimeType: 'image/png', data: Buffer.from(`image${i}`).toString('base64') }], isError: false, timestamp: i }
     if (i === 0) message.content.push({ type: 'text', text: JSON.stringify({ preview: { preview_id: 'preview', expires_at: '2099-01-01T00:00:00Z' } }) })
     images.registerToolResult(`part${i}`, message)
     messages.push(message)

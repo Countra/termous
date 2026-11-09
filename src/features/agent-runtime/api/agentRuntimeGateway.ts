@@ -39,6 +39,9 @@ export interface AgentSessionListOptions {
 }
 
 export interface AgentMessageListOptions {
+  view?: 'timeline'
+  cursor?: string
+  direction?: 'before' | 'after'
   afterSequence?: number
   limit?: number
   signal?: AbortSignal
@@ -59,6 +62,13 @@ export interface AgentCreateRunInput {
 }
 
 export interface AgentWorkspaceGateway {
+  fileReview?(sessionId: string, reviewId: string, digest: string, cursor?: string, signal?: AbortSignal): Promise<import('#shared/file-review').FileReviewPage>
+  localDirectory?(sessionId: string, signal?: AbortSignal): Promise<import('#entities/agent').AgentLocalDirectory>
+  setLocalDirectory?(sessionId: string, path: string, expectedRevision: number, signal?: AbortSignal): Promise<import('#entities/agent').AgentLocalDirectory>
+  desktopTasks?(runId: string, generation: number, cursor: string, waitMS: number, signal?: AbortSignal): Promise<import('#common/desktop-batch').DesktopTaskSnapshot>
+  cancelDesktopTask?(runId: string, generation: number, clientRequestID: string, signal?: AbortSignal): Promise<void>
+  hostDesktopSources?(signal?: AbortSignal): Promise<import('#common/contracts').HostDesktopTarget[]>
+  readonly timelineSupported?: boolean
   readonly runtimeOwnedByHost?: boolean
   subscribeWorkspace?(observer: AgentWorkspaceObserver): AgentWorkspaceSubscription
   sessionGroups(signal?: AbortSignal): Promise<{ items: AgentSessionGroup[] }>
@@ -84,8 +94,8 @@ export interface AgentWorkspaceGateway {
   deleteSession(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
   uploadAttachment(sessionId: string, file: File, signal?: AbortSignal, origin?: AgentAttachment['origin']): Promise<AgentAttachment>
   attachment(id: string, signal?: AbortSignal): Promise<AgentAttachment>
-  attachmentContent(id: string, signal?: AbortSignal): Promise<Blob>
-  toolImageContent(source: AgentToolImageSource, signal?: AbortSignal): Promise<Blob>
+  attachmentContent(id: string, signal?: AbortSignal, variant?: 'thumbnail'): Promise<Blob>
+  toolImageContent(source: AgentToolImageSource, signal?: AbortSignal, variant?: 'thumbnail'): Promise<Blob>
   deleteAttachment(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
   messages(sessionId: string, options?: AgentMessageListOptions): Promise<AgentMessagePage>
   queuedTurns(sessionId: string, options?: { cursor?: string; limit?: number; signal?: AbortSignal }): Promise<AgentQueuedTurnPage>
@@ -136,6 +146,7 @@ export interface AgentWorkspaceGateway {
   steerRuntime(run: Pick<AgentRun, 'id' | 'generation'>, message: string): Promise<AgentRuntimeCommandResult>
   onRuntimeStatus(callback: (status: AgentRuntimeStatus) => void): () => void
   updateMcpPolicy(input: {
+    host_desktop?: { read: boolean; capture: boolean; control: boolean; secure_capture?: boolean; secure_control?: boolean }
     approval_bypass: boolean
     sync_scopes: boolean
     expected_revision: number

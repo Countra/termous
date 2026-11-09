@@ -230,7 +230,7 @@ test("清理后 final 阶段拒绝 partial 和 receipt", async (t) => {
     version: VERSION,
   });
   assert.equal(result.phase, "final");
-  const partialName = fixture.contract.partials[0];
+  const partialName = "latest-mac.x64.partial.yml";
   await writeFile(
     path.join(fixture.assetsDirectory, partialName),
     "version: 1.2.3\n",

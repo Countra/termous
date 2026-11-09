@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AgentSurfaceAdapter } from './agentSurfaceAdapter.ts'
 import { AgentFeedbackStore } from './agentFeedback.ts'
 import type { AgentSurfaceModel } from './agentSurfaceModel.ts'
-import { projectAgentSurface, restoreAgentSurface } from './agentSurfaceProjection.ts'
+import { AgentSurfaceMessageCache, projectAgentSurface, restoreAgentSurface } from './agentSurfaceProjection.ts'
 import { DetachedClient, DetachedStatePublisher, DetachedStateReceiver } from '#shared/detached-window'
 import { AgentRemoteAdapter } from './agentRemoteAdapter.ts'
 
@@ -95,6 +95,26 @@ describe('助手宿主适配器', () => {
     const restored = restoreAgentSurface(publisher.snapshot().partitions)
     expect(restored.workspace!.messages.map(message => message.id)).toEqual(['history', 'stream'])
     expect(restored.workspace!.messages[1]!.parts[0]).toEqual({ id: 'last', text: '第一段和第二段' })
+  })
+
+  it('独立窗口输入复用历史序列化，新增片段仅更新对应分区', () => {
+    const cache = new AgentSurfaceMessageCache()
+    const message = { id: 'history', parts: [{ id: 'first', text: '历史正文'.repeat(1000) }] }
+    const model = { workspace: { draft_attachments: [], messages: [message], draft: '' } } as unknown as AgentSurfaceModel
+    const first = projectAgentSurface(model, cache)
+    for (let i = 0; i < 100; i++) {
+      const next = projectAgentSurface({ ...model, workspace: { ...model.workspace!, draft: String(i) } }, cache)
+      expect(next['message:workspace:history']).toBe(first['message:workspace:history'])
+      expect(next['part:workspace:history:first']).toBe(first['part:workspace:history:first'])
+      expect(next['workspace.draft']).toBe(String(i))
+    }
+    const changed = { ...model, workspace: { ...model.workspace!, messages: [{ ...message,
+      parts: [...message.parts, { id: 'second', text: '新增正文' }],
+    }] } } as unknown as AgentSurfaceModel
+    const next = projectAgentSurface(changed, cache)
+    expect(next['message:workspace:history']).not.toBe(first['message:workspace:history'])
+    expect(next['part:workspace:history:first']).toBe(first['part:workspace:history:first'])
+    expect(next['part:workspace:history:second']).toEqual({ id: 'second', text: '新增正文' })
   })
 
   it('恢复集合和注入小窗操作不改写接收缓存，多次恢复相互独立', () => {

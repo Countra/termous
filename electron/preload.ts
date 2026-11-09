@@ -1,4 +1,5 @@
-import { appDebugModeArgument, notificationIPCChannels as notificationChannels } from '#common/contracts'
+import { createWorkflowFileBridge } from './workflow-exchange/preload'
+import { appDebugModeArgument, decodeAppBuildInfo, notificationIPCChannels as notificationChannels } from '#common/contracts'
 import { createSystemClipboardCapabilitiesBridge } from './system-clipboard/preload'
 import { clipboard, contextBridge, ipcRenderer, webUtils } from 'electron'
 import { fileURLToPath } from 'node:url'
@@ -107,6 +108,7 @@ const bridge = {
   debugMode: process.argv.includes(appDebugModeArgument),
   systemClipboard: createSystemClipboardCapabilitiesBridge(),
   detachedWindows: createDetachedOwnerBridge(),
+  workflowFiles: createWorkflowFileBridge(),
   fileSystemClipboard: {
     importClipboard: (request) => ipcRenderer.invoke('file-system-clipboard:import', request),
     status: () => ipcRenderer.invoke('file-system-clipboard:status'),
@@ -115,14 +117,21 @@ const bridge = {
   },
   desktopFiles: createDesktopFileBridge(),
   remoteControl: {
+    editPolicy: (generation, editor) => ipcRenderer.invoke('remote:edit-policy', generation, editor),
+    closePolicyEditor: editor => ipcRenderer.invoke('remote:close-policy-editor', editor),
+    changePolicy: (generation, editor, revision, change) => ipcRenderer.invoke('remote:change-policy', generation, editor, revision, change),
+    selectPolicyDirectory: (generation, editor) => ipcRenderer.invoke('remote:select-policy-directory', generation, editor),
     openAgent: (generation, target) => ipcRenderer.invoke('remote:open-agent', generation, target),
     configureAgent: (generation, revision, enabled) => ipcRenderer.invoke('remote:configure-agent', generation, revision, enabled),
+  configureHostDesktop: (generation, revision, observe, control, secureCapture, secureControl) => ipcRenderer.invoke('remote:configure-host-desktop', generation, revision, observe, control, secureCapture, secureControl),
+  hostDesktopAccesses: generation => ipcRenderer.invoke('remote:host-desktop-accesses', generation),
+  stopHostDesktopAccess: (generation, id) => ipcRenderer.invoke('remote:stop-host-desktop-access', generation, id),
     configureDesktops: (generation, revision, profiles, exchangeProfiles) => ipcRenderer.invoke('remote:configure-desktops', generation, revision, profiles, exchangeProfiles),
     desktopProfiles: () => ipcRenderer.invoke('remote:desktop-profiles'),
     open: (generation, id, name) => ipcRenderer.invoke('remote:open', generation, id, name),
     devices: generation => ipcRenderer.invoke('remote:devices', generation),
     policy: generation => ipcRenderer.invoke('remote:policy', generation),
-    configure: (generation, revision, enabled, ids) => ipcRenderer.invoke('remote:configure', generation, revision, enabled, ids),
+    configure: (generation, revision, enabled, ids, accessMode) => ipcRenderer.invoke('remote:configure', generation, revision, enabled, ids, accessMode),
     hosts: () => ipcRenderer.invoke('remote:hosts'),
     addDirectory: (generation, revision, write) => ipcRenderer.invoke('remote:add-directory', generation, revision, write),
     removeDirectory: (generation, revision, id) => ipcRenderer.invoke('remote:remove-directory', generation, revision, id),
@@ -137,7 +146,7 @@ const bridge = {
     },
   },
   getConfig: () => ipcRenderer.invoke('core:get-config'),
-  getBuildInfo: () => ipcRenderer.invoke('app:get-build-info'),
+  getBuildInfo: async () => decodeAppBuildInfo(await ipcRenderer.invoke('app:get-build-info')),
   platform: process.platform,
   core: {
     status: () => ipcRenderer.invoke('core:status'),
@@ -187,6 +196,15 @@ const bridge = {
       ipcRenderer.on(agentRuntimeIPCChannels.status, listener)
       return () => ipcRenderer.removeListener(agentRuntimeIPCChannels.status, listener)
     },
+  },
+  agentIntegrations: {
+    prepare: session => ipcRenderer.invoke('agent-integrations:prepare', session),
+    releasePreparation: session => ipcRenderer.invoke('agent-integrations:release-preparation', session),
+    status: () => ipcRenderer.invoke('agent-integrations:status'),
+    reconnect: request => ipcRenderer.invoke('agent-integrations:reconnect', request),
+    login: request => ipcRenderer.invoke('agent-integrations:login', request),
+    test: request => ipcRenderer.invoke('agent-integrations:test', request),
+    cancel: requestID => ipcRenderer.invoke('agent-integrations:cancel', requestID),
   },
   terminalAICompletion: {
     generate: (request: TerminalAICompletionRequest) => ipcRenderer.invoke(terminalCompletionIPCChannels.generate, request) as Promise<TerminalAICompletionResult>,

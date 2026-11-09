@@ -3,7 +3,7 @@ export type { ProductTourStep, ProductTourStepId, ProductTourLabels } from './pr
 import { productTourFeatureSteps } from './productTourFeatureSteps.ts'
 import { getProductTourTopic, type ProductTourTopicId } from './productTourTopics.ts'
 
-export const PRODUCT_TOUR_VERSION = 5
+export const PRODUCT_TOUR_VERSION = 6
 
 const stepBlueprints: ProductTourStepBlueprint[] = [
   { id: 'welcome' },
@@ -228,6 +228,7 @@ export function buildProductTourSteps(t: ProductTourTranslate, topic?: ProductTo
     ...(topic ? { disableActiveInteraction: true } : {}),
     title: t(`productTour.steps.${step.id}.title`),
     description: t(`productTour.steps.${step.id}.description`),
+    ...(step.fallbackElement ? { fallbackDescription: t(`productTour.steps.${step.id}.fallbackDescription`) } : {}),
   }))
 }
 

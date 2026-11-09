@@ -8,7 +8,7 @@ export type McpApprovalState =
   | 'dispatch_conflict'
 
 export type McpApprovalDecision = 'approve' | 'reject'
-export type McpApprovalKind = 'command' | 'files' | 'remoteops' | 'forwarding' | 'snippet' | 'desktop' | 'desktop_workflow'
+export type McpApprovalKind = 'command' | 'files' | 'remoteops' | 'forwarding' | 'snippet' | 'desktop' | 'desktop_workflow' | 'screen_analysis' | 'external_tool' | 'local_tool'
 
 export interface McpApprovalRenameMapping {
   source_name: string
@@ -16,6 +16,10 @@ export interface McpApprovalRenameMapping {
 }
 
 export interface McpApprovalOperation {
+  local?: { session_id: string; tool: string; directory: string; shell?: string; executable?: string; command?: string;
+    path?: string; create: boolean; before: string; after: string; before_bytes: number; after_bytes: number; remember_allowed: boolean;
+    review?: import('#shared/file-review').FileReview; skill?: import('#common/contracts').SkillExecutionContext }
+  external?: { source_id: string; source_name: string; tool: string; arguments: string }
   script_id?: string
   script_version?: number
   run_id?: string
@@ -23,7 +27,7 @@ export interface McpApprovalOperation {
   domain?: string
   resource_id?: string
   resource_name?: string
-  resource_kind?: 'images' | 'volumes' | 'networks' | 'rdp' | 'vnc'
+  resource_kind?: 'images' | 'volumes' | 'networks' | 'rdp' | 'vnc' | 'host_desktop'
   target_resource_id?: string
   target_resource_name?: string
   image_tag?: string
@@ -124,6 +128,9 @@ export interface McpSnippetApproval extends McpApprovalBase {
 }
 
 export type McpApproval =
+  | (McpApprovalBase & { kind: 'local_tool'; command: string; operation: McpApprovalOperation })
+  | (McpApprovalBase & { kind: 'external_tool'; command: string; operation: McpApprovalOperation })
+  | (McpApprovalBase & { kind: 'screen_analysis'; command: string; operation: McpApprovalOperation })
   | (McpApprovalBase & { kind: 'desktop_workflow'; command: string; operation: McpApprovalOperation })
   | (McpApprovalBase & { kind: 'desktop'; command: string; operation: McpApprovalOperation })
   | McpCommandApproval

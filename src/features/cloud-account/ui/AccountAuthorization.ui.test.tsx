@@ -1,5 +1,6 @@
 import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeAll, expect, test, vi } from 'vitest'
 import type { CloudAuthorization } from '#common/contracts'
 import { CloudState, type CloudGateway } from '#entities/cloud'
@@ -44,13 +45,13 @@ test('未开启2FA时审批只验证密码', async () => {
   await waitFor(() => expect(api.authorizationAction).toHaveBeenCalledExactlyOnceWith('fixture', 'approval', initial.id, 'approve', { expected_revision: '3', confirm_trust: false, password: 'synthetic-password' }))
 })
 
-test('验证响应失败后清空密码和验证码，不自动重放一次性证明', async () => {
+test('验证响应失败后保留验证码，不自动重放一次性证明', async () => {
   const api = setup()
   api.authorizationAction.mockRejectedValueOnce(new Error('response_incomplete'))
   fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
   fireEvent.click(screen.getByRole('button', { name: '确认授权' }))
   await waitFor(() => expect(api.authorizationAction).toHaveBeenCalledTimes(1))
-  await waitFor(() => expect(screen.getByLabelText('验证器验证码')).toHaveValue(''))
+  await waitFor(() => expect(screen.getByLabelText('验证器验证码')).toHaveValue('1'))
   expect(await screen.findByRole('alert')).toBeInTheDocument()
   expect(api.authorizationAction).toHaveBeenCalledTimes(1)
 })
@@ -62,7 +63,7 @@ test.each(['mfa_invalid_code', 'mfa_code_reused'])('审批失败就地展示 %s 
   fireEvent.click(screen.getByRole('button', { name: '确认授权' }))
   expect(await screen.findByText(`错误代码：${code}`)).toBeInTheDocument()
   expect(screen.getByText(code === 'mfa_code_reused' ? '此验证码已使用，请等待验证器生成下一枚验证码。' : '验证码或备用码不正确，请检查后重试。')).toBeInTheDocument()
-  await waitFor(() => expect(screen.getByLabelText('验证器验证码')).toHaveValue(''))
+  await waitFor(() => expect(screen.getByLabelText('验证器验证码')).toHaveValue('1'))
   expect(api.authorizationAction).toHaveBeenCalledOnce()
 })
 
@@ -255,4 +256,31 @@ test('拒绝申请不会触发身份表单提交', async () => {
   const api = setup({ ...initial, allowed_actions: ['approve', 'reject'] })
   fireEvent.click(screen.getByRole('button', { name: '拒绝' }))
   await waitFor(() => expect(api.authorizationAction).toHaveBeenCalledExactlyOnceWith('fixture', 'approval', initial.id, 'reject', { expected_revision: '3', confirm_trust: false }))
+})
+
+test('托管恢复验证填满验证码不能绕过信任确认，勾选后仍由用户手动提交', async () => {
+  const api = setup({ ...initial, kind: 'enablement', allowed_actions: ['verify'] })
+  const user = userEvent.setup()
+  await user.type(screen.getByLabelText('验证器验证码'), '123456')
+  expect(api.authorizationAction).not.toHaveBeenCalled()
+  expect(screen.getByRole('button', { name: '验证本次操作' })).toBeDisabled()
+  await user.click(screen.getByRole('checkbox'))
+  expect(api.authorizationAction).not.toHaveBeenCalled()
+  await user.click(screen.getByRole('button', { name: '验证本次操作' }))
+  await waitFor(() => expect(api.authorizationAction).toHaveBeenCalledExactlyOnceWith('fixture', 'enablement', initial.id, 'verify', { expected_revision: '3', confirm_trust: true, method: 'totp', code: '123456' }))
+})
+
+test('审批验证码自动验证失败后保留六位，修改不重放且手动提交使用新值', async () => {
+  const api = setup()
+  api.authorizationAction.mockRejectedValue(new Error('mfa_invalid_code'))
+  const user = userEvent.setup()
+  await user.type(screen.getByLabelText('验证器验证码'), '123456')
+  await screen.findByText('错误代码：mfa_invalid_code')
+  const inputs = within(screen.getByRole('group', { name: '六位验证码' })).getAllByRole('textbox') as HTMLInputElement[]
+  expect(inputs.map(input => input.value).join('')).toBe('123456')
+  await user.click(inputs[2]); await user.keyboard('9')
+  expect(api.authorizationAction).toHaveBeenCalledOnce()
+  await user.click(screen.getByRole('button', { name: '确认授权' }))
+  await waitFor(() => expect(api.authorizationAction).toHaveBeenCalledTimes(2))
+  expect(api.authorizationAction).toHaveBeenLastCalledWith('fixture', 'approval', initial.id, 'approve', { expected_revision: '3', confirm_trust: false, method: 'totp', code: '129456' })
 })

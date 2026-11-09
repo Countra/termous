@@ -1,15 +1,17 @@
 import { AgentQuery_Kind as Q } from '@termous/remote-protocol/agent'
-import type { AgentSSHResourceState, AgentFileResourceState, AgentSlashCandidateCatalog } from '#entities/agent'
+import type { AgentSSHResourceState, AgentFileResourceState, AgentSlashCandidateCatalog, AgentDesktopResourceState } from '#entities/agent'
+import { hostDesktopTargetKey } from '#common/contracts'
 import { decodeAgentResourceBinding } from '#features/agent-runtime'
 import { RemoteError } from '#entities/remote-control'
 import { RemoteAgentTransport, object } from './agentTransport.ts'
 
 export interface RemoteAgentResources {
+  desktops: AgentDesktopResourceState[]
   ssh: AgentSSHResourceState[]
   files: AgentFileResourceState[]
   catalog: AgentSlashCandidateCatalog
 }
-export const emptyAgentResources = (): RemoteAgentResources => ({ ssh: [], files: [], catalog: { session: { ssh: [], file: [] }, profile: { ssh: [], file: [] } } })
+export const emptyAgentResources = (): RemoteAgentResources => ({ ssh: [], files: [], desktops: [], catalog: { session: { ssh: [], file: [], desktop: [] }, profile: { ssh: [], file: [] } } })
 
 export async function loadAgentResources(t: RemoteAgentTransport, signal: AbortSignal) {
   const result = emptyAgentResources()
@@ -22,7 +24,11 @@ export async function loadAgentResources(t: RemoteAgentTransport, signal: AbortS
       const binding = decodeAgentResourceBinding(candidate.binding)
       if (typeof candidate.name !== 'string') throw new RemoteError('remote_invalid')
       const common = { host_id: binding.host_id ?? '', host_name: binding.host_name ?? '', current: false, status: 'ready' as const }
-      if (binding.kind === 'ssh_session') {
+      if (binding.kind === 'host_desktop') {
+        result.desktops.push({ ...binding, status: 'ready' })
+        result.catalog.session.desktop!.push({ kind: 'host_desktop', resource_kind: 'desktop', desktop_target: binding.desktop_target,
+          id: hostDesktopTargetKey(binding.desktop_target), status: 'ready', current: false })
+      } else if (binding.kind === 'ssh_session') {
         if (typeof candidate.started_at !== 'string' || !Number.isFinite(Date.parse(candidate.started_at))) throw new RemoteError('remote_invalid')
         const resource = { ...common, session_id: binding.session_id, ssh_profile_id: binding.ssh_profile_id, ssh_profile_name: candidate.name, started_at: candidate.started_at }
         result.ssh.push(resource)

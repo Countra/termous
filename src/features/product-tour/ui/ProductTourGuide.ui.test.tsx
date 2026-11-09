@@ -20,12 +20,49 @@ function props(legacy?: string): ProductTourGuideProps {
   const values = new Map(legacy ? [['termous.ui.productTour.completedVersion', legacy]] : [])
   return {
     ready: true, autoStartEligible: false, blocked: false, manualRequestKey: 0,
-    onPrepareStep: vi.fn(), onBlocked: vi.fn(), onError: vi.fn(), onActiveChange: vi.fn(),
+    onPrepareStep: vi.fn(), onBlocked: vi.fn(), onError: vi.fn(), onActiveChange: vi.fn(), onSessionChange: vi.fn(),
     progress: createProductTourProgress(() => ({ getItem: key => values.get(key) ?? null, setItem: (key, value) => { values.set(key, value) } })),
   }
 }
 
 beforeEach(() => { state.props = null })
+
+it('选择、准备、讲解和返回列表保持向导会话，整轮退出才恢复业务调度', async () => {
+  const value = props()
+  const user = userEvent.setup()
+  const view = render(<ProductTourGuide {...value} manualRequestKey={1} />)
+  await screen.findByRole('dialog')
+  expect(value.onSessionChange).toHaveBeenLastCalledWith(true)
+  vi.mocked(value.onSessionChange!).mockClear()
+  await user.click(screen.getByRole('button', { name: /productTour.topics.basics.title/ }))
+  await screen.findByTestId('guide-session')
+  expect(value.progress!.shouldOfferBasics()).toBe(true)
+  expect(value.onSessionChange).not.toHaveBeenCalledWith(false)
+  act(() => state.props?.onActiveChange?.(true))
+  expect(value.progress!.shouldOfferBasics()).toBe(false)
+  act(() => { state.props?.onFinished?.('skipped'); state.props?.onActiveChange?.(false) })
+  await screen.findByRole('dialog')
+  expect(value.onSessionChange).not.toHaveBeenCalledWith(false)
+  await user.keyboard('{Escape}')
+  await waitFor(() => expect(value.onSessionChange).toHaveBeenLastCalledWith(false))
+  view.rerender(<ProductTourGuide {...value} manualRequestKey={2} />)
+  await screen.findByRole('dialog')
+  expect(value.onSessionChange).toHaveBeenLastCalledWith(true)
+  view.unmount()
+  expect(value.onSessionChange).toHaveBeenLastCalledWith(false)
+})
+
+it('首步准备失败释放隔离状态且不标记基础导览已展示', async () => {
+  const value = props()
+  const view = render(<ProductTourGuide {...value} autoStartEligible />)
+  await screen.findByTestId('guide-session')
+  expect(value.onSessionChange).toHaveBeenLastCalledWith(true)
+  act(() => state.props?.onFinished?.('not-started'))
+  expect(value.onSessionChange).toHaveBeenLastCalledWith(false)
+  expect(value.progress!.shouldOfferBasics()).toBe(true)
+  view.rerender(<ProductTourGuide {...value} autoStartEligible ready={false} />)
+  expect(value.onSessionChange).toHaveBeenLastCalledWith(false)
+})
 
 it('专题完成后返回选择页，展示完成信息并可继续另一专题', async () => {
   const user = userEvent.setup()
@@ -33,7 +70,7 @@ it('专题完成后返回选择页，展示完成信息并可继续另一专题'
   render(<StrictMode><ProductTourGuide {...value} manualRequestKey={1} /></StrictMode>)
   await waitFor(() => expect(screen.getByRole('dialog')).toBeVisible())
   expect(screen.queryByTestId('guide-session')).not.toBeInTheDocument()
-  expect(screen.getAllByRole('button', { name: /productTour.topics\./ })).toHaveLength(9)
+  expect(screen.getAllByRole('button', { name: /productTour.topics\./ })).toHaveLength(10)
   await user.click(screen.getByRole('button', { name: /productTour.topics.automation.title/ }))
   await waitFor(() => expect(screen.getByTestId('guide-session')).toHaveTextContent('automation'))
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -68,7 +105,7 @@ it('讲解中返回专题列表不标记完成', async () => {
   await waitFor(() => expect(screen.getByRole('dialog')).toBeVisible())
   expect(value.progress!.forTopic('files').readCompletedVersion()).toBeNull()
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
-  expect(screen.getByText('productTour.chooseTopic')).toBeVisible()
+  expect(screen.getByRole('heading', { name: 'productTour.browseTopics' })).toBeVisible()
 })
 
 it('新用户自动进入简短基础导览，看过后不重复打扰', async () => {

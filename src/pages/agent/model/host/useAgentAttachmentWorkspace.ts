@@ -1,8 +1,10 @@
 import {
-  useAgentDraftAttachments
+  useAgentDraftAttachments, AgentImageRequests
 } from '#features/agent-runtime'
 import { termousNotificationClassName } from '#shared/ui'
 import { useCallback, useEffect } from 'react'
+
+const imageRequests = new AgentImageRequests()
 
 interface Context {
   notificationRef: React.RefObject<import('../surface/agentFeedback.ts').AgentFeedback['notification']>
@@ -27,13 +29,15 @@ export function useAgentAttachmentWorkspace({ notificationRef, tRef, gateway, en
     })
   }, [notificationRef, tRef])
   const loadAttachmentContent = useCallback(
-    (attachment: import('#entities/agent').AgentAttachment, signal?: AbortSignal) => (
-      gateway.attachmentContent(attachment.id, signal)
+    (attachment: import('#entities/agent').AgentAttachment, signal?: AbortSignal, variant?: 'thumbnail') => (
+      imageRequests.read(`attachment:${attachment.id}:${attachment.revision}:${variant ?? 'original'}`, requestSignal => gateway.attachmentContent(attachment.id, requestSignal, variant), signal)
     ),
     [gateway],
   )
   const loadToolImage = useCallback(
-    (image: import('#entities/agent').AgentToolImageSource, signal?: AbortSignal) => gateway.toolImageContent(image, signal),
+    (image: import('#entities/agent').AgentToolImageSource, signal?: AbortSignal, variant?: 'thumbnail') => imageRequests.read(
+      `tool:${image.session_id}:${image.part_id}:${image.content_index}:${image.revision}:${variant ?? 'original'}`,
+      requestSignal => gateway.toolImageContent(image, requestSignal, variant), signal),
     [gateway],
   )
   const draftAttachments = useAgentDraftAttachments({

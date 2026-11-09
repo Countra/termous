@@ -3,9 +3,14 @@ import path from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import { app, BrowserWindow } from 'electron'
 import { DetachedWindows } from '../../electron/detached-windows/manager.ts'
+import { checkTransferredLayout, checkWorkflowLayout } from './workflow-layout-acceptance.ts'
+import { checkAnalysisLayout } from './analysis-layout-acceptance.ts'
+import { checkOCRSelection } from './workflow-ocr-selection-acceptance.ts'
+import { analysisResourceProbe } from './analysis-resource-probe.ts'
 
 async function main() {
   const output = path.resolve(process.argv[2])
+  const devURL = process.env.TERMOUS_WORKFLOW_UI_URL || 'http://127.0.0.1:5183/'
   const production = process.argv.includes('--production')
   app.setPath('userData', path.join(output, 'workflow-user-data'))
   await app.whenReady()
@@ -18,7 +23,7 @@ async function main() {
   } })
   const manager = new DetachedWindows({ host: () => host, trusted: event => event.sender === host.webContents && event.senderFrame === host.webContents.mainFrame,
     reveal: () => { if (host.isMinimized()) host.restore(); host.show() }, appearance: () => ({ theme: 'dark', language: 'zh-CN' }),
-    renderer: path.resolve('dist/index.html'), devURL: production ? undefined : 'http://127.0.0.1:5183/',
+    renderer: path.resolve('dist/index.html'), devURL: production ? undefined : devURL,
     preload: production ? path.resolve('dist-electron/detached-preload.cjs') : path.join(output, 'detached-preload.cjs'),
   })
   const child = () => BrowserWindow.getAllWindows().find(window => window !== host)
@@ -46,12 +51,14 @@ async function main() {
   }
   try {
     if (production) await host.loadFile(path.join(output, 'workflow-fixture/scripts/desktop/workflow-window-preview.html'))
-    else await host.loadURL('http://127.0.0.1:5183/scripts/desktop/workflow-window-preview.html')
+    else await host.loadURL(new URL('scripts/desktop/workflow-window-preview.html', devURL).href)
     await until(() => js(host, `!![...document.querySelectorAll('button')].find(node=>node.textContent.includes('发布前环境检查'))`), '自动化流程库未加载')
     await js(host, `[...document.querySelectorAll('button')].find(node=>node.textContent.includes('发布前环境检查')).click()`)
     await until(async () => !!await name(host), '脚本未加载')
     await rename(host, '窗口交接中的未保存草稿')
     const detached = await open()
+    detached.setSize(1440, 1000)
+    const panelWidths = await checkWorkflowLayout(detached, { js, click, until })
     assert.equal(await name(detached), '窗口交接中的未保存草稿')
     await click(detached, '更多操作')
     await until(() => js(detached, `!!document.querySelector('[role="menuitem"]')`), '操作菜单未展开')
@@ -63,9 +70,60 @@ async function main() {
     await js(host, `window.termous.detachedWindows.open({module:'desktop-workflow',instance:'workspace'})`)
     assert.equal(BrowserWindow.getAllWindows().length, 2)
     await until(() => js(detached, `!!document.querySelector('img[alt="只读桌面截图"]')?.naturalWidth`), '受限二进制截图未显示')
+    await js(detached, `[...document.querySelectorAll('strong')].find(node=>node.textContent==='读取状态文字').click()`)
+    await until(() => js(detached, `!![...document.querySelectorAll('button')].find(node=>node.textContent==='测试 OCR'&&!node.disabled)`), '独立窗口 OCR 配置不可用')
+    await click(detached, '测试 OCR')
+    await until(() => js(detached, `!!document.querySelector('section[aria-label="文字观察"]')?.textContent.includes('Healthy')`), '独立窗口 OCR 正文与截图未完成受限转发')
+    assert.equal(await js(detached, `document.querySelectorAll('[data-ocr-id]').length`), 4, '不指定范围应显示全部匹配项')
+    await checkOCRSelection(detached, { js, click, until })
+    await click(detached, '框选范围')
+    await until(() => js(detached, `!![...document.querySelectorAll('button')].find(node=>node.textContent==='取消框选')`), '范围编辑未打开')
+    assert(await js(detached, `[...document.querySelectorAll('button')].find(node=>node.textContent==='测试 OCR')?.disabled`), '未应用范围时不能用旧条件测试')
+    const bounds = await js(detached, `(()=>{const r=document.querySelector('img[alt="只读桌面截图"]').getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}})()`)
+    const start = { x: Math.round(bounds.x + bounds.width * 1050 / 1280), y: Math.round(bounds.y + bounds.height * 230 / 720) }
+    const end = { x: Math.round(bounds.x + bounds.width * 1210 / 1280), y: Math.round(bounds.y + bounds.height * 310 / 720) }
+    detached.webContents.sendInputEvent({ type: 'mouseDown', ...start, button: 'left', clickCount: 1 })
+    detached.webContents.sendInputEvent({ type: 'mouseMove', ...end, button: 'left' })
+    detached.webContents.sendInputEvent({ type: 'mouseUp', ...end, button: 'left', clickCount: 1 })
+    await until(() => js(detached, `!![...document.querySelectorAll('button')].find(node=>node.textContent==='应用区域'&&!node.disabled)`), '真实拖动没有建立可应用范围')
+    await click(detached, '应用区域')
+    await until(() => js(detached, `!![...document.querySelectorAll('button')].find(node=>node.textContent==='修改范围')`), '应用范围后没有退出绘制模式')
+    await click(detached, '测试 OCR')
+    await until(() => js(detached, `document.querySelector('section[aria-label="文字观察"]')?.textContent.includes('匹配 1 段文字')`), '独立窗口范围未传入 OCR 测试')
+    assert.deepEqual(await js(detached, `[...document.querySelectorAll('[data-ocr-id]')].map(node=>node.dataset.ocrId)`), ['1'], '覆盖层必须只显示区域内匹配项且保留原始编号')
+    assert.equal(await js(detached, `document.querySelectorAll('[aria-label="OCR 匹配结果"] li').length`), 1, '列表与覆盖层的匹配集合不一致')
+    await writeFile(path.join(output, 'workflow-detached-ocr.png'), (await detached.webContents.capturePage()).toPNG())
+    await click(detached, '搜索全屏')
+    await click(detached, '测试 OCR')
+    await until(() => js(detached, `document.querySelectorAll('[data-ocr-id]').length===4`), '清除范围后未恢复全屏匹配')
     await until(() => js(detached, `document.getAnimations().every(animation=>animation.playState!=='running')`), '窗口入场动画没有结束')
     await writeFile(path.join(output, 'workflow-detached-dark.png'), (await detached.webContents.capturePage()).toPNG())
     await writeFile(path.join(output, 'workflow-host-placeholder.png'), (await host.webContents.capturePage()).toPNG())
+    await click(detached, '画面分析')
+    await until(() => js(detached, `!!document.querySelector('[role=dialog]')`), '分析弹层未打开')
+    await click(detached, '展开历史')
+    await until(() => js(detached, `!![...document.querySelectorAll('button')].find(node=>node.textContent.includes('本地工作站'))`), '分析历史没有通过媒体桥接加载')
+    await js(detached, `[...document.querySelectorAll('button')].find(node=>node.textContent.includes('本地工作站')).click()`)
+    await until(() => js(detached, `!!document.querySelector('img[alt="分析原图"]')?.naturalWidth&&document.querySelectorAll('[data-analysis-layout] [role=listitem]').length===2`), '结果图片、列表和几何未完成转发')
+    await checkAnalysisLayout(detached, { js, click, until })
+    await writeFile(path.join(output, 'workflow-analysis-detached.png'), (await detached.webContents.capturePage()).toPNG())
+    await click(detached, 'Close')
+    await until(() => js(detached, `!document.querySelector('[role=dialog]')&&!document.querySelector('img[alt="分析原图"]')`), '分析关闭未释放结果视图')
+    const probe = await analysisResourceProbe(detached)
+    const analysisCycles = [await probe.sample(0)]
+    try { for (let cycle = 1; cycle <= 50; cycle++) {
+      await click(detached, '画面分析')
+      await until(() => js(detached, `!!document.querySelector('img[alt="分析原图"]')?.naturalWidth&&document.querySelectorAll('[data-analysis-layout] [role=listitem]').length===2`), `第 ${cycle} 次重新打开未恢复分析图片和结果`)
+      await click(detached, 'Close')
+      await until(() => js(detached, `!document.querySelector('[role=dialog]')&&!document.querySelector('img[alt="分析原图"]')&&document.getAnimations().every(animation=>animation.playState!=='running')`), '反复关闭后仍残留分析视图')
+      if (cycle % 10 === 0) {
+        const sample = await probe.sample(cycle)
+        assert.equal(sample.activeURLs, 0, '关闭分析后仍保留新建的 Blob URL')
+        analysisCycles.push(sample)
+      }
+    } } finally { await probe.close() }
+    await writeFile(path.join(output, 'workflow-analysis-cycles.json'), JSON.stringify(analysisCycles, null, 2))
+    assert.equal(analysisCycles[analysisCycles.length - 1].nodes, analysisCycles[0].nodes, '反复开关后 DOM 持续累积')
     await click(host, '返回远程桌面')
     assert(await js(host, `!![...document.querySelectorAll('p')].find(node=>node.textContent==='模拟主页面：有未保存的修改')`), '独立出去后无法切回主页面')
     assert(!detached.isDestroyed(), '切回主页面不应关闭自动化独立窗口')
@@ -95,8 +153,10 @@ async function main() {
     assert(await js(host, `!![...document.querySelectorAll('p')].find(node=>node.textContent==='模拟主页面：有未保存的修改')`), '原生关闭错误地发起页面导航')
     await click(host, '切换页面')
     assert.equal(await name(host), '取消返回后继续编辑')
+    await checkTransferredLayout(host, panelWidths, { js, click, until })
     assert.equal(host.webContents.getBackgroundThrottling(), true)
     const second = await open()
+    await checkTransferredLayout(second, panelWidths, { js, click, until })
     await rename(second, '点击返回后保留')
     await click(second, '返回主窗口')
     await until(() => second.isDestroyed(), '返回按钮没有收回窗口')
@@ -106,6 +166,11 @@ async function main() {
     const third = await open()
     await click(third, '运行')
     await until(() => js(third, `!!document.querySelector('[role=dialog]')`), '运行配置未打开')
+    await click(third, '取消')
+    await until(() => js(third, `!document.querySelector('[role=dialog]')`), '独立窗口取消运行配置未生效')
+    assert(!await js(third, "document.body.textContent.includes('操作未确认')"), '取消运行配置不应发送点击事件')
+    await click(third, '运行')
+    await until(() => js(third, `!!document.querySelector('[role=dialog]')`), '取消后无法重新打开运行配置')
     third.close()
     await until(() => third.isDestroyed(), '运行配置交接没有完成')
     await until(() => js(host, `!!document.querySelector('[role=dialog]')`), '关闭后运行配置丢失')
@@ -126,9 +191,10 @@ async function main() {
     await until(() => crashed.isDestroyed(), '崩溃窗口没有清理')
     assert(await js(host, `document.body.textContent.includes('已执行 1 步')`), '崩溃后宿主状态丢失')
     assert.equal(errors.filter(error => !error.includes('crashed')).length, 0, errors.join('\n'))
-    console.log('通过：真实 Electron 单实例、受限截图、草稿交接、后台编辑、导航取消、原生关闭、运行配置、执行控制与崩溃恢复')
+    console.log('通过：真实 Electron 单实例、受限截图与 OCR 观察、草稿交接、后台编辑、导航取消、原生关闭、运行配置、执行控制与崩溃恢复')
   } catch (error) {
     console.error(error); console.error(errors.join('\n'))
+    if (child()) console.error('界面终态', await js(child()!, `({dialogs:document.querySelectorAll('[role=dialog]').length,images:document.querySelectorAll('img[alt="分析原图"]').length,animations:document.getAnimations().filter(a=>a.playState==='running').map(a=>({name:a.animationName,target:a.effect?.target?.className,timing:a.effect?.getComputedTiming()}))})`))
     console.error('窗口状态', BrowserWindow.getAllWindows().map(window => ({ id: window.id, visible: window.isVisible(), url: window.webContents.getURL() })))
     if (!host.isDestroyed()) await writeFile(path.join(output, 'workflow-failed-host.png'), (await host.webContents.capturePage()).toPNG())
     if (child()) await writeFile(path.join(output, 'workflow-failed-child.png'), (await child()!.webContents.capturePage()).toPNG())

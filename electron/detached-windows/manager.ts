@@ -75,6 +75,12 @@ export class DetachedWindows {
     })
   }
 
+  workflowDialogOwner(connection: DetachedConnection) {
+    if (!isDetachedIdentity(connection) || connection.module !== 'desktop-workflow') return undefined
+    const entry = this.entries.get(this.key(connection))
+    return entry?.ready && !entry.window.isDestroyed() && sameDetachedConnection(entry.connection, connection) ? entry.window : undefined
+  }
+
   private key(identity: DetachedIdentity) { return `${identity.module}:${identity.instance}` }
 
   private async open(identity: DetachedIdentity, rect?: DetachedRect) {

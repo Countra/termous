@@ -267,6 +267,7 @@ function gatewayFixture(overrides: Partial<McpAccessGateway> = {}): McpAccessGat
   return {
     status: vi.fn().mockResolvedValue(statusFixture()),
     updateSettings: unsupported,
+    readFileReview: unsupported,
     clients: vi.fn().mockResolvedValue([clientFixture()]),
     createClient: unsupported,
     patchClient: unsupported,

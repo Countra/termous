@@ -1,8 +1,52 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createRuntimeGatewaysFromConfig } from '#app/data-runtime'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { ConfigProvider } from 'antd'
+import { AgentSettingsPanel } from '#features/agent-setup'
+
+vi.mock('react-i18next', async (importOriginal) => ({
+  ...await importOriginal<typeof import('react-i18next')>(),
+  useTranslation: () => ({ t: (key: string) => key }),
+}))
 
 describe('AgentSetupClient', () => {
   afterEach(() => vi.unstubAllGlobals())
+
+  it('真实设置快照保存后更新界面，不因缺少数据库时间字段误报失败', async () => {
+    let snapshot = settingsSnapshot(2)
+    const writes: unknown[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: URL, init: RequestInit) => {
+      if (url.pathname === '/api/v1/settings/agent' && init.method === 'PATCH') {
+        const body = JSON.parse(String(init.body))
+        writes.push(body)
+        expect(body.expected_revision).toBe(snapshot.revision)
+        snapshot = { ...snapshot, revision: snapshot.revision + 1, value: { ...snapshot.value, ...body.patch } }
+        return jsonResponse(snapshot)
+      }
+      if (url.pathname === '/api/v1/agent/readiness') {
+        return jsonResponse({ ...readinessFixture(), settings: {
+          ...snapshot.value, revision: snapshot.revision,
+          created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:01Z',
+        } })
+      }
+      if (url.pathname === '/api/v1/agent/model-providers') return jsonResponse({ items: [providerFixture(1)] })
+      if (url.pathname === '/api/v1/agent/models') return jsonResponse({ items: [modelFixture(1)] })
+      throw new Error(`未预期的测试请求：${url.pathname}`)
+    }))
+    const client = createRuntimeGatewaysFromConfig({ apiBaseUrl: 'http://127.0.0.1:8122', apiToken: 'fixture-token' }).agentSetup
+    render(<ConfigProvider><AgentSettingsPanel gateway={client} /></ConfigProvider>)
+    const threshold = await screen.findByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })
+    fireEvent.change(threshold, { target: { value: '85' } })
+    const save = screen.getByRole('button', { name: 'app.save' })
+    await waitFor(() => expect(save).toBeEnabled())
+    await userEvent.setup().click(save)
+    await waitFor(() => expect(writes).toHaveLength(1))
+    await screen.findByText('settings.editor.saved')
+    expect(screen.queryByText('settings.agent.configuration.saveFailed')).not.toBeInTheDocument()
+    expect(threshold).toHaveValue('85')
+    expect(snapshot.revision).toBe(3)
+  })
 
   it('使用固定 Provider/目录路由并完整提交 revision 与风险确认字段', async () => {
     const timeoutSpy = vi.spyOn(window, 'setTimeout')
@@ -32,8 +76,8 @@ describe('AgentSetupClient', () => {
       apiBaseUrl: 'http://127.0.0.1:8122', apiToken: 'renderer-token',
     }).agentSetup
 
-    await client.settings()
-    await client.updateSettings({
+    expect(await client.settings()).toMatchObject({ revision: 2, default_model_id: 'apm-1' })
+    const saved = await client.updateSettings({
       default_model_id: 'apm-1', default_reasoning_level: 'high',
       global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
       max_concurrent_runs: 4,
@@ -41,7 +85,9 @@ describe('AgentSetupClient', () => {
       connect_ssh_profile_on_bind: false,
       show_turn_token_usage: false, expected_revision: 2,
     })
-    await client.readiness()
+    expect(saved).toMatchObject({ revision: 3, default_model_id: 'apm-1' })
+    const readiness = await client.readiness()
+    expect({ ...saved, revision: 2 }).toEqual(readiness.settings)
     await client.setup()
     await client.updateMcpPolicy({ approval_bypass: true, sync_scopes: false, expected_revision: 2 })
     await client.modelProviders('cursor/value')
@@ -127,7 +173,6 @@ function settingsFixture(revision: number) {
     context_compaction_threshold_percent: 80,
     connect_ssh_profile_on_bind: false,
     show_turn_token_usage: true, revision,
-    created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:01Z',
   }
 }
 
@@ -142,7 +187,8 @@ function readinessFixture() {
   return {
     status: 'ready', mcp_runtime: { status: 'ready', message: '' },
     mcp_client: { status: 'ready', message: '' }, skills_bundle: { status: 'ready', message: '' },
-    default_model: { status: 'ready', message: '' }, mcp_policy: policyFixture(2), settings: settingsFixture(2),
+    default_model: { status: 'ready', message: '' }, mcp_policy: policyFixture(2),
+    settings: { ...settingsFixture(2), created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:01Z' },
   }
 }
 
@@ -188,6 +234,6 @@ function modelFixture(revision: number) {
 }
 
 function settingsSnapshot(revision: number) {
-  const value = settingsFixture(revision)
-  return { id: 'agent', schema_version: 1, revision, value, state: { status: 'applied' } }
+  const { revision: snapshotRevision, ...value } = settingsFixture(revision)
+  return { id: 'agent', schema_version: 2, revision: snapshotRevision, value, state: { status: 'applied' } }
 }

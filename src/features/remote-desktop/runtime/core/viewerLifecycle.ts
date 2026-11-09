@@ -1,6 +1,5 @@
 import type {
   RemoteDesktopAccessProfile,
-  RemoteDesktopDisplayMode,
   RemoteDesktopSession,
 } from '#entities/remote-desktop'
 import type { RemoteDesktopGateway } from '../../api/remoteDesktopGateway.ts'
@@ -10,6 +9,8 @@ import type { RemoteDesktopRouteRegistry } from './routeRegistry.ts'
 import { resolveRemoteDesktopSessionDrivers } from './sessionDriverResolver.ts'
 import { RemoteDesktopTargetAuthController } from './targetAuthController.ts'
 import type { AutomationPointerStore } from './automationPointerState.ts'
+import type { DesktopScaleMode } from './desktopResolution.ts'
+import { DesktopPresentationPreferences } from './presentationPreferences.ts'
 import type {
   RemoteDesktopCredentials,
   RemoteDesktopViewerHandle,
@@ -17,6 +18,7 @@ import type {
 } from './viewerContracts.ts'
 
 interface ViewerEntry {
+  presentation: import('@termous/remote-protocol/presentation').PresentationPreference
   sessionId: string
   connectionGeneration: number
   container: HTMLDivElement
@@ -33,6 +35,7 @@ interface ViewerEntry {
 }
 
 interface RemoteDesktopViewerLifecycleOptions {
+  readPresentationDefaults?: () => Promise<Pick<import('@termous/remote-protocol/presentation').PresentationPreference, 'defaults' | 'warning'>>
   pointers?: AutomationPointerStore
   api: () => Pick<
     RemoteDesktopGateway,
@@ -57,8 +60,11 @@ export class RemoteDesktopViewerLifecycle {
   private readonly entries = new Map<string, ViewerEntry>()
   private parkingHost: HTMLDivElement | null = null
   private disposed = false
+  private readonly presentations: DesktopPresentationPreferences
 
-  constructor(private readonly options: RemoteDesktopViewerLifecycleOptions) {}
+  constructor(private readonly options: RemoteDesktopViewerLifecycleOptions) {
+    this.presentations = new DesktopPresentationPreferences(options.readPresentationDefaults)
+  }
 
   activate() {
     this.disposed = false
@@ -76,10 +82,13 @@ export class RemoteDesktopViewerLifecycle {
     const nextIds = new Set(nextSessions.map((session) => session.id))
     for (const session of nextSessions) {
       this.options.metrics.activateGeneration(session.id, session.connection_generation)
+      if (session.status === 'failed' || session.status === 'stopping') this.presentations.remove(session.id)
+      else this.presentations.capture(session.id, session.connection_generation)
     }
     for (const sessionId of previousSessions.keys()) {
       if (!nextIds.has(sessionId)) {
         this.options.metrics.remove(sessionId)
+        this.presentations.remove(sessionId)
       }
     }
     for (const sessionId of this.entries.keys()) {
@@ -125,6 +134,7 @@ export class RemoteDesktopViewerLifecycle {
         entry.acceptedFingerprint = ''
         entry.savedCredentialRejected = false
       }
+      entry.presentation = this.presentations.capture(session.id, session.connection_generation).preference
       entry.connectionGeneration = session.connection_generation
       entry.blockedAttachGeneration = null
       entry.connectedGeneration = null
@@ -145,6 +155,7 @@ export class RemoteDesktopViewerLifecycle {
       entry.viewer = null
       entry.attachPromise = null
       entry.credentials = null
+      entry.presentation = {}
       entry.targetAuth.clear()
       entry.acceptedFingerprint = ''
       entry.automaticCredentialGeneration = null
@@ -198,6 +209,7 @@ export class RemoteDesktopViewerLifecycle {
       entry = {
         sessionId,
         connectionGeneration: session.connection_generation,
+        presentation: this.presentations.capture(sessionId, session.connection_generation).preference,
         container,
         viewport: null,
         viewer: null,
@@ -254,6 +266,7 @@ export class RemoteDesktopViewerLifecycle {
 
   disposeAll() {
     this.disposed = true
+    this.presentations.clear()
     for (const sessionId of [...this.entries.keys()]) {
       this.disposeViewer(sessionId, true)
     }
@@ -281,8 +294,20 @@ export class RemoteDesktopViewerLifecycle {
     this.ensureViewer(sessionId)
   }
 
-  setDisplayMode(sessionId: string, mode: RemoteDesktopDisplayMode) {
+  setDisplayMode(sessionId: string, mode: DesktopScaleMode) {
     this.entries.get(sessionId)?.viewer?.setDisplayMode(mode)
+  }
+
+  setFollowWindow(sessionId: string, value: boolean) {
+    this.entries.get(sessionId)?.viewer?.setFollowWindow(value)
+  }
+
+  resizeDesktop(sessionId: string, width: number, height: number) {
+    this.entries.get(sessionId)?.viewer?.resizeDesktop?.(width, height)
+  }
+
+  setPresentation(sessionId: string, value: import('@termous/remote-protocol/presentation').PresentationSettings) {
+    this.entries.get(sessionId)?.viewer?.setPresentation?.(value)
   }
 
   setViewOnly(sessionId: string, value: boolean) {
@@ -337,7 +362,9 @@ export class RemoteDesktopViewerLifecycle {
   }
 
   sendClipboard(sessionId: string, text: string) {
-    this.entries.get(sessionId)?.viewer?.sendClipboard(text)
+    const viewer = this.entries.get(sessionId)?.viewer
+    if (!viewer) throw new Error('clipboard_unavailable')
+    return viewer.sendClipboard(text)
   }
 
   private async attachViewer(
@@ -356,6 +383,7 @@ export class RemoteDesktopViewerLifecycle {
     )
     // 先完成协议模块加载，再申请短时 Ticket，避免冷加载消耗有效期。
     await driver.prepare()
+    await this.presentations.capture(entry.sessionId, expectedGeneration).ready
     if (!isCurrent()) {
       return
     }
@@ -376,6 +404,7 @@ export class RemoteDesktopViewerLifecycle {
     entry.targetAuth.reset(entry.savedCredentialRejected ? '' : ticket.credential_ticket)
     let viewer: RemoteDesktopViewerHandle | null = null
     viewer = await driver.createViewer({
+      presentation: entry.presentation,
       pointer: this.options.pointers?.feed(entry.sessionId, expectedGeneration),
       desktopFiles: api.desktopFiles,
       target: entry.container,
@@ -392,6 +421,14 @@ export class RemoteDesktopViewerLifecycle {
       state,
       credentials: entry.credentials ?? undefined,
       events: {
+        onPresentationChanged: (presentation) => {
+          if (isCurrent() || (viewer && this.isCurrentViewer(entry, expectedGeneration, viewer))) this.options.commitViewerState(entry.sessionId, { presentation })
+        },
+        onResolutionChanged: (resolution) => {
+          if (isCurrent() || (viewer && this.isCurrentViewer(entry, expectedGeneration, viewer))) {
+            this.options.commitViewerState(entry.sessionId, { resolution })
+          }
+        },
         onControlChanged: (owned, lease) => {
           if (viewer && this.isCurrentViewer(entry, expectedGeneration, viewer)) {
             this.options.commitViewerState(entry.sessionId, { controlOwned: owned, controlLease: lease ?? null })
@@ -488,6 +525,9 @@ export class RemoteDesktopViewerLifecycle {
             verification,
           })
         },
+        onClipboardError: (clipboardError) => {
+          if (viewer && this.isCurrentViewer(entry, expectedGeneration, viewer)) this.options.commitViewerState(entry.sessionId, { clipboardError })
+        },
         onClipboard: (remoteClipboard) => {
           if (
             viewer
@@ -522,7 +562,18 @@ export class RemoteDesktopViewerLifecycle {
       return
     }
     entry.viewer = viewer
-    this.options.commitViewerState(entry.sessionId, { connection: 'connecting' })
+    // 异步附着期间仍可切换显示和输入选项；未变化的输入状态不能重复申请控制权。
+    const current = this.options.viewerState(entry.sessionId) ?? state
+    try {
+      if (current.viewOnly !== state.viewOnly) viewer.setViewOnly(current.viewOnly)
+      viewer.setViewportActive(!!entry.viewport, current.displayMode)
+      viewer.setFollowWindow(current.followWindow)
+    } catch (error) {
+      entry.viewer = null
+      viewer.dispose()
+      throw error
+    }
+    this.options.commitViewerState(entry.sessionId, { connection: 'connecting', clipboardError: '' })
   }
 
   private showCredentialPrompt(

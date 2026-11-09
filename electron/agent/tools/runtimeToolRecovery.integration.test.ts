@@ -97,6 +97,7 @@ for (const api of ['responses', 'chat_completions'] as const) {
           assert.equal(calls[0]!.args.session_id, 'old')
           assert.ok(after.names.includes(encoded(get)))
           assert.match(after.text, /参数或前置条件修正后可重试原工具/)
+          assert.match(after.text, /必填字段、类型、枚举和标识来源/)
         } else if (scenario === 'unloaded') {
           assert.equal(calls.length, 0)
           assert.match(after.text, /discover_tools/)

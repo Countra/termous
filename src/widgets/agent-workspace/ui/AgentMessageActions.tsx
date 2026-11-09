@@ -7,7 +7,7 @@ import type { AgentWorkspaceMessage } from '../model/types.ts'
 import { formatAgentMessageDuration, formatAgentMessageTime } from './agentMessageTimeFormat.ts'
 import styles from './AgentMessageActions.module.scss'
 
-export const AgentMessageActions = memo(function AgentMessageActions({ message }: { message: AgentWorkspaceMessage }) {
+export const AgentMessageActions = memo(function AgentMessageActions({ message, onLoadMessageText }: { message: AgentWorkspaceMessage; onLoadMessageText?: (id: string) => Promise<string> }) {
   const { t, i18n } = useTranslation()
   const [status, setStatus] = useState<'idle' | 'copying' | 'copied' | 'failed'>('idle')
   const operation = useRef(0)
@@ -41,7 +41,9 @@ export const AgentMessageActions = memo(function AgentMessageActions({ message }
     window.clearTimeout(feedbackTimer.current)
     setStatus('copying')
     try {
-      await writeClipboardText(markdown)
+      const complete = onLoadMessageText ? await onLoadMessageText(message.id) : markdown
+      if (operation.current !== current) return
+      await writeClipboardText(complete)
       if (operation.current !== current) return
       setStatus('copied')
       feedbackTimer.current = window.setTimeout(() => setStatus('idle'), 1800)

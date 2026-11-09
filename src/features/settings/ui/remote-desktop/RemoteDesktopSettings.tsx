@@ -5,6 +5,8 @@ import { ConnectionToggleSetting } from '../connection/ConnectionToggleSetting'
 import { SettingsGroup } from '../controls/SettingsGroup'
 import { RdpRetentionSetting } from './RdpRetentionSetting'
 import { SystemClipboardSetting } from './SystemClipboardSetting'
+import { LocalDesktopAccessSettings } from './LocalDesktopAccessSettings'
+import { PresentationDefaultsSettings } from './PresentationDefaultsSettings'
 
 interface RemoteDesktopSettingsProps {
   value: ConnectionSettings
@@ -15,6 +17,7 @@ interface RemoteDesktopSettingsProps {
 export function RemoteDesktopSettings({ value, disabled, onChange }: RemoteDesktopSettingsProps) {
   const { t } = useTranslation()
   return <div>
+    <PresentationDefaultsSettings disabled={disabled} />
     <SettingsGroup title={t('settings.rdpSettings')} icon={<MonitorPlay size={16} aria-hidden="true" />}>
       <ConnectionToggleSetting setting="remote_desktop_auto_reconnect_enabled"
         label={t('settings.remoteDesktopAutoReconnect')} description={t('settings.remoteDesktopAutoReconnectHint')}
@@ -22,5 +25,6 @@ export function RemoteDesktopSettings({ value, disabled, onChange }: RemoteDeskt
       <RdpRetentionSetting value={value} disabled={disabled} onChange={onChange} />
     </SettingsGroup>
     <SystemClipboardSetting disabled={disabled} />
+    <LocalDesktopAccessSettings disabled={disabled} />
   </div>
 }

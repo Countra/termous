@@ -359,7 +359,13 @@ test('快捷键动作目录、作用域和管理交互拥有完整双语文案',
 function readTranslations(locale: string) {
   const path = join(sourceRoot, 'shared', 'i18n', 'locales', locale, 'translation.json')
   const workflow = join(sourceRoot, 'shared', 'i18n', 'locales', locale, 'desktop-workflow.json')
-  return { ...JSON.parse(readFileSync(path, 'utf8')), desktopWorkflow: JSON.parse(readFileSync(workflow, 'utf8')) } as TranslationTree
+  const analysis = join(sourceRoot, 'shared', 'i18n', 'locales', locale, 'analysis-workspace.json')
+  const readModule = (name: string) => JSON.parse(readFileSync(join(sourceRoot, 'shared', 'i18n', 'locales', locale, `${name}.json`), 'utf8'))
+  return { ...JSON.parse(readFileSync(path, 'utf8')),
+    extensions: readModule('extensions'), localTools: readModule('local-tools'), webSearch: readModule('web-search'),
+    mcpPreparation: readModule('mcp-preparation'), fileReview: readModule('file-review'), desktopWorkflow: {
+    ...JSON.parse(readFileSync(workflow, 'utf8')), analysisWorkspace: JSON.parse(readFileSync(analysis, 'utf8')),
+  } } as TranslationTree
 }
 
 function sourceFiles(directory: string): string[] {

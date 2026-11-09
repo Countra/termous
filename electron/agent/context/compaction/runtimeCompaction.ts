@@ -73,6 +73,7 @@ export interface RuntimeCompactionOptions<TSource> {
   // 请求补充项参与容量评估，但不参与历史切分、摘要正文或检查点持久化。
   supplementalMessages?(messages: AgentMessage[], commit: boolean): AgentMessage[]
   retainToolCall?(messages: AgentMessage[]): string | undefined
+  retainMessage?(message: AgentMessage): boolean
   captureDetails?(): Record<string, unknown>
   captureSource(signal?: AbortSignal): Promise<TSource>
   commit(candidate: RuntimeCompactionCommit<TSource>, signal?: AbortSignal): Promise<void>
@@ -84,12 +85,13 @@ export interface RuntimeCompactionOptions<TSource> {
 }
 
 export interface RuntimeCompactionController {
-  updateTools(tools: Tool[], messages: AgentMessage[]): void
+  updateTools(tools: Tool[], messages: AgentMessage[],systemPrompt?:string): void
   invalidateUsage(messages: AgentMessage[]): void
   transformContext(messages: AgentMessage[], signal?: AbortSignal): Promise<AgentMessage[]>
   observeContext(messages: AgentMessage[], providerUsage?: RuntimeProviderUsage): Promise<void>
   beforeProviderRequest(): void
   checkpoint(): RuntimeCompactionCheckpoint | undefined
+  rebase(messages: AgentMessage[]): AgentMessage[]
   failure(): RuntimeCompactionError | undefined
 }
 
@@ -148,12 +150,12 @@ export function createRuntimeCompactionController<TSource>(
   }
 
   const prepareContext = (raw: AgentMessage[], projected: AgentMessage[]) => {
-    let prepared = prepareRuntimeCompaction(raw, checkpoint, budget.settings, (messages) => projectHistory(messages, false), options.retainToolCall)
+    let prepared = prepareRuntimeCompaction(raw, checkpoint, budget.settings, (messages) => projectHistory(messages, false), options.retainToolCall, options.retainMessage)
     if (!hasRuntimeCompactionPrefix(prepared)) {
       const calibratedSettings = runtimeCompactionCalibratedSettings(projected, options.model, budget)
       if (calibratedSettings) {
         // 仅补救用量已过门禁但字符估算尚无切点的情况，仍保持完整工具调用边界。
-        prepared = prepareRuntimeCompaction(raw, checkpoint, calibratedSettings, (messages) => projectHistory(messages, false), options.retainToolCall)
+        prepared = prepareRuntimeCompaction(raw, checkpoint, calibratedSettings, (messages) => projectHistory(messages, false), options.retainToolCall, options.retainMessage)
       }
     }
     return prepared
@@ -238,8 +240,17 @@ export function createRuntimeCompactionController<TSource>(
   }
 
   return {
+    rebase: (messages) => {
+      const projected = projectHistory(runtimeCompactionProjection(validUsage(messages), checkpoint), true)
+      if (checkpoint) {
+        const boundary = 1 + checkpoint.retainedTail.length
+        checkpoint = { ...checkpoint, coveredRawLength: boundary, retainedTail: projected.slice(1, boundary) }
+      }
+      return projected
+    },
     invalidateUsage,
-    updateTools: (tools, messages) => {
+    updateTools: (tools, messages,systemPrompt) => {
+      if (systemPrompt!==undefined) options.systemPrompt=systemPrompt
       budget = runtimeCompactionBudget(options.model, options.thresholdPercent ?? 80, options.systemPrompt, tools)
       hasCompactionCapacity = budget.availableTokens > 0 && budget.settings.reserveTokens > 0 && budget.settings.keepRecentTokens > 0
       invalidateUsage(messages)

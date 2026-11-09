@@ -2,35 +2,9 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FileOperationTask } from '#entities/file'
 import type { FileOperationGateway } from './fileOperationGateway'
+import { FileOperationWebSocket as FakeWebSocket } from '../../../test/fileOperationWebSocket'
 import { observeFileOperation } from './observeFileOperation'
 import { useFileOperationWatcher } from './useFileOperationWatcher'
-
-class FakeWebSocket {
-  static readonly CLOSING = 2
-  static readonly CLOSED = 3
-  static instances: FakeWebSocket[] = []
-
-  readyState = 1
-  private readonly listeners = new Map<string, Set<(event: unknown) => void>>()
-
-  constructor(readonly url: string) {
-    FakeWebSocket.instances.push(this)
-  }
-
-  addEventListener(type: string, listener: (event: unknown) => void) {
-    const listeners = this.listeners.get(type) ?? new Set()
-    listeners.add(listener)
-    this.listeners.set(type, listeners)
-  }
-
-  close() {
-    this.readyState = FakeWebSocket.CLOSED
-  }
-
-  emit(type: string, event: unknown = {}) {
-    this.listeners.get(type)?.forEach((listener) => listener(event))
-  }
-}
 
 function task(patch: Partial<FileOperationTask> = {}): FileOperationTask {
   return {
@@ -65,25 +39,15 @@ function api(fileOperation = vi.fn(async () => task())) {
   } as unknown as FileOperationGateway
 }
 
-const originalWebSocket = globalThis.WebSocket
-
 beforeEach(() => {
   vi.useFakeTimers()
   FakeWebSocket.instances = []
-  Object.defineProperty(globalThis, 'WebSocket', {
-    configurable: true,
-    writable: true,
-    value: FakeWebSocket,
-  })
+  vi.stubGlobal('WebSocket', FakeWebSocket)
 })
 
 afterEach(() => {
   vi.useRealTimers()
-  Object.defineProperty(globalThis, 'WebSocket', {
-    configurable: true,
-    writable: true,
-    value: originalWebSocket,
-  })
+  vi.unstubAllGlobals()
 })
 
 describe('文件操作共享观察器', () => {

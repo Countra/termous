@@ -15,13 +15,14 @@ import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parse as parseYaml } from 'yaml'
 import { validateAgentSkillsBundleDirectory } from './validate-skills-bundle.mjs'
+import { buildOutputPaths } from '../build/output-paths.mjs'
 
 const formatVersion = 1
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url))
 const webDirectory = path.resolve(scriptDirectory, '..', '..')
 const defaultSkillsDirectory = path.resolve(webDirectory, '..', 'termous-skills', 'skills')
 const defaultBackendDirectory = path.resolve(webDirectory, '..', 'backend')
-const defaultOutputDirectory = path.resolve(webDirectory, 'build', 'agent', 'skills')
+const defaultOutputDirectory = buildOutputPaths(webDirectory).skills
 const skillNamePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 export async function prepareAgentSkillsBundle(options = {}) {

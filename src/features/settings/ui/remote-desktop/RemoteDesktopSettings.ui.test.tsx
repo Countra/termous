@@ -4,7 +4,7 @@ import { expect, test, vi } from 'vitest'
 import { defaultConnectionSettings } from '#entities/settings'
 import { RemoteDesktopSettings } from './RemoteDesktopSettings'
 
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en-US' } }) }))
 
 test('隧道恢复归属远程桌面设置，只提交自身字段', async () => {
   const user = userEvent.setup()

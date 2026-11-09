@@ -188,6 +188,7 @@ export function AppShell({
                   data-tour={`nav-${item.key}`}
                   onClick={() => onNavigate(item.key)}
                   aria-label={t(`nav.${item.key}`)}
+                  aria-current={page === item.key ? 'page' : undefined}
                   icon={<Icon size={18} aria-hidden="true" />}
                 >
                   <span>{t(`nav.${item.key}`)}</span>

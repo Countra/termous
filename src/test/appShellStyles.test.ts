@@ -44,11 +44,7 @@ test('应用壳层模块保留布局、Portal 和窄窗口合同', () => {
   )
   assert.match(
     appShellStyles,
-    /\.nav-item:global\(\.ant-btn\):hover,[\s\S]*box-shadow:\s*var\(--inner-highlight\);/,
-  )
-  assert.match(
-    appShellStyles,
-    /\.nav-item:global\(\.ant-btn\):active\s*\{\s*transform:\s*translateY\(1px\);/,
+    /\.nav-item:global\(\.ant-btn\):focus-visible\s*\{[^}]*outline:\s*2px solid var\(--accent\);/,
   )
   assert.match(
     appShellStyles,

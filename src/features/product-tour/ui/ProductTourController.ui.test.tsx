@@ -252,9 +252,9 @@ describe('核心使用向导控制器', () => {
     expect(onFinished).toHaveBeenLastCalledWith('skipped')
     view.rerender(<ProductTourController {...props} manualRequestKey={3} />)
     await waitFor(() => expect(records).toHaveLength(3))
-    for (let index = 1; index < 5; index++) {
+    for (let index = 1; index < buildProductTourSteps(key => key, 'desktop').length; index++) {
       act(() => invokeConfigHook(records[2], 'next'))
-      await waitFor(() => expect(records[2].activeIndex()).toBe(index))
+      await waitFor(() => expect(records[2].activeIndex()).toBe(index), { timeout: 4000 })
     }
     fireEvent.click(screen.getByRole('button', { name: 'productTour.finishTopic' }))
     expect(store.writeCompletedVersion).toHaveBeenCalledExactlyOnceWith(PRODUCT_TOUR_VERSION)
@@ -273,6 +273,20 @@ describe('核心使用向导控制器', () => {
     expect(store.writeCompletedVersion).not.toHaveBeenCalled()
   })
 
+  it('未变专题使用自身版本完成判断和记录，不因全局版本上调失去完成状态', async () => {
+    const records: FakeDriverRecord[] = []
+    const store = createStore(5)
+    const props = createProps({ topic: 'cloud', completionStore: store, driverFactory: createFakeDriverFactory(records) })
+    const view = renderController(<ProductTourController {...props} />)
+    await act(async () => undefined)
+    expect(records).toHaveLength(0)
+    view.rerender(<ProductTourController {...props} manualRequestKey={1} />)
+    await waitFor(() => expect(records).toHaveLength(1))
+    act(() => records[0].adapter.moveTo(buildProductTourSteps(key => key, 'cloud').length - 1))
+    fireEvent.click(screen.getByRole('button', { name: 'productTour.finishTopic' }))
+    expect(store.writeCompletedVersion).toHaveBeenCalledExactlyOnceWith(5)
+  })
+
   it('条件区域缺失或被隐藏时回退入口锚点，有可见目标时优先详细区域', async () => {
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ width: 100, height: 30 } as DOMRect)
     const fixture = document.createElement('div')
@@ -289,6 +303,28 @@ describe('核心使用向导控制器', () => {
     expect(resolveTarget()).toBe(fixture.querySelector('footer'))
     fixture.querySelector('footer')!.remove()
     expect(resolveTarget()).toBe(fixture.querySelector('button'))
+  })
+
+  it('Popover 文案复用本次目标解析，目标稍后出现也不会与已高亮父级错位', async () => {
+    installVisibleGeometry()
+    const fixture = document.createElement('section')
+    fixture.dataset.tour = 'desktop-workspace'
+    document.body.append(fixture)
+    const records: FakeDriverRecord[] = []
+    renderController(<ProductTourController {...createProps({ topic: 'desktop', driverFactory: createFakeDriverFactory(records) })} />)
+    await waitFor(() => expect(records).toHaveLength(1))
+    const stepIndex = buildProductTourSteps(key => key, 'desktop').findIndex(step => step.id === 'desktopQuality')
+    const target = records[0].config.steps![stepIndex].element
+    if (typeof target !== 'function') throw new Error('缺少锚点定位器')
+    expect(target()).toBe(fixture)
+    const quality = document.createElement('button')
+    quality.dataset.tour = 'desktop-quality'
+    fixture.append(quality)
+    act(() => records[0].adapter.moveTo(stepIndex))
+    expect(document.querySelector('[data-product-tour-step="desktopQuality"]')).toHaveTextContent('productTour.steps.desktopQuality.fallbackDescription')
+    expect(target()).toBe(quality)
+    act(() => records[0].adapter.moveTo(stepIndex))
+    expect(document.querySelector('[data-product-tour-step="desktopQuality"]')).toHaveTextContent('productTour.steps.desktopQuality.description')
   })
 
   beforeEach(() => {
@@ -456,6 +492,7 @@ describe('核心使用向导控制器', () => {
   })
 
   it('迁移门禁允许编辑器内讲解，并阻止跨路由或返回目录', async () => {
+    installVisibleGeometry()
     const records: FakeDriverRecord[] = []
     const onBlocked = vi.fn()
     const onPrepareStep = vi.fn(() => true)
@@ -575,6 +612,7 @@ describe('核心使用向导控制器', () => {
   })
 
   it('完整向导流程不产生直接网络请求或隐式提交', async () => {
+    installVisibleGeometry()
     const records: FakeDriverRecord[] = []
     const completionStore = createStore()
     const fetchMock = vi.fn()
@@ -895,7 +933,7 @@ describe('核心使用向导控制器', () => {
       const [open, setOpen] = useState(false)
       return (
         <AntdApp>
-          <div className="ant-modal-root">
+          <div className="ant-modal-root termous-product-tour-surface">
             <Dropdown
               open={open}
               onOpenChange={setOpen}
@@ -1161,9 +1199,10 @@ describe('核心使用向导控制器', () => {
   it('Driver 外部销毁时同步结束活动状态', async () => {
     const records: FakeDriverRecord[] = []
     const onActiveChange = vi.fn()
-    renderController(<ProductTourController {...createProps({
+    const onFinished = vi.fn()
+    const view = renderController(<ProductTourController {...createProps({
       driverFactory: createFakeDriverFactory(records),
-      onActiveChange,
+      onActiveChange, onFinished,
     })} />)
     await waitFor(() => expect(onActiveChange).toHaveBeenLastCalledWith(true))
 
@@ -1171,6 +1210,9 @@ describe('核心使用向导控制器', () => {
 
     expect(document.body).not.toHaveAttribute('data-termous-product-tour')
     expect(onActiveChange.mock.calls).toEqual([[true], [false]])
+    expect(onFinished.mock.calls).toEqual([['closed']])
+    view.unmount()
+    expect(onFinished).toHaveBeenCalledOnce()
   })
 
   it('为缺失目标保留等待和居中降级配置', async () => {
@@ -1266,10 +1308,24 @@ function installPreparedTourTargets() {
   const settingsPanel = document.createElement('section')
   settingsPanel.setAttribute('role', 'tabpanel')
   settingsPanel.setAttribute('aria-hidden', 'false')
-  for (const tab of ['terminal', 'mount', 'mcp', 'skills-install', 'agent', 'models', 'data']) {
+  for (const tab of ['terminal', 'mount', 'mcp', 'skills-install', 'agent', 'models', 'data', 'connection', 'remote-desktop', 'network']) {
     const content = document.createElement('div')
     content.dataset.tour = `settings-${tab}`
     settingsPanel.appendChild(content)
+  }
+  const extensions = document.createElement('div')
+  extensions.dataset.tour = 'settings-extensions'
+  for (const tab of ['mcp', 'skill', 'search', 'installation']) {
+    const content = document.createElement('div')
+    content.dataset.tour = `extensions-${tab}`
+    extensions.appendChild(content)
+  }
+  settingsPanel.appendChild(extensions)
+  for (const view of ['scripts', 'runs']) {
+    const content = document.createElement('div')
+    content.dataset.tour = 'automation-view'
+    content.dataset.activeView = view
+    fixture.appendChild(content)
   }
   fixture.appendChild(settingsPanel)
   document.body.appendChild(fixture)

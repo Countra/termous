@@ -1,5 +1,6 @@
-import { isAgentProgressData } from '#common/contracts'
-import { isAgentDisplayImageMIMEType, isAgentTerminalReferenceOrigin, maxAgentMessageRequestUsage } from '#common/contracts'
+import { isDesktopTaskReceipt } from '#common/desktop-batch'
+import { isAgentProgressData, isHostDesktopTarget } from '#common/contracts'
+import { isAgentDisplayImageMIMEType, isAgentToolImageReference, isAgentTerminalReferenceOrigin, maxAgentMessageRequestUsage } from '#common/contracts'
 import {
   agentApiModes,
   agentAttachmentStates,
@@ -146,14 +147,19 @@ export function decodeAgentResourceBinding(value: unknown): AgentResourceBinding
   const kind = enumValue<AgentResourceKind>(source.kind, agentResourceKinds, 'Agent 资源绑定类型无效')
   const common = { bound_at: timestamp(source.bound_at, 'Agent 资源绑定时间无效') }
   const fields = ['session_id', 'ssh_profile_id', 'ssh_profile_name', 'platform', 'file_access_profile_id', 'file_access_profile_name', 'engine',
-    'desktop_profile_id', 'desktop_profile_name', 'protocol', 'connection_generation', 'workflow_id', 'workflow_name', 'workflow_version']
-  const allowed = kind === 'desktop_workflow' ? ['workflow_id', 'workflow_name', 'workflow_version']
+    'desktop_profile_id', 'desktop_profile_name', 'protocol', 'connection_generation', 'workflow_id', 'workflow_name', 'workflow_version', 'desktop_target']
+  const allowed = kind === 'host_desktop' ? ['desktop_target'] : kind === 'desktop_workflow' ? ['workflow_id', 'workflow_name', 'workflow_version']
     : kind === 'desktop_session' ? ['session_id', 'desktop_profile_id', 'desktop_profile_name', 'protocol', 'connection_generation']
     : kind === 'desktop_profile' ? ['desktop_profile_id', 'desktop_profile_name', 'protocol']
     : ['session_id', 'ssh_profile_id', 'ssh_profile_name', 'platform', 'file_access_profile_id', 'file_access_profile_name', 'engine']
   if (fields.some((field) => source[field] !== undefined && !allowed.includes(field))
     || kind === 'desktop_workflow' && (source.host_id !== undefined || source.host_name !== undefined && source.host_name !== '')) {
     throw new AgentRuntimeProtocolError('资源引用包含其他类型的身份')
+  }
+  if (kind === 'host_desktop') {
+    if (!isHostDesktopTarget(source.desktop_target) || source.desktop_target.host.kind !== 'screen'
+      || source.host_id !== undefined || source.host_name !== undefined && source.host_name !== '') throw new AgentRuntimeProtocolError('Agent 本机桌面身份无效')
+    return { ...common, kind, desktop_target: source.desktop_target }
   }
   if (kind === 'desktop_workflow') return { ...common, kind,
     workflow_id: identifier(source.workflow_id, 'Agent 脚本 ID 无效'),
@@ -266,7 +272,7 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
     updated_at: timestamp(source.updated_at, 'Agent 消息片段更新时间无效'),
   }
   const content = record(source.content, 'Agent 消息片段内容无效')
-  if (kind === 'tool_result' && content.response_failure !== undefined) {
+  if ((kind === 'tool_result' || kind === 'task_result') && content.response_failure !== undefined) {
     throw new AgentRuntimeProtocolError('Agent 工具结果不得携带回答失败标记')
   }
   const failure = content.response_failure === undefined ? undefined
@@ -275,7 +281,7 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
     attempt_id: identifier(failure.attempt_id, 'Agent 回答失败 Attempt ID 无效'),
     error_message: utf8(failure.error_message, 'Agent 回答失败错误原文无效', 4 * 1024, true),
   } } : {}
-  const branches = ['text', 'reasoning', 'tool_call', 'tool_result'].filter((key) => content[key] !== undefined)
+  const branches = ['text', 'reasoning', 'tool_call', 'tool_result', 'task_result'].filter((key) => content[key] !== undefined)
   if (branches.length !== 1 || branches[0] !== kind) {
     throw new AgentRuntimeProtocolError('Agent 消息片段判别分支无效')
   }
@@ -288,7 +294,8 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
       ...base,
       ...responseFailure,
       kind,
-      text: utf8(body.text, `Agent ${kind} 文本无效`, 256 * 1024, true),
+      // 与 Core 的单条输入上限一致，长上下文不能在历史恢复时被较小的展示限制拒绝。
+      text: utf8(body.text, `Agent ${kind} 文本无效`, 1024 * 1024, true),
       ...(kind === 'text' && body.source_context !== undefined
         ? { source_context: decodeAgentSourceContext(body.source_context) }
         : {}),
@@ -298,6 +305,10 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
     }
   }
   const body = record(content[kind], `Agent ${kind} 片段无效`)
+  if (kind === 'task_result') {
+    if (!isDesktopTaskReceipt(body)) throw new AgentRuntimeProtocolError('Agent 桌面任务回执无效')
+    return { ...base, kind, task_result: body }
+  }
   if (kind === 'tool_call') {
     return { ...base, ...responseFailure, kind, tool_call: {
       tool_call_id: identifier(body.tool_call_id, 'Agent Tool Call ID 无效', 256),
@@ -382,6 +393,7 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
   }
   return {
     id,
+    ...(source.image_sources === undefined ? {} : { image_sources: decodeImageSources(source.image_sources, sessionId) }),
     session_id: sessionId,
     role,
     status,
@@ -397,6 +409,19 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
     ...(retries ? { retries } : {}),
     ...(progress ? { progress } : {}),
   }
+}
+
+function decodeImageSources(value: unknown, sessionId: string): NonNullable<AgentMessage['image_sources']> {
+  return array(value, '图片引用列表无效').map(raw => {
+    const item = record(raw, '图片引用无效')
+    const reference = utf8(item.reference, '图片引用无效', 2048)
+    if (item.session_id !== sessionId || !isAgentToolImageReference(reference) || !isAgentDisplayImageMIMEType(item.mime_type)) throw new AgentRuntimeProtocolError('图片引用归属或格式无效')
+    const size = positiveInteger(item.size_bytes, '图片大小无效')
+    if (size > 10 * 1024 * 1024) throw new AgentRuntimeProtocolError('图片超过限额')
+    return { session_id: sessionId, reference, mime_type: item.mime_type, size_bytes: size,
+      message_id: identifier(item.message_id, '图片消息无效'), part_id: identifier(item.part_id, '图片片段无效'),
+      revision: positiveInteger(item.revision, '图片修订无效'), content_index: nonNegativeInteger(item.content_index, '图片索引无效') }
+  })
 }
 
 export function decodeAgentAttachment(value: unknown): AgentAttachment {
@@ -426,12 +451,16 @@ function decodeMessageResources(value: unknown): AgentMessageResource[] {
     const id = identifier(source.id, 'Agent 消息关联资源 ID 无效')
     const name = utf8(source.name, 'Agent 消息关联资源名称无效', 1_024)
     const hostName = optionalString(source.host_name, 'Agent 消息关联主机名称无效', 1_024)
+    if (source.kind === 'host_desktop' ? !isHostDesktopTarget(source.desktop_target) || source.desktop_target.host.kind !== 'screen' : source.desktop_target !== undefined) {
+      throw new AgentRuntimeProtocolError('Agent 消息关联桌面身份无效')
+    }
     if (!/^[A-Za-z0-9_-]+$/.test(id) || name.includes('\0') || hostName?.includes('\0')) {
       throw new AgentRuntimeProtocolError('Agent 消息关联资源身份或名称无效')
     }
     return {
       kind: enumValue<AgentResourceKind>(source.kind, agentResourceKinds, 'Agent 消息关联资源类型无效'),
       ...(source.kind === 'desktop_workflow' ? { version: positiveInteger(source.version, 'Agent 脚本引用版本无效') } : {}),
+      ...(isHostDesktopTarget(source.desktop_target) ? { desktop_target: source.desktop_target } : {}),
       id, name,
       ...(hostName === undefined ? {} : { host_name: hostName }),
     }
@@ -460,6 +489,10 @@ export function decodeAgentMessagePage(value: unknown): AgentMessagePage {
   ascending(items.map(({ sequence }) => sequence), 'Agent 消息 sequence 无序')
   return {
     items,
+    before_cursor: optionalString(source.before_cursor, 'Agent 时间线游标无效', 512),
+    after_cursor: optionalString(source.after_cursor, 'Agent 时间线游标无效', 512),
+    has_older: source.has_older === true,
+    has_newer: source.has_newer === true,
     next_after_sequence: optionalPositiveInteger(source.next_after_sequence, 'Agent 消息增量游标无效'),
   }
 }
@@ -571,10 +604,13 @@ export function decodeAgentRunEvent(value: unknown): AgentRunEvent {
     case 'message_part':
       return { ...base, kind, payload: { message_part: decodeAgentMessagePart(payload.message_part) } }
     case 'tool_started':
+    case 'tool_prepared':
+    case 'tool_progress':
     case 'tool_completed':
     case 'tool_failed': {
       const tool = record(payload.tool, 'Agent Tool 事件无效')
       return { ...base, kind, payload: { tool: {
+        phase: tool.phase === undefined ? undefined : enumValue(tool.phase, ['preparing', 'waiting', 'executing'] as const, 'Agent Tool 阶段无效'),
         tool_call_id: identifier(tool.tool_call_id, 'Agent Tool Call ID 无效', 256),
         tool_name: utf8(tool.tool_name, 'Agent Tool 名称无效', 256),
         arguments: tool.arguments === undefined ? undefined : jsonValue(tool.arguments),

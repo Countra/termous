@@ -1,5 +1,5 @@
 import { Button, Input, Segmented, Tooltip } from 'antd'
-import { ArrowLeft, ArrowUpRight, FileCode2, History, PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, Search, Workflow } from 'lucide-react'
+import { FileCode2, History, PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, Search, Workflow } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Run, Script } from '#entities/desktop-workflow'
 import { isRunActive } from '../../model/messages'
@@ -18,7 +18,6 @@ interface Props {
   onCreate: () => void
   onSelectScript: (id: string) => void
   onSelectRun: (id: string) => void
-  onViewChange: (view: 'scripts' | 'runs') => void
   onRefresh: () => void
   collapsed: boolean
   onToggle: () => void
@@ -38,18 +37,16 @@ export function WorkflowCatalog(props: Props) {
   const activeCount = props.runs.filter((run) => isRunActive(run.state)).length
   const history = props.view === 'runs'
 
-  return <aside className={styles.catalog} data-collapsed={props.collapsed || undefined} aria-label={t(history ? 'desktopWorkflow.runs' : 'desktopWorkflow.library')}>
+  return <aside className={styles.catalog} data-tour="automation-library" data-collapsed={props.collapsed || undefined} aria-label={t(history ? 'desktopWorkflow.runs' : 'desktopWorkflow.library')}>
     <div className={styles.rail} hidden={!props.collapsed}>
       <Tooltip title={t('desktopWorkflow.expandLibrary')} placement="right"><Button type="text" aria-label={t('desktopWorkflow.expandLibrary')} aria-expanded={false} icon={<PanelLeftOpen size={18} />} onClick={props.onToggle} /></Tooltip>
       <span className={styles['rail-divider']} />
-      <Tooltip title={t('desktopWorkflow.library')} placement="right"><Button type={history ? 'text' : 'default'} aria-label={t('desktopWorkflow.library')} icon={<Workflow size={18} />} onClick={() => { props.onViewChange('scripts'); props.onToggle() }} /></Tooltip>
       <Tooltip title={t('desktopWorkflow.createWorkflow')} placement="right"><Button type="text" aria-label={t('desktopWorkflow.createWorkflow')} disabled={props.busy} icon={<Plus size={18} />} onClick={props.onCreate} /></Tooltip>
-      <Tooltip title={t('desktopWorkflow.executionHistory')} placement="right"><Button type={history ? 'default' : 'text'} aria-label={t('desktopWorkflow.executionHistory')} icon={<History size={18} />} onClick={() => { props.onViewChange('runs'); props.onToggle() }} /></Tooltip>
     </div>
     <div className={styles.expanded} hidden={props.collapsed}>
       <header className={styles.header}>
         <div className={styles.title}>
-          {history ? <Button type="text" size="small" aria-label={t('desktopWorkflow.backToEditor')} icon={<ArrowLeft size={16} />} onClick={() => props.onViewChange('scripts')} /> : <Workflow size={17} />}
+          {history ? <History size={17} /> : <Workflow size={17} />}
           <strong>{t(history ? 'desktopWorkflow.runs' : 'desktopWorkflow.library')}</strong>
           <span className={styles.count}>{history ? props.runs.length : props.scripts.length}</span>
         </div>
@@ -68,9 +65,6 @@ export function WorkflowCatalog(props: Props) {
         </button>)}
         {!props.loading && (history ? runs : scripts).length === 0 && <div className={styles.empty}><Search size={22} /><span>{t(query ? 'desktopWorkflow.noResults' : history ? 'desktopWorkflow.noRuns' : 'desktopWorkflow.noWorkflows')}</span></div>}
       </div>
-      {!history && <button type="button" className={styles['history-button']} onClick={() => props.onViewChange('runs')}>
-        <History size={17} /><span>{t('desktopWorkflow.executionHistory')}</span>{activeCount > 0 ? <span className={styles.active}>{activeCount}</span> : <ArrowUpRight size={14} />}
-      </button>}
       <footer className={styles.footer}><span>{t('desktopWorkflow.libraryCount', { count: history ? props.runs.length : props.scripts.length })}</span><Tooltip title={t('desktopWorkflow.refresh')}><Button type="text" size="small" aria-label={t('desktopWorkflow.refresh')} loading={props.loading} icon={<RefreshCw size={13} />} onClick={props.onRefresh} /></Tooltip></footer>
     </div>
   </aside>

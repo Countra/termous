@@ -63,7 +63,7 @@ export function AccountStepUpDialog({ api, generation, mfa, unavailable, busy, t
         if (currentPolicy() && cause instanceof Error && cause.message === 'reauthentication_required') accept({ ...mfa, verified_until: undefined })
         if (current() && isCloudMFAUncertainError(cause)) { await reload(); if (current()) onUncertain() }
         throw cause
-      } finally { if (currentPolicy()) form.resetFields() }
+      } finally { if (currentPolicy()) form.resetFields(['password']) }
     })}>
       {!verified ? <AccountStepUpFields enabled={mfa?.enabled} revision={mfa?.revision} disabled={disabled || unavailable} /> : null}
       <Button type="primary" danger={danger} htmlType="submit" loading={disabled} disabled={unavailable}>{t('cloud.mfa.continue')}</Button>

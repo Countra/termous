@@ -6,7 +6,7 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
 import { agentRuntimeProtocolVersion } from '#common/contracts'
 import { createPiAgent, type CreatePiAgentOptions } from '../runtime/piAgentAdapter.ts'
-import { createRuntimeSystemPrompt } from '../runtime/runtimeSystemPrompt.ts'
+import { identifyTool, termousToolSource } from '../contracts/toolSources.ts'
 import { RuntimeEventWriter } from '../runtime/runtimeEventWriter.ts'
 import type { RuntimeCompactionContextUsage } from '../context/compaction/runtimeCompaction.ts'
 import type { RuntimeProviderUsage } from '../contracts/providerUsageContract.ts'
@@ -141,7 +141,8 @@ test('用量观察不打断未执行工具，工具结果越过阈值后在下�
       }
       const system = body.messages.filter((message) => message.role === 'system')
       assert.equal(system.length, 1)
-      assert.equal(system[0]!.content, createRuntimeSystemPrompt(bootstrap, testAgentSkillBundle()))
+      assert.match(String(system[0]!.content), /Available capability index/u)
+      assert.ok(String(system[0]!.content).includes(toolName))
       assert.match(JSON.stringify(body.tools), new RegExp(toolName, 'u'))
       mainRequests += 1
       order.push(`provider-${mainRequests}`)
@@ -361,17 +362,23 @@ async function executeFixture(
     },
   })
   let requests = 0
+  if (overrides.mcp) overrides = { ...overrides, mcp: { ...overrides.mcp, tools: overrides.mcp.tools.map((tool) => identifyTool(tool, termousToolSource, overrides.mcp!.originalName(tool.name) ?? tool.name)) } }
+  let fixtureFailure: unknown
+  const fixtureFetch: typeof fetch | undefined = overrides.fetch ? async (...args) => {
+    try { return await overrides.fetch!(...args) } catch (error) { fixtureFailure ??= error; throw error }
+  } : undefined
   const agent = createPiAgent({
     bootstrap: accepted, events: writer, skills: testAgentSkillBundle(),
     mcp: { tools: [], originalName: () => null, close: async () => {} },
     commitCheckpoint: async () => { throw new Error('未到阈值不应压缩') },
     fetch: async () => { requests += 1; return providerResponse(bootstrap.model.snapshot.api_mode, tokens) },
     ...overrides,
-    ...(overrides.fetch && overrides.mcp ? { fetch: withToolDiscovery(overrides.fetch, overrides.mcp.tools.map((tool) => tool.name)) } : {}),
+    ...(fixtureFetch && overrides.mcp ? { fetch: withToolDiscovery(fixtureFetch, overrides.mcp.tools.map((tool) => tool.name)) } : {}),
   })
   try {
     const outcome = await agent.continue()
     await writer.flush()
+    if (fixtureFailure) throw fixtureFailure
     assert.equal(outcome, expectedOutcome, JSON.stringify(events.filter((event) => event.kind === 'error').map((event) => event.payload.error)))
     return { requests, events, contexts: events.filter((event) => event.kind === 'context_usage')
       .map((event) => event.payload.context_usage as RuntimeCompactionContextUsage) }

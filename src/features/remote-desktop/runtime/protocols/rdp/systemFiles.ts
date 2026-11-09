@@ -7,6 +7,7 @@ import type { DesktopFilesGateway } from '../../../api/DesktopFilesClient.ts'
 export function createRdpSystemFiles(options: {
   id: string; api?: DesktopFilesGateway; context: () => SystemFileClipboardContext | undefined
   focused: () => boolean; inputEpoch: () => number; paste: () => void
+  pasteText: (current: () => boolean) => Promise<void>
 }) {
   const bridge = getTermousBridge()?.desktopFiles
   let enabled = false, disposed = false, busy = false
@@ -102,7 +103,11 @@ export function createRdpSystemFiles(options: {
       if (!current() || !drop && !canImport()) return
       if (result.value.kind !== 'files') {
         if (!paste) throw new Error('desktop_system_clipboard_empty')
-        if (!drop && options.focused() && options.inputEpoch() === epoch) options.paste()
+        const valid = () => current() && canImport() && options.focused() && options.inputEpoch() === epoch
+        if (!drop && valid()) {
+          if (result.value.kind === 'text') await options.pasteText(valid)
+          else options.paste()
+        }
         return
       }
       const selection = result.value.grant

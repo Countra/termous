@@ -37,8 +37,8 @@ function createManifest(platform) {
       sha512,
     };
   }
-  const zip = "Termous-1.2.3-macos-x64.zip";
-  const dmg = "Termous-1.2.3-macos-x64.dmg";
+  const zip = "Termous-1.2.3-macos-arm64.zip";
+  const dmg = "Termous-1.2.3-macos-arm64.dmg";
   return {
     version: "1.2.3",
     files: [
@@ -109,7 +109,7 @@ test("Windows 与 macOS manifest 拒绝 blockMapSize", () => {
     assert.throws(
       () =>
         validateUpdateManifest(createManifest(platform), {
-          arch: platform === "macos" ? "x64" : undefined,
+          arch: platform === "macos" ? "arm64" : undefined,
           platform,
           version: "1.2.3",
         }),

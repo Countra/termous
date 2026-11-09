@@ -138,7 +138,7 @@ describe('云账号页', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('重新验证失败时通过统一消息显示错误，保留账号并允许再次提交', async () => {
+  it('重新验证失败时在弹层内显示一次错误，保留账号并允许再次提交', async () => {
     const { api, cloud } = setup({ ...initial, authenticated: true, phase: 'blocked', device_status: 'active', email: 'fixture@example.test', error_code: 'refresh_unconfirmed' })
     let fail!: (cause: Error) => void
     api.login.mockImplementationOnce(() => new Promise((_, reject) => { fail = reject }))
@@ -151,7 +151,7 @@ describe('云账号页', () => {
     await waitFor(() => expect(api.login).toHaveBeenCalledTimes(1))
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape', keyCode: 27 })
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(dialog.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
+    expect(dialog.getByRole('button', { name: '关闭' })).toBeDisabled()
     await act(async () => { fail(new Error('network_unavailable')) })
     expect(await screen.findByText('暂时无法连接云服务，请稍后重试。')).toBeInTheDocument()
     expect(dialog.getByLabelText('密码')).toHaveValue('synthetic-password')
@@ -174,7 +174,7 @@ describe('云账号页', () => {
     fireEvent.click(screen.getByRole('button', { name: '重新登录' }))
     const dialog = within(await screen.findByRole('dialog'))
     expect(dialog.getByLabelText('邮箱')).toHaveValue('fixture@example.test')
-    fireEvent.click(dialog.getByRole('button', { name: 'Close' }))
+    fireEvent.click(dialog.getByRole('button', { name: '关闭' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(screen.getByLabelText('名称')).toHaveValue('Unsaved draft')
     expect(screen.getByRole('button', { name: '重新登录' })).toBeEnabled()
@@ -223,7 +223,7 @@ describe('云账号页', () => {
     const { cloud } = setup({ ...initial, configured: false, phase: 'unconfigured' })
     const onUseOffline = vi.fn()
     render(<AccountPage api={cloud} onUseOffline={onUseOffline} />)
-    fireEvent.click(screen.getByRole('button', { name: '使用离线版' }))
+    fireEvent.click(screen.getByRole('button', { name: '继续使用本地功能' }))
     expect(onUseOffline).toHaveBeenCalledTimes(1)
     expect(screen.queryByLabelText('密码')).not.toBeInTheDocument()
   })
@@ -341,13 +341,13 @@ describe('云账号页', () => {
     render(<AccountPage api={cloud} />)
     fireEvent.click(screen.getByRole('button', { name: '安全选项' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: /紧急暂停云端恢复/ }))
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '确认暂停' }))
+    fireEvent.click(await screen.findByRole('button', { name: '确认暂停' }))
     expect(await screen.findByText('已暂停云端恢复')).toBeInTheDocument()
     expect(api.emergencyFreeze).toHaveBeenCalledWith('initial')
     expect(api.login).not.toHaveBeenCalled()
     expect(api.createRecovery).not.toHaveBeenCalled()
     expect(api.createDeviceRequest).not.toHaveBeenCalled()
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('button', { name: '确认暂停' })).not.toBeInTheDocument())
   })
 
   it.each([

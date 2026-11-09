@@ -2,6 +2,8 @@ import type { AgentTool } from '@earendil-works/pi-agent-core'
 import type { CallToolResult } from '@modelcontextprotocol/client'
 
 const visualDesktopTools = new Set([
+  'termous.desktops.execute',
+  'termous.desktops.executions.get',
   'termous.desktops.capture',
   'termous.desktop_workflows.captures.create',
   'termous.desktop_workflows.captures.view',
@@ -24,6 +26,9 @@ export interface MCPToolDetails {
 }
 
 export interface AgentMCPConnection {
+  pendingWork?(): string | undefined
+  refreshTools?(signal?:AbortSignal):Promise<{removed:string[];tools:AgentTool[]} | undefined>
+  loadTool?(name: string, signal?: AbortSignal): Promise<AgentTool['parameters'] | undefined>
   tools: AgentTool[]
   originalName(encodedName: string): string | null
   readOnly?(originalName: string): boolean

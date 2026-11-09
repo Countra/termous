@@ -1,4 +1,5 @@
 import type { ProductTourStep } from './productTourSteps.ts'
+import { findProductTourTarget } from './productTourTargets.ts'
 
 const PREPARATION_TIMEOUT_MS = 1200
 const settingsTabActions = {
@@ -8,13 +9,20 @@ const settingsTabActions = {
   settingsAgent: '[data-tour="settings-agent-tab"]',
   settingsData: '[data-tour="settings-data-tab"]',
   settingsModels: '[data-tour="settings-models-tab"]',
+  settingsConnection: '[data-tour="settings-connection-tab"]',
+  settingsDesktop: '[data-tour="settings-remote-desktop-tab"]',
 } as const
+
+const extensionTabs = { extensionsMcp: 'mcp', extensionsSkills: 'skill', extensionsSearch: 'search' } as const
 
 export async function prepareProductTourDom(
   step: ProductTourStep,
   signal: AbortSignal,
 ) {
-  if (!step.preparation) {
+  if (step.workflowView && !signal.aborted) {
+    await waitForElement(`[data-tour="automation-view"][data-active-view="${step.workflowView}"]`, signal)
+  }
+  if (!step.preparation || signal.aborted) {
     return
   }
 
@@ -50,26 +58,47 @@ export async function prepareProductTourDom(
     case 'settingsAgent':
     case 'settingsData':
     case 'settingsModels':
+    case 'settingsConnection':
+    case 'settingsDesktop':
       // 通过原页签动作展示设置，保留已经挂载的表单、编辑稿和导入会话。
-      await ensureTarget(step.element, settingsTabActions[step.preparation], signal)
-      if (!signal.aborted && step.element) {
-        const content = document.querySelector<HTMLElement>(step.element)
-        if (content) {
-          content.scrollTop = 0
-          // 子元素锚点可能被页签内的滚动容器裁切，不能只依赖 Driver 对浏览器视口的判断。
-          content.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
-        }
-      }
+      await ensureTarget(settingsPanel(step.preparation), settingsTabActions[step.preparation], signal)
+      scrollTarget(step, signal)
       return
+    case 'extensionsMcp':
+    case 'extensionsSkills':
+    case 'extensionsSearch': {
+      const outer = '[role="tabpanel"][aria-hidden="false"] [data-tour="settings-extensions"]'
+      await ensureTarget(outer, '[data-tour="settings-extensions-tab"]', signal)
+      if (signal.aborted || !findProductTourTarget(outer)) return
+      const tab = extensionTabs[step.preparation]
+      await ensureTarget(`${outer} [data-tour="extensions-${tab}"]`, `${outer} [data-tour="extensions-${tab}-tab"]`, signal)
+      scrollTarget(step, signal)
+      return
+    }
     default:
       assertNeverPreparation(step.preparation)
   }
 }
 
+function settingsPanel(preparation: keyof typeof settingsTabActions) {
+  const name = { settingsTerminal: 'terminal', settingsMount: 'mount', settingsMcp: 'mcp', settingsAgent: 'agent', settingsData: 'data', settingsModels: 'models', settingsConnection: 'connection', settingsDesktop: 'remote-desktop' }[preparation]
+  return `[role="tabpanel"][aria-hidden="false"] [data-tour="settings-${name}"]`
+}
+
+function scrollTarget(step: ProductTourStep, signal: AbortSignal) {
+  if (signal.aborted) return
+  const content = step.element && findProductTourTarget(step.element)
+    || step.fallbackElement && findProductTourTarget(step.fallbackElement)
+  if (!content) return
+  content.scrollTop = 0
+  // 页签内的滚动容器可能裁切目标，不能只依赖 Driver 对浏览器视口的判断。
+  content.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
+}
+
 async function prepareHostEditor(step: ProductTourStep, signal: AbortSignal) {
   const hostEditor = '[data-active-view="editor"] [data-tour="host-editor"]'
   const hostCatalogAdd = '[data-active-view="catalog"] [data-tour="hosts-add"]'
-  if (!document.querySelector(hostEditor)) {
+  if (!findProductTourTarget(hostEditor)) {
     await ensureTarget(
       hostCatalogAdd,
       '[data-active-view="editor"] [data-tour="host-back"]',
@@ -109,7 +138,7 @@ async function ensureTarget(
   actionSelector: string,
   signal: AbortSignal,
 ) {
-  if (!targetSelector || document.querySelector(targetSelector)) {
+  if (signal.aborted || !targetSelector || findProductTourTarget(targetSelector)) {
     return
   }
   const ready = await waitForTargetOrAction(targetSelector, actionSelector, signal)
@@ -126,25 +155,26 @@ function waitForTargetOrAction(
   signal: AbortSignal,
 ) {
   return waitForMatch(() => {
-    const target = document.querySelector<HTMLElement>(targetSelector)
+    const target = findProductTourTarget(targetSelector)
     if (target) {
       return { kind: 'target' as const, element: target }
     }
-    const action = document.querySelector<HTMLElement>(actionSelector)
+    const action = findProductTourTarget(actionSelector)
     return action ? { kind: 'action' as const, element: action } : null
   }, signal)
 }
 
 function waitForElement(selector: string, signal: AbortSignal): Promise<HTMLElement | null> {
-  return waitForMatch(() => document.querySelector<HTMLElement>(selector), signal)
+  return waitForMatch(() => findProductTourTarget(selector) ?? null, signal)
 }
 
 function waitForMatch<Result>(
   find: () => Result | null,
   signal: AbortSignal,
 ): Promise<Result | null> {
+  if (signal.aborted) return Promise.resolve(null)
   const current = find()
-  if (current || signal.aborted) return Promise.resolve(current)
+  if (current) return Promise.resolve(current)
 
   return new Promise((resolve) => {
     let settled = false
@@ -172,7 +202,7 @@ function waitForMatch<Result>(
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['data-active-view', 'aria-hidden'],
+      attributeFilter: ['data-active-view', 'aria-hidden', 'hidden', 'inert', 'aria-disabled', 'disabled', 'style', 'class'],
     })
   })
 }

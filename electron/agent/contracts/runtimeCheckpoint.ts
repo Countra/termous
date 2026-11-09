@@ -1,6 +1,7 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { isRecord } from './validation.ts'
 import { isRuntimeToolArguments } from './runtimeToolArguments.ts'
+import { isImageResourceReference } from '#common/contracts'
 
 export interface RuntimeContextImageReference {
   type: 'image_ref'
@@ -115,6 +116,7 @@ function isHydratedContextMessage(value: unknown): value is AgentMessage {
 function userContent(value: unknown) {
   return Array.isArray(value) && value.every((part) => isRecord(part) && (
     (part.type === 'text' && typeof part.text === 'string')
+    || (part.type === 'image_ref' && isImageResourceReference(part.resource) && part.mimeType === part.resource.mime_type)
     || (part.type === 'image' && typeof part.data === 'string'
       && typeof part.mimeType === 'string' && part.mimeType.startsWith('image/'))
   ))
@@ -125,7 +127,9 @@ function assistantContent(value: unknown) {
     (value.type === 'text' && typeof value.text === 'string')
     || (value.type === 'thinking' && typeof value.thinking === 'string')
     || (value.type === 'toolCall' && typeof value.id === 'string'
-      && typeof value.name === 'string' && isRuntimeToolArguments(value.arguments))
+      && typeof value.name === 'string' && isRuntimeToolArguments(value.arguments)
+      && (value.argumentsError === undefined || (typeof value.argumentsError === 'string'
+        && value.argumentsError.length > 0 && Buffer.byteLength(value.argumentsError, 'utf8') <= 8192)))
   )
 }
 

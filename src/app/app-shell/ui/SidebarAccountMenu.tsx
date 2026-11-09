@@ -1,9 +1,9 @@
 import { Avatar, Button, Dropdown, Tooltip, type MenuProps } from 'antd'
-import { Cloud, Laptop, LogIn, Monitor, Settings, ShieldCheck, UserRound } from 'lucide-react'
+import { ChevronRight, Cloud, Laptop, LogIn, Monitor, Settings, ShieldCheck, UserRound } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CloudTab } from '#common/contracts'
-import { contextActionMenuPopupClassName, uiStyles } from '#shared/ui'
+import { uiStyles } from '#shared/ui'
 import styles from './SidebarAccountMenu.module.scss'
 
 export interface SidebarAccountIdentity {
@@ -31,8 +31,13 @@ export function SidebarAccountMenu({ identity, collapsed, active, getPopupWidth,
   const loggedIn = identity?.authenticated === true
   const name = loggedIn ? identity.name || identity.email || t('nav.account') : t('cloud.local')
   const detail = loggedIn ? identity.email : t('cloud.localHint')
-  const avatar = <Avatar size={28} src={loggedIn ? identity.avatar || undefined : undefined} icon={loggedIn ? <UserRound size={16} /> : <Monitor size={16} />} />
-  const summary = <span className={styles.summary}>{avatar}<span className={styles.copy}><strong title={name}>{name}</strong>{detail ? <span title={detail}>{detail}</span> : null}</span></span>
+  const renderAvatar = (size: number) => <Avatar size={size} src={loggedIn ? identity.avatar || undefined : undefined}
+    icon={loggedIn ? <UserRound size={16} aria-hidden="true" /> : <Monitor size={16} aria-hidden="true" />} />
+  const summary = <span className={styles.summary}>
+    {renderAvatar(32)}
+    <span className={styles.copy}><strong title={name}>{name}</strong>{detail ? <span title={detail}>{detail}</span> : null}</span>
+    {loggedIn ? <ChevronRight className={styles.chevron} size={14} aria-hidden="true" /> : null}
+  </span>
 
   useEffect(() => { setOpen(false) }, [collapsed, identity?.authenticated, identity?.email])
   useEffect(() => {
@@ -48,18 +53,18 @@ export function SidebarAccountMenu({ identity, collapsed, active, getPopupWidth,
   }, [open])
 
   const profileItem = { key: 'profile', label: summary, className: styles['identity-item'], 'aria-label': `${name} · ${t('cloud.tabs.profile')}` }
+  const settingsItem = { key: 'settings', label: t('nav.settings'), icon: <span className={styles['action-icon']} aria-hidden="true"><Settings size={16} /></span> }
   const items: MenuProps['items'] = loggedIn ? [
     profileItem,
     { type: 'divider' },
-    { key: 'sync', label: t('cloud.tabs.sync'), icon: <Cloud size={16} /> },
-    { key: 'devices', label: t('cloud.tabs.devices'), icon: <Laptop size={16} /> },
-    { key: 'security', label: t('cloud.tabs.security'), icon: <ShieldCheck size={16} /> },
+    { key: 'sync', label: t('cloud.tabs.sync'), icon: <span className={styles['action-icon']} aria-hidden="true"><Cloud size={16} /></span> },
+    { key: 'devices', label: t('cloud.tabs.devices'), icon: <span className={styles['action-icon']} aria-hidden="true"><Laptop size={16} /></span> },
+    { key: 'security', label: t('cloud.tabs.security'), icon: <span className={styles['action-icon']} aria-hidden="true"><ShieldCheck size={16} /></span> },
     { type: 'divider' },
-    { key: 'settings', label: t('nav.settings'), icon: <Settings size={16} /> },
+    settingsItem,
   ] : [
-    { key: 'profile', label: t('cloud.signInAccount'), icon: <LogIn size={16} /> },
-    { type: 'divider' },
-    { key: 'settings', label: t('nav.settings'), icon: <Settings size={16} /> },
+    { key: 'profile', label: t('cloud.signInAccount'), icon: <span className={styles['action-icon']} aria-hidden="true"><LogIn size={16} /></span> },
+    settingsItem,
   ]
 
   return <Tooltip title={name} open={open ? false : undefined} placement={collapsed ? 'right' : 'top'}
@@ -73,7 +78,7 @@ export function SidebarAccountMenu({ identity, collapsed, active, getPopupWidth,
         if (next) setWidth(collapsed ? 236 : getPopupWidth?.() || trigger.current?.getBoundingClientRect().width || 216)
         setOpen(next)
       }}
-      classNames={{ root: `${contextActionMenuPopupClassName} ${styles.popup}` }}
+      classNames={{ root: styles.popup }}
       styles={{ root: { width, minWidth: width, maxWidth: 'calc(100vw - 24px)' } }}
       popupRender={(menu) => <div ref={popup}>
         {!loggedIn ? <div className={styles['local-summary']}>{summary}</div> : null}
@@ -99,7 +104,7 @@ export function SidebarAccountMenu({ identity, collapsed, active, getPopupWidth,
     >
       <Button ref={trigger} type="text" className={`${styles.trigger} ${collapsed ? styles.collapsed : ''} ${active ? styles.active : ''}`}
         aria-label={t('cloud.accountMenu', { name })} aria-haspopup="menu" aria-expanded={open}>
-        {avatar}
+        {renderAvatar(28)}
         {!collapsed ? <span className={styles.copy}><strong>{name}</strong></span> : null}
       </Button>
     </Dropdown>

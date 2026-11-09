@@ -12,7 +12,7 @@ Windows 正式安装包在固定注册表路径保存安装元数据，供 Skill
 | 值名 | 类型 | 含义 |
 | --- | --- | --- |
 | `SchemaVersion` | REG_DWORD | 有效记录为 `1`；写入期间为 `0`，全部字段成功写入后才设为 `1` |
-| `AppId` | REG_SZ | 固定为 `dev.termous.app` |
+| `AppId` | REG_SZ | 固定为 `com.termous.app` |
 | `DisplayName` | REG_SZ | 应用名称 `Termous` |
 | `DisplayVersion` | REG_SZ | 本次安装包的应用版本 |
 | `InstallLocation` | REG_SZ | 实际安装目录，不带命令行参数 |

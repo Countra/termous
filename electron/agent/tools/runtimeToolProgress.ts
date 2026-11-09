@@ -1,4 +1,5 @@
 import type { AgentMessage, AgentToolResult } from '@earendil-works/pi-agent-core'
+import { isDeepStrictEqual } from 'node:util'
 import { isMCPToolDetails } from '../contracts/mcpTools.ts'
 import { decodeMCPToolName } from '../contracts/toolNameCodec.ts'
 import { completedToolGuidance, completedToolResource, runtimeToolDependencies } from './runtimeToolLifecycle.ts'
@@ -9,6 +10,9 @@ import { runtimeToolNavigation, type ToolNavigation } from './runtimeToolNavigat
 import type { RuntimeResourceBinding } from '../contracts/resourceBindings.ts'
 import { RuntimeExecutionState, type ProgressNotice, type ExecutionRecovery as Recovery } from './runtimeExecutionState.ts'
 import { desktopControlUnconfirmed } from './runtimeDesktopObservation.ts'
+import { isRecord } from '../contracts/validation.ts'
+import { localFileEvidence, projectLocalToolResult } from './runtimeLocalToolResult.ts'
+import type { ToolDeclarationState } from '../contracts/toolCapabilities.ts'
 
 interface Observation { fingerprint: string; count: number; name: string; resource: string; epoch: number }
 // 进展提示与可关闭预算独立；只有已完成资源的生命周期约束会阻止再次派发。
@@ -18,6 +22,8 @@ export class RuntimeToolProgress {
   private readonly cleanupSuspended = new Set<string>()
   private readonly state: RuntimeExecutionState
   private readonly recoveries = new Map<string, Recovery>()
+  // 只跟踪本轮本地校验建议的查询；不持久化为授权或下轮必须执行的动作。
+  private readonly prerequisites = new Map<string, { tool: string; resource: string; query: NonNullable<ToolNavigation['prerequisite']> }>()
   private readonly notices = new Map<string, ProgressNotice>()
   private readonly noticeResources = new Map<string, string>()
   private recent: string[] = []
@@ -46,22 +52,28 @@ export class RuntimeToolProgress {
   rediscover(name: string) { this.cleanupSuspended.delete(name) }
 
   // 新用户指令开启新的诊断窗口；已确认的资源终态不会恢复为有效授权。
-  reset() { this.observations.clear(); this.recent = []; this.notices.clear(); this.noticeResources.clear(); this.recoveries.clear(); this.cleanupSuspended.clear(); this.polling.clear(); this.pending = []; this.previousFailure = undefined }
+  reset() { this.observations.clear(); this.recent = []; this.notices.clear(); this.noticeResources.clear(); this.recoveries.clear(); this.prerequisites.clear(); this.cleanupSuspended.clear(); this.polling.clear(); this.pending = []; this.previousFailure = undefined }
 
   drain() { const pending = this.pending; this.pending = []; return pending }
 
   observe(name: string, args: unknown, result: AgentToolResult<unknown>, isError: boolean,
-    navigation = runtimeToolNavigation(name, result, this.bindings, isError)): string | undefined {
+    navigation = runtimeToolNavigation(name, result, this.bindings, isError, undefined, args)): string | undefined {
+    // 定时暂停没有业务进展，不用经过的时间消除旧错误或生成重复观察诊断。
+    if (name === 'wait') return undefined
     const mcp = isMCPToolDetails(result.details) ? result.details : undefined
     const data = progressData(result)
     const failure = progressFailure(data, name)
     const error = isError || mcp?.result.isError === true || failure !== undefined
     const code = failure?.code ?? (error && typeof data.code === 'string' ? data.code.slice(0, 128) : undefined)
-    const resource = progressResource(args, data)
+    const resource = progressResource(args, data, name)
+    const previousRecovery = this.recoveries.get(`${name}:${resource}`)
+    if (name.startsWith('termous.local.files.') && localFileEvidence(data) && previousRecovery && previousRecovery.failure_code !== code) {
+      this.advance(resource, name, '当前回执已改变失败原因；按最新事实处理，不继续沿用旧诊断。', true)
+    }
     const previousFailure = this.previousFailure
     this.previousFailure = error ? { name, resource } : undefined
     const unresolved = error || ['pending', 'waiting'].includes(runtimeToolOutcome(name, data)) || desktopControlUnconfirmed(name, data, this.now())
-    this.observeRecovery(name, resource, navigation, unresolved)
+    this.observeRecovery(name, resource, navigation, unresolved, code)
     const terminal = !error && mcp && completedToolResource(name, args, data)
     if (!error) for (const dependency of runtimeToolDependencies(name)) this.cleanupSuspended.delete(dependency)
     if (terminal) {
@@ -73,6 +85,10 @@ export class RuntimeToolProgress {
     const grantChanged = !progressMetaTools.has(name) && this.state.observe(name, resource, data, args, error, code) === true
     const readOnly = progressMetaTools.has(name) || mcp?.readOnly === true
     const role = runtimeCapabilityStep(name)?.role
+    // 只诊断已确认接收的按键，不把普通连续输入、未派发或结果不确定的操作归入此路径。
+    const repeatedKey = !error && mcp && ['termous.desktops.keyboard.shortcut', 'termous.desktops.keyboard.key'].includes(name)
+      && isRecord(data.operation) && data.operation.state === 'accepted'
+      && isRecord(args) && (Array.isArray(args.codes) && args.codes.length > 0 || typeof args.code === 'string')
     // 连续输入可以是合法任务；协议接收本身不能消除尚未解决的观察诊断。
     let polling = progressPolling(name, args, data)
     if (polling && runtimeToolOutcome(name, data) === 'pending') {
@@ -86,19 +102,21 @@ export class RuntimeToolProgress {
       polling = this.now() - since < 60_000
     }
     if (!error) {
+      if (mcp) this.confirmPrerequisite(name, args)
       this.confirmRecovery(name, resource, data, false, this.now(), grantChanged)
       if (!unresolved && !polling && [...this.notices.values()].some((notice) => notice.status === 'detected' && notice.reason === 'repeated_failure'
         && notice.tool_name === name && this.noticeResources.get(notice.pattern_id) === resource)) {
         this.advance(resource, name, '同一操作已取得该资源的成功回执；继续核验目标是否完成。', true)
       }
     }
-    if (!error && (polling || !readOnly && (!role || role === 'input'))) {
+    if (!error && (polling || !readOnly && (!role || role === 'input') && !repeatedKey)) {
       this.recent = [...this.recent, ''].slice(-12)
       return undefined
     }
     const key = `${name}:${resource}:${error ? `error:${code ?? 'tool_failed'}` : progressDigest(progressArguments(args))}`
     const fingerprint = error ? progressDigest(code ?? 'tool_failed')
-      : role === 'submit' || role === 'cancel' ? progressDigest({ role }) : progressFingerprint(name, data, result)
+      : repeatedKey ? progressDigest({ role, observation: [...this.observations.values()].reverse().find((item) => item.resource === resource && item.name === 'termous.desktops.capture')?.fingerprint })
+        : role === 'submit' || role === 'cancel' ? progressDigest({ role }) : progressFingerprint(name, data, result)
     const previous = this.observations.get(key)
     if (previous && previous.fingerprint !== fingerprint && !progressMetaTools.has(name)) this.advance(resource, name)
     const count = previous?.fingerprint === fingerprint ? previous.count + 1 : 1
@@ -128,7 +146,7 @@ export class RuntimeToolProgress {
     const recovery = navigation ?? recoveryNavigation(name, code)
     const nextTools = recovery.names.filter(this.available).slice(0, 8)
     const unavailable = recovery.names.some((name) => !this.available(name)) ? '部分流程入口不在当前可用目录中；先说明缺失能力或门禁限制，不得反复发现或绕过。' : ''
-    const guidance = `${reason === 'repeated_failure' ? '同类操作反复失败' : reason === 'cycle' ? '工具调用正在重复往返' : role === 'submit' ? '重复取得相同前置状态或提交回执' : '同一观察反复返回相同有效信息'}（${repetitions} 次，工具 ${name}${code ? `，错误 ${code}` : ''}）。${recovery.guidance} ${recovery.skill ? `流程说明：${recovery.skill}。` : ''}${unavailable}任务继续；核对动作与工具效果，缺少准确操作时 discover_tools。更换请求标识不等于进展。`
+    const guidance = `${reason === 'repeated_failure' ? '同类操作反复失败' : repeatedKey ? '相同按键反复被协议接收，但尚无画面变化证据；这不证明应用已响应。先观察结果，已定位的可见控件使用鼠标点击，不继续猜测焦点或快捷键' : reason === 'cycle' ? '工具调用正在重复往返' : role === 'submit' ? '重复取得相同前置状态或提交回执' : '同一观察反复返回相同有效信息'}（${repetitions} 次，工具 ${name}${code ? `，错误 ${code}` : ''}）。${recovery.guidance} ${recovery.skill ? `流程说明：${recovery.skill}。` : ''}${unavailable}任务继续；让下一次实际工具及参数对应纠正后的动作，缺少准确声明时 discover_tools。口头改计划、更换请求标识或重复发现不等于进展；有新依据可重试。`
     const notice: ProgressNotice = { pattern_id: pattern, tool_name: name, reason, status: 'detected', count: repetitions, guidance, next_tools: nextTools }
     const old = this.notices.get(pattern)
     remember(this.notices, pattern, notice, 12)
@@ -158,6 +176,7 @@ export class RuntimeToolProgress {
       this.state.resolveRecovery(tool, scope)
       if (historical) return
       this.recoveries.delete(`${tool}:${scope}`)
+      this.prerequisites.delete(`${tool}:${scope}`)
       this.advance(scope, tool, guidance)
     }
     for (const previous of this.state.confirmedRecoveries(name, data, timestamp, grantChanged)) {
@@ -182,13 +201,40 @@ export class RuntimeToolProgress {
     return [...this.notices].map(([id, notice]) => [this.noticeResources.get(id) ?? 'unresolved', notice])
   }
 
-  summary() { return this.state.summary(this.diagnosticNotices(), [...this.recoveries.values()]) }
+  summary(declaration?: (name: string) => ToolDeclarationState) { return this.state.summary(this.diagnosticNotices(), [...this.recoveries.values()], declaration) }
+  resolveDesktopObservation(attachmentID: string) {
+    const resource = progressResource({ attachment_id: attachmentID })
+    for (const name of ['termous.desktops.get', 'termous.desktops.capture']) {
+      // 新观察只解决观察前置条件，不能清除同一旧附着上的人工处理或派发不确定诊断。
+      const recovery = this.recoveries.get(`${name}:${resource}`)
+      if (recovery ? recovery.observation_only !== true : !this.state.historicalObservation(name, resource)) continue
+      this.state.resolveRecovery(name, resource)
+      this.recoveries.delete(`${name}:${resource}`)
+      this.prerequisites.delete(`${name}:${resource}`)
+      this.advance(resource, name, '已为同一精确目标取得新的观察附着；旧附着查询诊断已解决，控制授权仍独立核验。')
+    }
+  }
   snapshot() { return this.state.snapshot(this.diagnosticNotices(), [...this.recoveries.values()]) }
   restore(value: unknown) { return this.state.restore(value) }
 
-  private observeRecovery(name: string, resource: string, navigation: ToolNavigation | undefined, unresolved: boolean) {
+  private confirmPrerequisite(name: string, args: unknown) {
+    if (!isRecord(args)) return
+    for (const [key, pending] of this.prerequisites) {
+      if (name !== pending.query.tool || !Object.entries(pending.query.arguments)
+        .every(([field, value]) => isDeepStrictEqual(args[field], value))) continue
+      this.prerequisites.delete(key)
+      this.recoveries.delete(key)
+      this.state.resolveRecovery(pending.tool, pending.resource)
+      this.advance(pending.resource, pending.tool, '已实际执行本地校验建议的查询；按新回执处理后续条件，此查询不代表已取得控制权。')
+    }
+  }
+
+  private observeRecovery(name: string, resource: string, navigation: ToolNavigation | undefined, unresolved: boolean, code?: string) {
+    const key = `${name}:${resource}`
+    if (navigation?.prerequisite) remember(this.prerequisites, key, { tool: name, resource, query: navigation.prerequisite }, 12)
+    else this.prerequisites.delete(key)
     if (navigation?.recovery) remember(this.recoveries, `${name}:${resource}`, { tool: name, resource,
-      guidance: navigation.guidance.slice(0, 1600), next_tools: navigation.names.filter(this.available).slice(0, 8), empty: navigation.empty }, 12)
+      guidance: navigation.guidance.slice(0, 1600), next_tools: navigation.names.slice(0, 8), empty: navigation.empty, observation_only: navigation.observationOnly, failure_code: code }, 12)
     else if (!unresolved && !progressMetaTools.has(name)) this.recoveries.delete(`${name}:${resource}`)
   }
 
@@ -199,20 +245,21 @@ export class RuntimeToolProgress {
       if (message.role !== 'toolResult') continue
       const name = decodeMCPToolName(message.toolName) ?? message.toolName
       const result = { content: message.content, details: undefined }
-      const data = progressData(result)
+      const raw = progressData(result)
+      const data = name.startsWith('termous.local.') ? projectLocalToolResult(raw) : raw
       const parameters = args.get(message.toolCallId)
-      const resource = progressResource(parameters, data)
+      const resource = progressResource(parameters, data, name)
       const code = progressFailure(data, name)?.code
       const failed = message.isError || code !== undefined
       const grantChanged = !progressMetaTools.has(name) && this.state.observe(name, resource, data, parameters, failed, code, 'historical', message.timestamp) === true
       const navigation = runtimeToolNavigation(name, { ...result, details: { kind: 'mcp', originalToolName: name,
-        readOnly: readOnly(name), result: { content: message.content, structuredContent: data, isError: failed } } }, this.bindings, failed)
+        readOnly: readOnly(name), result: { content: message.content, structuredContent: data, isError: failed } } }, this.bindings, failed, undefined, parameters)
       if (navigation?.recovery) this.state.historicalRecovery({ tool: name, resource, guidance: navigation.guidance,
-        next_tools: navigation.names.filter(this.available), empty: navigation.empty })
+        next_tools: navigation.names.filter(this.available), empty: navigation.empty, observation_only: navigation.observationOnly, failure_code: code })
       if (!failed) this.confirmRecovery(name, resource, data, true, message.timestamp, grantChanged)
       args.delete(message.toolCallId)
     }
-    this.completed.clear(); this.cleanupSuspended.clear(); this.pending = []; this.previousFailure = undefined
+    this.completed.clear(); this.cleanupSuspended.clear(); this.prerequisites.clear(); this.pending = []; this.previousFailure = undefined
   }
 }
 

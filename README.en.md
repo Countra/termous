@@ -37,10 +37,12 @@ Core features run locally without a cloud account. Configuration sync and device
 1. Download the installer for your platform from [Releases](https://github.com/Countra/termous/releases).
 2. Add a host and the SSH, file, or remote desktop profiles you need. Each host can have multiple profiles.
 3. Use Connect in the top bar or `+` in the session bar. The workstation, file manager, and remote desktop open their corresponding connection choices.
-4. For AI, add a service and model under Settings → Model Services, then choose the default model under Settings → AI Assistant. Associate connections from session menus or send selected terminal text.
+4. For AI, add a provider and model under Settings → Model providers, then choose the default model under Settings → AI assistant. Associate connections from session menus or send selected terminal text.
 5. For cloud sync or remote control, sign in, authorize your device, and confirm the sync scope or remote access permissions.
 
 A host organizes connection profiles and does not require an SSH connection. You can add only an RDP desktop or an independent object-storage profile. File operations, desktop authentication options, and system integrations depend on the selected protocol, configuration, and platform.
+
+Configure third-party MCPs, Skills, and web search under Settings → Extensions, and choose enabled MCPs and Skills for each conversation. Open Product tour from the Help menu for an introduction or a feature tour.
 
 ## Features
 
@@ -67,17 +69,23 @@ RDP and VNC use sessions independent of terminals and files, with direct or SSH-
 
 - Full screen, display scaling, session menus, and connection quality and status information.
 - Retained RDP sessions, resumed viewing, and separate viewing and control modes let you continue an existing connection after leaving the page.
+- Manage default quality and per-session settings, adjust resolution, frame rate, and bitrate within actual capabilities, and inspect direct / relay paths and applied settings.
 - Desktop tools provide file exchange and automation. The file sidebar remembers its latest tab, and the transfer indicator opens progress directly.
 - Control-state and pointer indicators show when a desktop is being operated. Local users can reclaim input control.
+
+AI, MCP, automation, and remote control can also access the host desktop with permission. Screens support observation and control; windows support observation only. Linux requires X11. Windows installers include a desktop management service, with separately authorized access to lock-screen / UAC secure desktops. Input pauses during a desktop switch and resumes only after the new view is confirmed and the original authorization remains valid.
 
 ### Desktop automation
 
 Save repetitive graphical operations as workflows for repeatable desktop tasks and visual regression checks.
 
 - Visually compose pointer actions, keystrokes, text input, image matching, conditions, and loops, with parameters for reuse.
+- Use OCR to read, wait for, assert, or branch on text, and locate click and drag targets.
 - Select coordinates or create image templates from a desktop screenshot. Zoom, pan, move and resize selections, and undo or redo selection edits.
+- Analyze screens locally with region detection, OCR, or both. Inspect annotations, query text, manage records, and export results.
 - Validate and save workflow versions before running, then pause, resume, step through, or cancel execution to investigate problems.
 - Inspect per-step inputs, results, screenshots, and image templates in run history, with controls to expand or collapse all details.
+- Import and export ZIP, JSON, or configuration directories with template images, including import previews, workflow updates, and historical-version exports. Importing does not execute a workflow.
 - Edit and inspect runs in a separate window, with an entry to the target desktop. Display zoom does not change saved coordinates.
 
 ### Files and local mounts
@@ -100,24 +108,39 @@ Mounts require separately installed WinFsp on Windows, FUSE3 on Linux, or macFUS
 - Image-tag management, creation and deletion of volumes and bridge networks, and container network attachment and detachment.
 - Local and remote port forwarding and dynamic proxies, with saved profiles, automatic connection on Core startup, status, traffic, and failure details.
 
-### AI assistant and MCP
+### AI assistant
 
 The assistant works with actual connection resources to explain output, investigate problems, manage files, and perform authorized maintenance tasks.
 
 - Custom model services and model selection, with text, image attachments, terminal selections, and references to SSH, files, desktops, and automation workflows.
 - Concurrent conversations, queued messages, reordering, editing of pending messages, and task cancellation. SSH commands use coordinated execution queues.
 - Context compaction, searchable history, groups, pinned and archived conversations, and model usage. Open the assistant in a separate window and return it to the main interface.
+- Read local files in segments, make targeted edits, and review paginated diffs. Run local commands in the background, inspect output, and cancel tasks. A conversation's working directory resolves relative paths; it is not an operating-system sandbox.
+- Execute short sequences of desktop pointer and keyboard actions with per-step results, background queries, and cancellation. Query the original task after a lost response without replaying dispatched input.
 - Tool activity retains progress, results, and approval information so you can review commands, target resources, and operation scope before granting access.
+
+### Extensions and search
+
+- Add or import third-party MCPs using local commands, HTTP, or OAuth sign-in, and choose which sources a conversation can use.
+- Recognized single-package npx configurations support managed installation and automatic initialization after first approval. Upgrades validate a candidate before replacing the current version. Changing the installation root affects new installations only.
+- Import third-party Skills with a fixed version for each assistant run and an editable resource copy prepared when read. Scripts use the local command tool and still require approval; importing or reading a Skill does not execute scripts or install dependencies.
+- Choose Termous cloud service or a self-hosted SearXNG instance for web links and snippets. Cloud search requires sign-in and server-side availability.
+- The network proxy under Settings → Connection applies to MCP installation, connections, related OAuth, and local command environments for new tasks and connections. Web search uses direct connections.
+
+### External AI clients
+
 - External AI tools use authorized capabilities through MCP, with permissions and approval policies managed per client. Installing skills does not grant access.
 - Bundled [Termous Skills](https://github.com/Countra/termous-skills) cover connections, files, server operations, desktops, and automation. Install them from MCP settings for Codex, Claude Code, or a custom directory.
+
+MCP service exposes Termous tools to external clients, separately from importing third-party extensions into the built-in assistant. Local file, command, and web search tools are available only to the built-in assistant.
 
 ### Device-to-device remote control
 
 Continue working with resources shared by another Termous device without copying all of that device's connection configuration to the controller.
 
-- Access authorized terminals, files, and RDP / VNC desktops between trusted devices on the same account, switching workspaces in a separate remote window.
-- The host device defines access to host profiles, file directories, and desktop capabilities. Local directories require explicit authorization, and remote access is off by default.
-- Separately enable access to the host device's AI assistant, using its model configuration and tool permissions. Conversations become available when the host assistant is ready.
+- Access authorized terminals, files, RDP / VNC desktops, and the host desktop between trusted devices on the same account, switching workspaces in a separate remote window.
+- Choose Full control or Custom access on the host device. Remote access is off by default, existing granular permissions are preserved, and local files remain limited to authorized directories.
+- Use the host device's AI assistant according to its access policy, model configuration, and tool permissions. Conversations become available when the host assistant is ready.
 - Desktop viewing and input control are separate. Local users can reclaim input control and inspect connection and transfer status.
 
 ### Cloud account and configuration sync
@@ -133,7 +156,7 @@ See [Cloud accounts and sync](./docs/cloud-account.md) for details.
 
 - A message center for task results, pending approvals, and cloud account notices, with navigation back to relevant tasks.
 - System notifications follow your preferences when no Termous window has focus. Switching between the main window and child windows does not trigger them.
-- Local AI and MCP auditing with filters, search, approvals, task results, and related events. Ordinary manual operations are outside the audit scope.
+- Local auditing for AI, MCP, and manual remote-control operations, with filters, search, approvals, task results, and related events. Ordinary local manual operations are not collected automatically.
 - Settings open in a dialog that preserves your workspace. Pages requiring explicit saving use a consistent page-level save action and protect unsaved changes.
 - Light and dark themes, configurable shortcuts, Chinese and English UI, tray support, in-app updates, and startup progress and module status.
 - Encrypted `.tobp` configuration backups with full or selective restore. Exit checks for unsynchronized mount changes help protect pending writes.
@@ -142,6 +165,7 @@ See [Cloud accounts and sync](./docs/cloud-account.md) for details.
 
 - Credentials use protected local storage. SSH host-key checks, MCP permissions, and operation approvals govern access.
 - AI conversations, selected attachments, and relevant tool results are sent to your configured model service. Conversation history is stored locally.
+- Search queries reach the selected search service and search engines, outside end-to-end encrypted configuration sync. Third-party MCPs process call parameters according to their configuration.
 - Cloud sync is independent of local features and backups. Optional managed cloud recovery gives the service the ability to recover data keys; enable it according to your needs.
 - Remote access follows the host device's permissions. Operation records may contain commands or paths; review sensitive content before sharing them.
 
@@ -150,7 +174,7 @@ See [Cloud accounts and sync](./docs/cloud-account.md) for details.
 | Platform | Packages |
 | --- | --- |
 | Windows x64 | `.exe` |
-| macOS x64 / arm64 | `.dmg`, `.zip` |
+| macOS ARM64 | `.dmg`, `.zip` |
 | Linux x64 | `.AppImage` |
 
 Windows is the primary platform, with macOS and Linux support continuing to improve. Some system integrations depend on the platform and runtime environment.
@@ -159,4 +183,7 @@ Windows is the primary platform, with macOS and Linux support continuing to impr
 
 - [Changelog](./docs/CHANGELOG.md)
 - [Frontend architecture](./docs/frontend-architecture.md) · [AI runtime](./docs/electron-agent-architecture.md) · [Desktop automation](./docs/remote-desktop-workflows.md)
+- [Local files and tasks](./docs/local-files-and-runtime-wait.md) · [Product tour](./docs/product-tour.md) · [Settings](./docs/settings-center.md)
 - [GitHub Issues](https://github.com/Countra/termous/issues)
+
+Source development uses a separate Termous Dev shell that can run alongside an installed release. See [Desktop environments](./docs/desktop-environments.md) for startup, Core data directories, and notification isolation.

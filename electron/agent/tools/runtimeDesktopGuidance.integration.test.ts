@@ -28,10 +28,11 @@ for (const api of ['responses', 'chat_completions'] as const) {
       bootstrap.context.progress_supported = true
       bootstrap.messages = [runtimeUserMessage([], { text: '在桌面输入目标应用名称。' })]
       if (scenario === 'compaction') {
-        bootstrap.model.snapshot.context_window_tokens = 16384
+        // 初始历史应能容纳；取得控制权后再用 Provider 用量触发压缩，避免依赖基础声明的精确字节数。
+        bootstrap.model.snapshot.context_window_tokens = 32768
         bootstrap.messages.unshift({ ...runtimeUserMessage([], { text: '历史观察记录。'.repeat(2000) }), id: 'old-user' },
           { id: 'old-assistant', role: 'assistant', sequence: 2, status: 'completed', created_at: '2026-10-15T00:00:00Z', attachments: [],
-            parts: [{ id: 'old-part', message_id: 'old-assistant', kind: 'text', sequence: 1, content: { text: { text: '旧记录已检查。'.repeat(2000) } } }] })
+            parts: [{ id: 'old-part', message_id: 'old-assistant', kind: 'text', sequence: 1, content: { text: { text: '旧记录已检查。'.repeat(4000) } } }] })
       }
       const executed: string[] = []
       const receipt = () => scenario === 'pending' || scenario === 'rejected' ? { control: { attachment, approval: { state: scenario } } }
@@ -95,7 +96,7 @@ for (const api of ['responses', 'chat_completions'] as const) {
           if (index === 1) return response(api, 'discover_tools', { names: scenario === 'session-changed' ? [acquire, get] : [acquire] })
           if (index === 2 || granted && index <= 5) {
             const result = response(api, encode(acquire), { ...args, client_request_id: String(index) }, String(index))
-            return scenario === 'compaction' && index === 3 ? withUsage(result, api, 14000) : result
+            return scenario === 'compaction' && index === 3 ? withUsage(result, api, 28000) : result
           }
           if (scenario === 'session-changed' && index === 6) return response(api, encode(get), { session_id: 's' })
           if (granted && index === 6) return response(api, encode(inputNames[2]!), { ...args, text: '应用名称' })

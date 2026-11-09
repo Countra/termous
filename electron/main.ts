@@ -1,9 +1,15 @@
+import { registerWorkflowExchange } from './workflow-exchange/ipc'
+import { desktopChannel, identity, initializeDesktopEnvironment, registerDevelopmentLease } from './platform/environment'
+import { prepareNativeNotifications } from './platform/nativeNotifications'
+import { nativeNotificationOptions } from './notifications/nativeOptions'
 import { registerFileSystemClipboardIPC } from './fileSystemClipboardIPC'
 import { registerSystemClipboardCapabilities } from './system-clipboard/lifecycle'
 import { DesktopSettingsRuntime, registerSettingsIPC } from './settings/runtime'
 import { RemoteControlRuntime } from './remoteControl/runtime'
 import { DetachedWindows } from './detached-windows/manager'
 import { DesktopAutomationRuntime } from './desktopAutomation/runtime'
+import { DesktopIndicatorRuntime } from './desktopIndicator/runtime'
+import { reportDesktopReclaimFailure } from './desktopIndicator/feedback'
 import { registerDesktopFilesIPC } from './desktopFilesIPC'
 import { RemoteCore } from './remoteControl/core'
 import { notificationSettingsAdapter, updateSettingsAdapter, loginItemSettingsAdapter } from './settings/adapters'
@@ -43,7 +49,8 @@ import type {
   DataPortabilityProgress,
 } from '#common/contracts'
 import { termousReleasePageUrl } from '#common/release-page'
-import { AgentCoreRuntimeClient, registerAgentRuntimeIPC, AgentSupervisor, UtilityWorkerFactory } from './agent/host/index'
+import { AgentCoreRuntimeClient, registerAgentRuntimeIPC, AgentSupervisor, UtilityWorkerFactory, shutdownAgentServices } from './agent/host/index'
+import { IntegrationHostSupervisor, registerIntegrationIPC } from './agent/integrations/index'
 import { AgentSkillBundleSource } from './agent/skills/index'
 import { SkillInstaller } from './skills/installer'
 import { registerSkillInstallIPC } from './skills/ipc'
@@ -70,16 +77,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
-export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
+initializeDesktopEnvironment(app)
+
+export const VITE_DEV_SERVER_URL = desktopChannel === 'development' ? process.env['VITE_DEV_SERVER_URL'] : undefined
 export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
-const APP_NAME = 'Termous'
-const APP_ID = 'dev.termous.app'
-const APP_ICON = path.join(process.env.VITE_PUBLIC, 'termous-icon.png')
-const TRAY_ICON = path.join(process.env.VITE_PUBLIC, process.platform === 'win32' ? 'favicon.ico' : 'termous-icon.png')
+const APP_NAME = identity.name
+const APP_ID = identity.appId
+// 原生通知 XML 由操作系统读取，两个渠道都使用 ASAR 之外的真实图标文件。
+const APP_ICON = path.join(process.resourcesPath, 'icon.png')
+const TRAY_ICON = desktopChannel === 'development' ? APP_ICON : path.join(process.env.VITE_PUBLIC, process.platform === 'win32' ? 'favicon.ico' : 'termous-icon.png')
 const WEB_DEBUG_FILE = 'webDebug'
 const DEVTOOLS_CHORD_WINDOW_MS = 900
 const ELECTRON_PROCESS_LOG_FILE = 'electron-process.log'
@@ -97,11 +107,12 @@ if (!hasSingleInstanceLock) {
   app.exit(0)
 }
 if (hasSingleInstanceLock) {
+  registerDevelopmentLease(app, reportElectronProcessEvent)
   app.on('second-instance', () => {
     showMainWindow()
   })
 }
-const coreProcess = new CoreProcessManager({ logger: {
+const coreProcess = new CoreProcessManager({ channel: desktopChannel, logger: {
   info: (event, fields = {}) => reportElectronProcessEvent(event, fields),
   warn: (event, fields = {}) => reportElectronProcessEvent(event, fields),
   error: (event, fields = {}) => reportElectronProcessEvent(event, fields),
@@ -110,6 +121,7 @@ let notificationDisposeIPC: (() => void) | null = null
 let notificationPreferences: NotificationPreferencesStore | null = null
 let notificationRuntime: NotificationRuntime | null = null
 let notificationSubscription: NotificationSubscription | null = null
+let nativeNotificationsSupported = false
 let notificationWarningAt = 0
 function warnNotification() {
   if (Date.now() - notificationWarningAt < 60_000) return
@@ -125,15 +137,30 @@ async function initializeNotifications() {
   notificationRuntime = new NotificationRuntime({
     // 主界面和所有独立窗口共用应用级焦点，窗口间切换不按消息来源分别判断。
     background: () => Boolean(startupCompleted && win && !win.isDestroyed() && !exitCoordinator.isApplicationExiting() && !BrowserWindow.getFocusedWindow()),
-    supported: () => Notification.isSupported(),
+    supported: () => nativeNotificationsSupported,
     preferences: () => preferences.get(), language: () => appLanguage,
-    create: (title, body) => new Notification({ title, body, icon: APP_ICON }),
+    create: (title, body, id) => new Notification(nativeNotificationOptions(title, body, id, APP_ICON, process.platform)),
     activate: () => {
-      revealMainWindow()
+      showMainWindow()
       if (win && !win.isDestroyed()) win.webContents.send(notificationIPCChannels.activation)
     },
     warn: warnNotification,
+    deliveryFailed: () => {
+      nativeNotificationsSupported = false
+      reportElectronProcessEvent('native-notification-registration-failed', { channel: desktopChannel, stage: 'delivery' })
+    },
   })
+  nativeNotificationsSupported = await prepareNativeNotifications(reportElectronProcessEvent)
+  if (process.platform === 'win32' && nativeNotificationsSupported) {
+    try {
+      Notification.handleActivation(details => {
+        if (details.type === 'click') notificationRuntime?.activateNative(new URLSearchParams(details.arguments).get('tag') || '')
+      })
+    } catch {
+      nativeNotificationsSupported = false
+      reportElectronProcessEvent('native-notification-registration-failed', { channel: desktopChannel, stage: 'activation_handler' })
+    }
+  }
   notificationDisposeIPC = registerNotificationIPC({ ipcMain, runtime: notificationRuntime, trusted: isTrustedMainIPCEvent })
   const runtime = notificationRuntime
   notificationSubscription = new NotificationSubscription({ config: () => coreProcess.initialize(), receive: (event) => runtime.accept(event), warn: warnNotification })
@@ -148,13 +175,24 @@ const skillsSource = new AgentSkillBundleSource({
   rootDirectory: skillsDirectory,
 })
 const skillInstaller = new SkillInstaller(skillsSource, skillsDirectory)
+// Worker 入口可位于 ASAR，操作系统工作目录必须是归档之外的真实目录。
+const workerWorkingDirectory = desktopChannel === 'production' ? process.resourcesPath : process.env.APP_ROOT
+const integrationHost: IntegrationHostSupervisor = new IntegrationHostSupervisor({
+  modulePath: path.join(MAIN_DIST, 'agent-integrations.js'), cwd: workerWorkingDirectory,
+  configuration: async () => {
+    const config = await coreProcess.initialize()
+    return { baseURL: config.apiBaseUrl, token: config.apiToken ?? '', supervisor: agentSupervisor.completionLease().supervisor_instance_id }
+  },
+  report: code => reportElectronProcessEvent('agent-integrations-host', { error_code: code }),
+})
 const agentSupervisor = new AgentSupervisor({
+  integrations: integrationHost,
   core: new AgentCoreRuntimeClient({
     getConfig: () => coreProcess.initialize(),
   }),
   workerFactory: new UtilityWorkerFactory({
     modulePath: path.join(MAIN_DIST, 'agent-worker.js'),
-    cwd: path.join(__dirname, '..'),
+    cwd: workerWorkingDirectory,
   }),
   skills: skillsSource,
   logger: {
@@ -170,7 +208,7 @@ const terminalCompletionRuntime = new TerminalCompletionRuntime({
   bootstrap: (request, signal) => terminalCompletionCore.bootstrap(request, signal),
   workerFactory: new UtilityWorkerFactory({
     modulePath: path.join(MAIN_DIST, 'terminal-completion-worker.js'),
-    cwd: path.join(__dirname, '..'), serviceName: 'Termous Terminal Command Suggestion',
+    cwd: workerWorkingDirectory, serviceName: 'Termous Terminal Command Suggestion',
   }),
   onFinished: (summary) => reportElectronProcessEvent('terminal-ai-completion-finished', summary),
 })
@@ -776,6 +814,7 @@ function onStartupPresentationChanged(view: StartupPresentationView) {
   const target = splashWin
   if (target && !target.isDestroyed()) {
     const expanded = view.phase === 'error' || view.attention !== null
+      || Boolean(view.databases?.some((database) => database.status === 'failed'))
     const workArea = screen.getDisplayMatching(target.getBounds()).workArea
     const width = Math.min(expanded ? 560 : 400, workArea.width)
     const height = Math.min(view.phase === 'error' ? 420 : expanded ? 320 : 236, workArea.height)
@@ -894,7 +933,7 @@ async function performAgentRuntimeAndCoreShutdown(reason: CoreShutdownReason) {
   await skillInstaller.suspend()
   let agentRuntimeStopped = await terminalCompletionRuntime.stop()
   try {
-    await agentSupervisor.shutdown()
+    await shutdownAgentServices(agentSupervisor, integrationHost)
   } catch (error) {
     agentRuntimeStopped = false
     reportElectronProcessEvent('agent-runtime-shutdown-failed', {
@@ -943,12 +982,12 @@ async function restartCoreAfterRestore() {
     throw new Error('TERMINAL_AI_WORKER_TERMINATION_TIMEOUT')
   }
   try {
-    await agentSupervisor.shutdown()
+    await shutdownAgentServices(agentSupervisor, integrationHost)
   } catch (error) {
     reportElectronProcessEvent('agent-runtime-restore-shutdown-failed', {
       error_name: error instanceof Error ? error.name : 'UnknownError',
     })
-    terminalCompletionRuntime.resume()
+    await recoverAgentRuntimeAfterFailedShutdown()
     throw error
   }
   try {
@@ -1090,6 +1129,8 @@ function createWindow() {
     },
   })
   registerDevToolsShortcut(win)
+  // 页面标题不能覆盖开发壳的系统窗口名称，两个环境在任务栏中保持可辨认。
+  win.on('page-title-updated', event => event.preventDefault())
   registerRendererHealth(win)
   updateRuntime?.bindMainWindow(win)
 
@@ -1231,6 +1272,8 @@ function registerAgentRuntimeControls() {
     },
   })
   registerTerminalCompletionIPC({ ipcMain, runtime: terminalCompletionRuntime, isTrustedSender: isTrustedMainIPCEvent })
+  registerIntegrationIPC({ ipcMain, host: integrationHost, isTrustedSender: isTrustedMainIPCEvent,
+    source: id => integrationHost.source(id) })
   registerAgentRuntimeIPC({
     ipcMain,
     isTrustedSender: isTrustedMainIPCEvent,
@@ -1364,6 +1407,7 @@ async function readApplicationBuildInfo() {
     platform: process.platform,
     arch: process.arch,
     packaged: app.isPackaged,
+    channel: desktopChannel,
     update_supported: Boolean(snapshot && snapshot.phase !== 'unsupported'),
     update_support_reason: snapshot?.support_reason
       ?? (updateRuntime ? null : 'update_runtime_unavailable'),
@@ -1377,12 +1421,13 @@ async function readUpdateWindowApplicationInfo() {
     platform: process.platform,
     arch: process.arch,
     packaged: app.isPackaged,
+    channel: desktopChannel,
   }
 }
 
 function createApplicationUpdateEngine(): UpdateEngine {
   try {
-    return createElectronUpdaterEngine()
+    if (desktopChannel === 'production') return createElectronUpdaterEngine()
   } catch (error) {
     reportElectronProcessEvent('update-engine-initialize-failed', {
       message: error instanceof Error ? error.name : 'UnknownError',
@@ -1403,7 +1448,7 @@ function createApplicationUpdateEngine(): UpdateEngine {
     currentVersion,
     support: {
       supported: false,
-      reason: 'update_engine_unavailable',
+      reason: desktopChannel === 'development' ? 'development' : 'update_engine_unavailable',
     },
     checkForUpdates: unavailable,
     downloadUpdate: unavailable,
@@ -1756,13 +1801,9 @@ app.on('activate', () => {
 })
 
 async function initializeApplication() {
-  app.setName(APP_NAME)
   appTheme = readCachedAppTheme()
   appLanguage = readCachedAppLanguage()
   nativeTheme.themeSource = appTheme
-  if (process.platform === 'win32') {
-    app.setAppUserModelId(APP_ID)
-  }
   Menu.setApplicationMenu(null)
   registerCoreProcessControls()
   const closeClipboardCapabilities = registerSystemClipboardCapabilities(ipcMain, coreProcess, isTrustedMainIPCEvent)
@@ -1775,6 +1816,10 @@ async function initializeApplication() {
     debugMode: isAppDebugMode(),
   })
   app.once('before-quit', () => detachedWindows.close())
+  const closeWorkflowExchange = registerWorkflowExchange({ ipc: ipcMain, config: () => coreProcess.initialize(), trusted: isTrustedMainIPCEvent,
+    owner: origin => origin ? detachedWindows.workflowDialogOwner(origin) : win ?? undefined, language: () => appLanguage })
+  app.once('will-quit', closeWorkflowExchange)
+
   const desktopAutomation = new DesktopAutomationRuntime({
     config: () => coreProcess.initialize(),
     appearance: () => ({ theme: appTheme, language: appLanguage }),
@@ -1783,6 +1828,18 @@ async function initializeApplication() {
     devURL: VITE_DEV_SERVER_URL,
     warn: code => reportElectronProcessEvent(code, {}),
   })
+  const desktopIndicator = new DesktopIndicatorRuntime({
+    config: () => coreProcess.initialize(),
+    exitCommitted: () => exitCoordinator.isExitCommitted(),
+    appearance: () => ({ theme: appTheme, language: appLanguage }),
+    preload: path.join(__dirname, 'desktop-indicator-preload.cjs'),
+    renderer: path.join(RENDERER_DIST, 'index.html'),
+    devURL: VITE_DEV_SERVER_URL,
+    warn: code => reportElectronProcessEvent(code, {}),
+    reclaimFailed: () => reportDesktopReclaimFailure(appLanguage, APP_ICON, code => reportElectronProcessEvent(code, {})),
+  })
+  desktopIndicator.start()
+  app.once('will-quit', () => desktopIndicator.close())
   void desktopAutomation.start()
   app.once('before-quit', () => desktopAutomation.close())
   registerFileSystemClipboardIPC({
@@ -1814,7 +1871,7 @@ async function initializeApplication() {
   const loginItemAdapter = createLoginItemAdapter({
     app,
     platform: process.platform,
-    development: Boolean(VITE_DEV_SERVER_URL) || process.env.NODE_ENV === 'development',
+    development: desktopChannel === 'development',
     executablePath: process.execPath,
     entryName: APP_ID,
   })
@@ -1861,7 +1918,7 @@ async function initializeApplication() {
   createSplashWindow()
   await initializeNotifications()
   const desktopSettings = new DesktopSettingsRuntime({
-    notifications: notificationSettingsAdapter(() => notificationPreferences, () => Notification.isSupported()),
+    notifications: notificationSettingsAdapter(() => notificationPreferences, () => nativeNotificationsSupported),
     updates: updateSettingsAdapter(() => updateRuntime),
     login_item: loginItemSettingsAdapter(loginItemAdapter),
   }, (event) => {

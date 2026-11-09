@@ -1,5 +1,5 @@
 import { useSettingsModule, useSettingsEditor, decodeMountSettings, settingsErrorCode } from '#entities/settings'
-import { Alert, Button, Input, InputNumber, Segmented, Spin, Tag } from 'antd'
+import { Alert, Button, Input, Segmented, Spin, Tag } from 'antd'
 import { FolderOpen, HardDrive } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -7,6 +7,7 @@ import type { MountSettings as MountSettingsValue, MountSettingsState } from '#c
 import { getTermousBridge } from '#shared/bridge'
 import { SettingsSaveBar } from '#shared/ui'
 import type { MountSettingsGateway } from '../../api/mountSettingsGateway'
+import { SettingsNumberInput } from '#shared/ui'
 import surfaceStyles from '../SettingsSurface.module.scss'
 import styles from './MountSettings.module.scss'
 import { MountCacheUsage } from './MountCacheUsage'
@@ -117,11 +118,11 @@ export function MountSettings({ gateway, disabled }: { gateway?: MountSettingsGa
         <div className={styles.budgets}>
           <div className={styles.budget}>
             <div><label htmlFor={`${inputId}-capacity`}>{t('settings.mount.capacity')}</label><p id={`${inputId}-capacity-hint`} className={surfaceStyles.hint}>{t('settings.mount.capacityHint')}</p></div>
-            <InputNumber id={`${inputId}-capacity`} aria-describedby={`${inputId}-capacity-hint`} value={capacity} min={1} max={4096} precision={0} suffix="GiB" disabled={locked} onChange={(value) => { setCapacity(value); setSaved(false) }} />
+            <SettingsNumberInput id={`${inputId}-capacity`} aria-describedby={`${inputId}-capacity-hint`} value={capacity} min={1} max={4096} precision={0} unit="GiB" disabled={locked} onChange={(value) => { setCapacity(value); setSaved(false) }} />
           </div>
           <div className={styles.budget}>
             <div><label htmlFor={`${inputId}-reserve`}>{t('settings.mount.reserve')}</label><p id={`${inputId}-reserve-hint`} className={surfaceStyles.hint}>{t('settings.mount.reserveHint')}</p></div>
-            <InputNumber id={`${inputId}-reserve`} aria-describedby={`${inputId}-reserve-hint`} value={reserve} min={64} max={65536} precision={0} step={64} suffix="MiB" disabled={locked} onChange={(value) => { setReserve(value); setSaved(false) }} />
+            <SettingsNumberInput id={`${inputId}-reserve`} aria-describedby={`${inputId}-reserve-hint`} value={reserve} min={64} max={65536} precision={0} step={64} unit="MiB" disabled={locked} onChange={(value) => { setReserve(value); setSaved(false) }} />
           </div>
         </div>
         {state ? <div className={styles.status}>

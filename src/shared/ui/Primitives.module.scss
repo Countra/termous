@@ -1,3 +1,27 @@
+.icon-action:global(.ant-btn) {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  padding: 0;
+  color: var(--text-secondary);
+}
+
+.icon-action:global(.ant-btn):not(:disabled):hover,
+.icon-action:global(.ant-btn)[aria-expanded='true'] {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+}
+
+.icon-action:global(.ant-btn):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 58%, transparent);
+  outline-offset: 1px;
+}
+
 .primary-button,
 .secondary-button,
 .danger-button {

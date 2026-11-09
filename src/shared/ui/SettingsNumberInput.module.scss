@@ -1,0 +1,134 @@
+.control {
+  display: inline-flex;
+  width: 160px;
+  max-width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  vertical-align: middle;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.control:not([data-disabled='true'], [data-status='error'], [data-status='warning']):hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+.control:not([data-disabled='true'], [data-status='error'], [data-status='warning']):focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.control[data-status='error'] {
+  border-color: var(--danger);
+}
+
+.control[data-status='error']:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.control[data-status='warning'] {
+  border-color: var(--warning);
+}
+
+.control[data-status='warning']:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 14%, transparent);
+}
+
+.control[data-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.number:global(.ant-input-number) {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-radius: 7px;
+  background: var(--input-bg);
+  font-variant-numeric: tabular-nums;
+}
+
+.number :global(.ant-input-number-input) {
+  // 外层已有边框，扣除 borderless 模式的补偿，使高度与公共下拉框一致。
+  padding-block: calc(var(--ant-input-number-input-padding-block) - 1px);
+}
+
+.control[data-controls='true'][data-unit='false'] .number:global(.ant-input-number) {
+  padding-inline-end: 34px;
+}
+
+.control[data-controls='true'] .number:global(.ant-input-number) :global(.ant-input-number-suffix) {
+  // 始终预留箭头列，悬停和聚焦只改变视觉反馈，不改变单位或数值的位置。
+  margin-inline-end: 28px;
+}
+
+.number:global(.ant-input-number) :global(.ant-input-number-actions) {
+  opacity: 0.4;
+  background: transparent;
+  transform: translateX(2px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    background-color 180ms ease;
+}
+
+.control:hover .number:global(.ant-input-number) :global(.ant-input-number-actions),
+.control:focus-within .number:global(.ant-input-number) :global(.ant-input-number-actions) {
+  opacity: 1;
+  background: var(--surface-subtle);
+  transform: translateX(0);
+}
+
+.number :global(.ant-input-number-action) {
+  // 固定上下按钮各占一半，避免 Antd 的悬停扩展使分界线跟随鼠标移动。
+  min-height: 50%;
+  max-height: 50%;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.number :global(.ant-input-number-action) > :global(.anticon) {
+  transition: transform 140ms ease;
+}
+
+.number :global(.ant-input-number-action):not([aria-disabled='true']):hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.number :global(.ant-input-number-action-up):not([aria-disabled='true']):hover > :global(.anticon) {
+  transform: translateY(-1px);
+}
+
+.number :global(.ant-input-number-action-down):not([aria-disabled='true']):hover > :global(.anticon) {
+  transform: translateY(1px);
+}
+
+.number :global(.ant-input-number-action):not([aria-disabled='true']):active > :global(.anticon) {
+  transform: scale(0.8);
+}
+
+.unit {
+  min-width: 24px;
+  padding-inline: 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+  transition: color 180ms ease;
+}
+
+.control:not([data-disabled='true']):focus-within .unit {
+  color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .control,
+  .unit,
+  .number:global(.ant-input-number) :global(.ant-input-number-actions),
+  .number :global(.ant-input-number-action),
+  .number :global(.ant-input-number-action) > :global(.anticon) {
+    transition: none;
+  }
+}

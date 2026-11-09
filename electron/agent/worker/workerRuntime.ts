@@ -19,13 +19,23 @@ import { RuntimeAuditWriter } from '../runtime/runtimeAuditWriter.ts'
 import { runtimeBootstrapConfiguration } from '../contracts/runtimeBootstrap.ts'
 import { projectWorkerMCPFailure } from './workerMCPFailure.ts'
 import { WorkerCoreClient } from './workerCoreClient.ts'
+import { materializeRuntimeTextResources } from './runtimeTextResources.ts'
 import { type RuntimeBootstrap } from '../contracts/runtimeBootstrap.ts'
 import { type WorkerCoreClientPort } from '../contracts/workerCore.ts'
+import { ImageMaterializationLease } from './imageMaterializationLease.ts'
+import { WorkerIntegrationProxy } from './integrationProxy.ts'
+import { attachIntegrationTools } from './integrationTools.ts'
+import type { IntegrationDirectory } from '../contracts/integrationIPC.ts'
+import { integrationSkills } from './integrationSkills.ts'
+import { readIntegrationDirectory } from './integrationDirectory.ts'
+import { attachWebSearch } from './webSearch.ts'
+import { attachLocalTools } from './localTools.ts'
 
 const maximumSteerBytes = 1 << 20
 const maximumPendingSteers = 32
 
 export interface AgentWorkerRuntimeOptions {
+  sendIntegration?: (message: unknown) => void
   send: (message: AgentWorkerOutboundMessage) => void
   finish: () => void
   core?: WorkerCoreClientPort
@@ -39,6 +49,9 @@ interface PendingSteer {
 }
 
 export class AgentWorkerRuntime {
+  private readonly sendIntegration?: (message: unknown) => void
+  private integrations?: WorkerIntegrationProxy
+  private readonly imageBudget: ImageMaterializationLease
   private readonly send: (message: AgentWorkerOutboundMessage) => void
   private readonly finish: () => void
   private readonly core: WorkerCoreClientPort
@@ -60,7 +73,12 @@ export class AgentWorkerRuntime {
   private finished = false
 
   constructor(options: AgentWorkerRuntimeOptions) {
+    this.sendIntegration = options.sendIntegration
     this.send = options.send
+    this.imageBudget = new ImageMaterializationLease((id, bytes, action) => {
+      if (!this.startMessage) throw new Error('AGENT_RUNTIME_RUN_NOT_ACTIVE')
+      this.send(workerMessage(this.startMessage, { type: 'image_budget', request_id: id, bytes, action }))
+    })
     this.finish = options.finish
     this.core = options.core ?? new WorkerCoreClient()
     this.connectMCP = options.connectMCP ?? connectAgentMCP
@@ -68,6 +86,7 @@ export class AgentWorkerRuntime {
   }
 
   handleMessage(value: unknown) {
+    if (this.integrations?.handle(value)) return
     const message = parseInboundMessage(value)
     if (!message || this.finished) {
       return
@@ -79,6 +98,8 @@ export class AgentWorkerRuntime {
     if (!this.startMessage || !matchesRun(this.startMessage, message)) {
       return
     }
+    if (message.type === 'image_budget_granted') { this.imageBudget.granted(message.request_id); return }
+    if (message.type === 'image_budget_rejected') { this.imageBudget.rejected(message.request_id); return }
     if (message.type === 'abort') {
       this.abortRequested = true
       this.steerIntakeOpen = false
@@ -117,6 +138,7 @@ export class AgentWorkerRuntime {
   }
 
   private async execute(start: AgentWorkerStartMessage) {
+    let lazySkills: CreatePiAgentOptions['lazySkills']
     let settled: 'completed' | 'cancelled' | 'failed' | null = null
     let fatal: 'bootstrap_failed' | 'runtime_failed' | null = null
     try {
@@ -141,6 +163,24 @@ export class AgentWorkerRuntime {
         protocolVersion: bootstrap.mcp.protocol_version,
         signal: this.startupAbort.signal,
       })
+      if (start.integrations_version === 3) {
+        if (!this.sendIntegration) throw new Error('INTEGRATION_PROTOCOL_UNAVAILABLE')
+        this.integrations = new WorkerIntegrationProxy({ run_id: start.run_id, generation: start.generation, bearer: bootstrap.runtime_bearer }, this.sendIntegration)
+        const initial = await readIntegrationDirectory(this.integrations, this.startupAbort.signal)
+        if ('unchanged' in initial) throw new Error('INTEGRATION_DIRECTORY_INVALID')
+        const directory: IntegrationDirectory = initial
+        this.mcp = attachIntegrationTools(this.mcp, directory, this.integrations)
+        lazySkills = integrationSkills(directory, this.integrations)
+      }
+      if (this.core.readWebSearchContext && this.core.searchWeb) {
+        const context = await this.core.readWebSearchContext(start, bootstrap.runtime_bearer, this.startupAbort.signal)
+        this.mcp = attachWebSearch(this.mcp, context, (input, signal) => this.core.searchWeb!(start, bootstrap.runtime_bearer, input, signal))
+      }
+      if (bootstrap.local_tools) {
+        if (!this.core.callLocalTool) throw new Error('LOCAL_TOOLS_PROTOCOL_UNAVAILABLE')
+        this.mcp = attachLocalTools(this.mcp, bootstrap.local_tools,
+          (input, signal) => this.core.callLocalTool!(start, bootstrap.runtime_bearer, input, signal))
+      }
       if (this.abortRequested) {
         settled = await this.persistTerminalStatus('cancelled')
         return
@@ -150,12 +190,27 @@ export class AgentWorkerRuntime {
         isCancelled: () => this.abortRequested,
         originalName: (name) => this.mcp?.originalName(name) ?? (name === readSkillResourceToolName ? name : null),
       })
+      bootstrap = await materializeRuntimeTextResources(bootstrap, (reference, signal) => {
+        if (!this.core.readResourceText) throw new Error('AGENT_RUNTIME_ATTACHMENT_INVALID')
+        return this.core.readResourceText(start, bootstrap.runtime_bearer, reference, signal)
+      }, this.startupAbort.signal)
       this.agent = this.createAgent({
+        readDesktopTasks: this.core.readDesktopTasks ? (cursor, waitMS, signal) => this.core.readDesktopTasks!(start, bootstrap.runtime_bearer, cursor, waitMS, signal) : undefined,
+        reserveImageBytes: (bytes, signal) => this.imageBudget.acquire(bytes, signal),
         audit: this.audit,
         bootstrap,
         mcp: this.mcp,
         events: this.events,
+        lookupPreparedCall: (toolCallID, step, signal) => {
+          if (!this.core.readToolPreparation) throw new Error('AGENT_RUNTIME_PREPARATION_UNAVAILABLE')
+          return this.core.readToolPreparation(start, bootstrap.runtime_bearer, toolCallID, step, signal)
+        },
         skills: start.skills,
+        lazySkills,
+        readResourceImage: (reference, signal) => {
+          if (!this.core.readResourceImage) throw new Error('AGENT_RUNTIME_IMAGE_UNAVAILABLE')
+          return this.core.readResourceImage(start, bootstrap.runtime_bearer, reference, signal)
+        },
         readHistoryImage: (reference, signal) => {
           if (!this.core.readHistoryImage) throw new Error('AGENT_RUNTIME_IMAGE_UNAVAILABLE')
           return this.core.readHistoryImage(start, bootstrap.runtime_bearer, reference, signal)
@@ -319,6 +374,8 @@ export class AgentWorkerRuntime {
   }
 
   private async closeResources() {
+    this.integrations?.close()
+    this.integrations = undefined
     this.rejectPendingSteers('AGENT_RUNTIME_STEER_CLOSED')
     this.agent?.abort()
     await this.agent?.waitForIdle().catch(() => undefined)
@@ -383,6 +440,9 @@ function parseInboundMessage(value: unknown): AgentWorkerInboundMessage | null {
   if (value.type === 'start') {
     return validAgentWorkerStartMessage(value) ? value : null
   }
+  if ((value.type === 'image_budget_granted' || value.type === 'image_budget_rejected') && validClientRequestID(value.request_id)) {
+    return { type: value.type, run_id: value.run_id, generation: value.generation, request_id: value.request_id }
+  }
   if (value.type === 'abort') {
     return {
       type: 'abort',
@@ -414,6 +474,7 @@ function matchesRun(
 }
 
 function workerMessage<T extends
+  | { type: 'image_budget'; request_id: string; bytes: number; action: 'acquire' | 'release' }
   | { type: 'started' }
   | { type: 'settled'; outcome: 'completed' | 'cancelled' | 'failed' }
   | { type: 'fatal'; category: 'bootstrap_failed' | 'runtime_failed' }

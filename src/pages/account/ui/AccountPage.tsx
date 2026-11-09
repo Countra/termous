@@ -1,15 +1,15 @@
-import { useState, type ReactNode } from 'react'
-import { Avatar, Button, Modal, Skeleton, Tabs, Tag, Tooltip } from 'antd'
-import { ChevronDown, Cloud, CloudOff, Ellipsis, KeyRound, Laptop, LogOut, ShieldCheck, ShieldX, UserRound } from 'lucide-react'
+import { useState, useSyncExternalStore, type ReactNode } from 'react'
+import { Avatar, Button, Tabs, Tag, Tooltip } from 'antd'
+import { Cloud, Ellipsis, KeyRound, Laptop, LogOut, ShieldCheck, ShieldX, UserRound } from 'lucide-react'
 import type { CloudTab, CloudAuthorizationTarget } from '#common/contracts'
 import { useTranslation } from 'react-i18next'
 import type { CloudGateway } from '#entities/cloud'
 import { isCloudConnectionError } from '#entities/cloud'
 import { SettingsGatewayContext, type SettingsGateway } from '#entities/settings'
-import { AccountAuth, AccountDevices, AccountEmergencyRecovery, AccountProfile, AccountSecurity, AccountSync, useCloudAccount, type CloudProfileController } from '#features/cloud-account'
-import { WorkspaceEmptyState, FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
+import { AccountDevices, AccountEmergencyRecovery, AccountProfile, AccountSecurity, AccountSync, useCloudAccount, type CloudProfileController } from '#features/cloud-account'
+import { FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
 import { RemoteAccountAccess } from '#features/remote-control'
-import { AccountLoginLayout } from './AccountLoginLayout'
+import { AccountAuthDialog } from './AccountAuthDialog'
 import styles from './AccountPage.module.scss'
 
 interface Props {
@@ -23,9 +23,14 @@ interface Props {
   onOpenAuthorization?: (value: CloudAuthorizationTarget) => void
 }
 
-export function AccountPage({ api, settingsGateway, profile, onUseOffline, activeTab, onTabChange, authorizationTarget, onOpenAuthorization }: Props) {
+export function AccountPage(props: Props) {
+  const status = useSyncExternalStore(props.api.subscribeStatus, props.api.getStatus)
+  return status?.authenticated ? <AccountWorkspace {...props} /> : <AccountAuthDialog api={props.api} onClose={props.onUseOffline} />
+}
+
+function AccountWorkspace({ api, settingsGateway, profile, activeTab, onTabChange, authorizationTarget, onOpenAuthorization }: Props) {
   const { t } = useTranslation()
-  const { status, busy, error, run, refresh } = useCloudAccount(api)
+  const { status, busy, error, run } = useCloudAccount(api)
   const [reauthGeneration, setReauthGeneration] = useState<string>()
   const loggedIn = status?.authenticated
   const emergencyAvailable = status?.device_status === 'active' && Boolean(status.binding_id)
@@ -38,18 +43,7 @@ export function AccountPage({ api, settingsGateway, profile, onUseOffline, activ
       description={disconnected ? t('cloud.connectionRetryHint') : undefined}
     /> : null
 
-  if (!status || !loggedIn) return <FeedbackMessageScope scope={status?.generation ?? 'account'}>
-    <AccountLoginLayout busy={busy} onUseOffline={onUseOffline} securityAction={emergencyAvailable && status ? <AccountEmergencyRecovery key={status.generation} api={api} generation={status.generation} busy={busy} run={run}>
-      <Button type="text" icon={<ShieldCheck size={15} />} disabled={busy} aria-haspopup="menu">{t('cloud.authorization.securityOptions')}<ChevronDown size={13} aria-hidden="true" /></Button>
-    </AccountEmergencyRecovery> : null}>
-      {feedback}
-      {status ? <>
-        {status.configured ? <AccountAuth key={status.generation} api={api} generation={status.generation} busy={busy} run={run} />
-          : <WorkspaceEmptyState icon={<CloudOff size={20} />} title={t('cloud.unconfiguredTitle')} description={t('cloud.unconfigured')} />}
-      </> : error ? <WorkspaceEmptyState icon={<CloudOff size={20} />} title={t('nav.account')} action={<Button onClick={() => void refresh()}>{t('cloud.retry')}</Button>} />
-        : <div role="status" aria-label={t('cloud.loading')}><Skeleton active paragraph={{ rows: 3 }} /></div>}
-    </AccountLoginLayout>
-  </FeedbackMessageScope>
+  if (!status || !loggedIn) return null
 
   const name = profile.profile?.name || status.email || t('nav.account')
   const deviceLabel = t(status.device_status === 'active' ? 'cloud.trusted' : status.device_status === 'revoked' ? 'cloud.deviceStates.revoked' : 'cloud.pendingApproval')
@@ -71,11 +65,8 @@ export function AccountPage({ api, settingsGateway, profile, onUseOffline, activ
         </AccountEmergencyRecovery> : null}
       </div>
     </header>
-    {feedback}
-    <Modal key={`reauth-${status.generation}`} open={reauthGeneration === status.generation} width={460} centered title={t('cloud.reconnectAccount')} footer={null} destroyOnHidden closable={!busy} mask={{ closable: !busy }} keyboard={!busy} onCancel={() => { if (!busy) setReauthGeneration(undefined) }}><FeedbackMessageScope active={Boolean(reauthGeneration === status.generation)}>
-      {error ? <FeedbackMessage type="warning" title={t(`cloud.errors.${error}`, { defaultValue: t('cloud.operationFailed') })} /> : null}
-      <AccountAuth key={status.generation} api={api} generation={status.generation} email={status.email} reauthenticate busy={busy} run={run} />
-    </FeedbackMessageScope></Modal>
+    {reauthGeneration !== status.generation ? feedback : null}
+    {reauthGeneration === status.generation ? <AccountAuthDialog key={`reauth-${status.generation}`} api={api} reauthenticate onClose={() => setReauthGeneration(undefined)} /> : null}
     <Tabs className={styles.tabs} key={`tabs-${status.generation}`} activeKey={activeTab} onChange={(tab) => {
       if (tab === 'profile' || tab === 'sync' || tab === 'devices' || tab === 'security') onTabChange(tab)
     }} items={[

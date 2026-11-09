@@ -1,0 +1,79 @@
+@use '../../../shared/styles/settings' as settings;
+
+.help-button {
+  margin-left: -2px;
+  color: var(--text-muted);
+}
+
+.permissions {
+  display: grid;
+  min-width: 0;
+}
+
+.row {
+  @include settings.row;
+
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+
+.icon {
+  color: var(--text-muted);
+}
+
+.copy {
+  min-width: 0;
+}
+
+.copy > label {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.6;
+}
+
+.copy > p {
+  @include settings.hint;
+
+  margin-top: 3px;
+}
+
+.note {
+  @include settings.hint;
+
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  border-top: 1px solid var(--border);
+  padding: 12px 18px;
+}
+
+.note > svg {
+  flex: 0 0 auto;
+  margin-top: 3px;
+}
+
+.help > p {
+  margin: 0;
+}
+
+.help > p + p {
+  margin-top: 8px;
+}
+
+@container agent-settings (width <= 520px) {
+  .row {
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .note {
+    padding-inline: 14px;
+  }
+}

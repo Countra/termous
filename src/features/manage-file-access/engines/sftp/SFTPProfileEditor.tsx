@@ -1,65 +1,48 @@
-import { Input, Select } from 'antd'
-import { Link2 } from 'lucide-react'
+import { Select } from 'antd'
+import { Cable, Link2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { customSelectStyles } from '#shared/ui'
 import type { FileAccessProfileEditorViewProps } from '../../model/types.ts'
+import { FileProfileField, FileProfileForm, FileProfileSection } from '../../ui/FileProfileForm.tsx'
+import formStyles from '../../ui/FileProfileForm.module.scss'
 import styles from './SFTPProfileEditor.module.scss'
 
-export function SFTPProfileEditor({
-  draft,
-  sshProfiles,
-  errors,
-  disabled,
-  onChange,
-}: FileAccessProfileEditorViewProps) {
+interface SFTPProfileEditorProps extends FileAccessProfileEditorViewProps {
+  bindingLocked?: boolean
+}
+
+export function SFTPProfileEditor(props: SFTPProfileEditorProps) {
+  const { draft, sshProfiles, errors, disabled, bindingLocked, onChange } = props
   const { t } = useTranslation()
   if (draft.engine !== 'sftp') return null
-
-  return (
-    <div className={styles.form}>
-      <label className={styles.field}>
-        <span>{t('hosts.access.profileName')}</span>
-        <Input
-          value={draft.name}
-          maxLength={80}
-          autoFocus
-          status={errors?.name ? 'error' : undefined}
-          disabled={disabled}
-          onChange={(event) => onChange({ ...draft, name: event.target.value })}
-        />
-        {errors?.name ? <small role="alert">{t(`hosts.access.errors.${errors.name === 'too_long' ? 'tooLong' : 'required'}`)}</small> : null}
-      </label>
-      <label className={styles.field}>
-        <span>{t('hosts.access.file.binding')}</span>
-        <Select
+  const profiles = sshProfiles.filter(profile => profile.host_id === draft.host_id)
+  const selected = profiles.find(profile => profile.id === draft.ssh_profile_id)
+  const error = errors?.ssh_profile_id ? t(errors.ssh_profile_id === 'unavailable' ? 'hosts.access.file.missingSSHDescription' : 'hosts.access.file.sshRequired') : undefined
+  return <FileProfileForm {...props} autoFocus>
+    <FileProfileSection title={t('hosts.access.file.binding')} icon={<Link2 size={15} />}>
+      <FileProfileField label={t('hosts.access.file.sshProfile')} error={error}>
+        {controlProps => <Select {...controlProps}
           classNames={{ popup: { root: customSelectStyles['select-popup'] } }}
-          value={draft.ssh_profile_id || undefined}
-          placeholder={t('hosts.access.file.selectSSH')}
-          disabled={disabled}
+          value={selected ? selected.id : undefined}
+          placeholder={t(profiles.length ? 'hosts.access.file.selectSSH' : 'hosts.access.file.noSSH')}
+          disabled={disabled || bindingLocked || profiles.length === 0}
           status={errors?.ssh_profile_id ? 'error' : undefined}
-          options={sshProfiles.map((profile) => ({
-            value: profile.id,
-            label: profile.name || `${profile.username}@${profile.address}`,
-          }))}
-          onChange={(sshProfileId) => onChange({ ...draft, ssh_profile_id: sshProfileId })}
-        />
-        {errors?.ssh_profile_id ? <small role="alert">{t('hosts.access.file.sshRequired')}</small> : null}
-      </label>
-      <section className={styles.binding} aria-label={t('hosts.access.file.binding')}>
-        <span className={styles['binding-icon']} aria-hidden="true"><Link2 size={17} /></span>
-        <span className={styles['binding-copy']}>
-          <strong>{sshProfiles.find((profile) => profile.id === draft.ssh_profile_id)?.name || t('hosts.access.file.missingSSH')}</strong>
-          <small>
-            {sshProfiles.find((profile) => profile.id === draft.ssh_profile_id)
-              ? (() => {
-                  const profile = sshProfiles.find((item) => item.id === draft.ssh_profile_id)!
-                  return `${profile.username}@${profile.address}:${profile.port}`
-                })()
-              : t('hosts.access.file.missingSSHDescription')}
-          </small>
-        </span>
-      </section>
-      <p className={styles.hint}>{t('hosts.access.file.bindingHint')}</p>
-    </div>
-  )
+          options={profiles.map(profile => ({ value: profile.id, label: profile.name || `${profile.username}@${profile.address}` }))}
+          onChange={sshProfileId => onChange({ ...draft, ssh_profile_id: sshProfileId })}
+        />}
+      </FileProfileField>
+      <p className={`${formStyles.hint} ${formStyles.notice}`}>{t(bindingLocked ? 'hosts.access.file.companionHint' : 'hosts.access.file.bindingHint')}</p>
+    </FileProfileSection>
+    <FileProfileSection title={t('hosts.access.file.sections.connection')} icon={<Cable size={15} />}>
+      {selected ? <>
+        <strong className={styles.name}>{selected.name || t('hosts.access.file.sshProfile')}</strong>
+        <dl className={styles.details}>
+          <div><dt>{t('hosts.address')}</dt><dd>{selected.address}</dd></div>
+          <div><dt>{t('hosts.port')}</dt><dd>{selected.port}</dd></div>
+          <div><dt>{t('hosts.username')}</dt><dd>{selected.username}</dd></div>
+          <div><dt>{t('hosts.authMethod')}</dt><dd>{t(`hosts.auth.${selected.auth_method}`)}</dd></div>
+        </dl>
+      </> : <p className={formStyles.hint}>{t(draft.ssh_profile_id ? 'hosts.access.file.missingSSHDescription' : profiles.length ? 'hosts.access.file.selectSSH' : 'hosts.access.file.noSSHHint')}</p>}
+    </FileProfileSection>
+  </FileProfileForm>
 }

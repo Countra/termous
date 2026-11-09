@@ -12,11 +12,23 @@ export interface ShutdownDependencies {
   now(): number
   committed(): void
   expectedPID?: number
+  maintenance?(): Promise<boolean>
 }
 
 // 准备退出期间保留窗口和心跳；超时只返回失败，绝不据此强杀 Core。
 export async function awaitCoreShutdown(dependencies: ShutdownDependencies, timeoutMs = 45_000): Promise<ShutdownOutcome> {
-  const deadline = dependencies.now() + timeoutMs
+  let deadline = dependencies.now() + timeoutMs
+  if (dependencies.maintenance) {
+    try {
+      while (!dependencies.exited() && await dependencies.maintenance()) await dependencies.wait(200)
+    } catch {
+      // 状态查询期间 Core 可能已正常退出，应以所属子进程的退出状态为准。
+      if (dependencies.exited()) return { status: 'stopped' }
+      return { status: 'failed', message: 'Unable to confirm runtime maintenance status. The application remains open.' }
+    }
+    deadline = dependencies.now() + timeoutMs
+  }
+  if (dependencies.exited()) return { status: 'stopped' }
   try {
     if (!await dependencies.request()) return { status: 'failed', message: 'Core rejected the shutdown request.' }
   } catch {
@@ -25,6 +37,7 @@ export async function awaitCoreShutdown(dependencies: ShutdownDependencies, time
   while (dependencies.now() < deadline) {
     if (dependencies.exited()) return { status: 'stopped' }
     try {
+      if (await dependencies.maintenance?.()) deadline = dependencies.now() + timeoutMs
       const status = await dependencies.probe()
       if (status && (dependencies.expectedPID === undefined || status.pid === dependencies.expectedPID)) {
         if (status.shutdown_phase === 'blocked') {

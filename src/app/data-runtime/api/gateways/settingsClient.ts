@@ -10,6 +10,9 @@ import type { AuditSettingsGateway } from '#features/settings'
 type Language = AppLanguage
 
 export class SettingsClient extends TermousApiTransport implements AuditSettingsGateway {
+  testWebSearch(signal?: AbortSignal) {
+    return this.request<import('#common/contracts').WebSearchResult>('/api/v1/agent/web-search/test', { method: 'POST', signal, timeoutMs: 35_000 })
+  }
   constructor(config: Partial<AppConfig> = {}) {
     super(config)
   }

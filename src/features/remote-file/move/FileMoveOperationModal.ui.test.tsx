@@ -1,8 +1,9 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ConfigProvider } from 'antd'
 import type { FileOperationTask } from '#entities/file'
 import type { FileOperationGateway } from '../model/fileOperationGateway.ts'
+import { FileOperationWebSocket } from '../../../test/fileOperationWebSocket.ts'
 import { FileMoveOperationModal } from './FileMoveOperationModal.tsx'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
@@ -23,8 +24,18 @@ function gateway() {
   } as unknown as FileOperationGateway
 }
 
+beforeEach(() => {
+  FileOperationWebSocket.instances = []
+  vi.stubGlobal('WebSocket', FileOperationWebSocket)
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
+})
+
 describe('移动任务反馈', () => {
-  it('任务查询异常时提示结果未知并允许关闭，恢复后继续跟踪', async () => {
+  it.each(['open', 'disconnected'])('任务查询异常时提示结果未知并允许关闭，恢复后继续跟踪（%s）', async (transport) => {
     vi.useFakeTimers()
     const api = gateway()
     const running = { ...task, status: 'running' as const, cancellable: true }
@@ -33,6 +44,16 @@ describe('移动任务反馈', () => {
     vi.mocked(api.fileOperation).mockRejectedValue(new Error('本地 API 暂时不可用'))
     const view = render(<ConfigProvider theme={{ token: { motion: false } }}><FileMoveOperationModal api={api} initialTask={running} onClose={onClose} onFinished={onFinished} /></ConfigProvider>)
     try {
+      if (transport === 'disconnected') {
+        // 覆盖接近首次轮询时才断开的连接，后续推进相对于明确的断开时刻。
+        await act(async () => { await vi.advanceTimersByTimeAsync(1950) })
+        FileOperationWebSocket.instances[0].emit('error')
+        FileOperationWebSocket.instances[0].emit('close')
+        await act(async () => { await vi.advanceTimersByTimeAsync(150) })
+        // 挂载后 2100ms 时查询仍可能尚未发出；未取得结果前不能伪造查询失败。
+        expect(api.fileOperation).not.toHaveBeenCalled()
+        expect(screen.queryByText('files.move.observationFailed')).not.toBeInTheDocument()
+      }
       await act(async () => { await vi.advanceTimersByTimeAsync(2100) })
       expect(screen.getByText('files.move.observationFailed')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'files.move.close' })).toBeEnabled()
@@ -52,7 +73,6 @@ describe('移动任务反馈', () => {
       expect(api.cancelFileOperation).not.toHaveBeenCalled()
     } finally {
       view.unmount()
-      vi.useRealTimers()
     }
   })
 

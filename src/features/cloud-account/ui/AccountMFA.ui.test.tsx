@@ -334,7 +334,7 @@ test('后台版本更新关闭旧安全向导，不采用新版本自动提交�
   await screen.findByText('已开启')
   fireEvent.click(screen.getByRole('button', { name: '关闭二步验证' }))
   const dialog = within(await screen.findByRole('dialog'))
-  fireEvent.change(dialog.getByLabelText('验证器验证码'), { target: { value: '123456' } })
+  fireEvent.change(dialog.getByLabelText('验证器验证码'), { target: { value: '12345' } })
   vi.mocked(api.mfaStatus).mockResolvedValueOnce({ ...active, revision: '2' })
   fireEvent.click(screen.getByRole('button', { name: '刷新验证状态' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -382,7 +382,7 @@ test.each(['mfa_challenge_expired', 'mfa_challenge_exhausted'])('服务端终止
   fireEvent.change(await screen.findByLabelText('验证器验证码'), { target: { value: '123456' } })
   fireEvent.click(screen.getByRole('button', { name: '验证并登录' }))
   await waitFor(() => expect(screen.getByRole('button', { name: '验证并登录' })).toBeDisabled())
-  await waitFor(() => expect(screen.getByLabelText('验证器验证码')).toHaveValue(''))
+  await waitFor(() => expect(screen.getByLabelText('验证器验证码')).toHaveValue('1'))
   expect(api.verifyLogin).toHaveBeenCalledTimes(1)
 })
 

@@ -2,6 +2,13 @@ export type CapabilityRole = 'list' | 'inspect' | 'observe' | 'preview' | 'submi
 export type CapabilityFailure = 'blocked' | 'uncertain' | 'stale' | 'pending' | 'missing' | 'invalid' | 'unavailable' | 'unknown'
 export type CapabilityTarget = 'session' | 'profile' | 'unbound'
 
+export interface ToolDeclarationState {
+  original_name: string
+  name?: string
+  source?: string
+  status: 'declared' | 'discoverable' | 'unavailable'
+}
+
 export interface CapabilityCase {
   tools: string[]
   path?: string
@@ -20,6 +27,7 @@ export interface CapabilityStep {
   tools: string[]
   role: CapabilityRole
   next?: string[]
+  recovery?: string[]
   cleanup?: string[]
   guidance?: string
   preparation?: string
@@ -29,6 +37,8 @@ export interface CapabilityStep {
 }
 
 export interface ToolCapability {
+  selection?: { use_when: string; alternatives?: Array<{ capability: string; when: string }> }
+  discovery: { summary: string; entry: string[]; aliases?: Record<string, string[]>; preload?: Array<{ tool: string; bindings: string[]; priority: number }> }
   id: string
   group: string
   prefix: string
@@ -47,7 +57,13 @@ export interface ToolCapability {
 
 export interface CapabilityCatalog {
   version: 1
+  builtin: { version: 1; tools: Record<string, BuiltinToolAdapter> }
   operations: Record<string, string>
   capabilities: ToolCapability[]
   skillEntries: Record<string, string[]>
+}
+
+export interface BuiltinToolAdapter {
+  adapter: 'identity' | 'desktop' | 'desktop_execution' | 'workflow' | 'analysis' | 'ssh' | 'files' | 'revision' | 'operation'
+  managed: string[]
 }

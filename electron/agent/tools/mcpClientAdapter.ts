@@ -10,6 +10,11 @@ import type { TSchema } from 'typebox'
 import { Compile } from 'typebox/compile'
 import { encodeMCPToolName } from '../contracts/toolNameCodec.ts'
 import { agentToolImageReference, isAgentDisplayImageMIMEType } from '#common/contracts'
+import { isImageResourceReference } from '#common/contracts'
+import { resourceImage, isRuntimeImage, isResourceImage } from '../contracts/runtimeResourceImages.ts'
+import { identifyTool, externalToolName, termousToolSource, type ToolSource } from '../contracts/toolSources.ts'
+import { withToolDescription } from '../contracts/toolDescriptions.ts'
+import { isRecord } from '../contracts/validation.ts'
 
 export const agentMCPProtocolVersion = '2025-11-25'
 
@@ -78,7 +83,7 @@ export async function connectAgentMCP(
     })
     const invocation = createSerialToolInvoker(async (definition, args, signal, toolCallID) => {
       return await client.callTool(
-        { name: definition.name, arguments: args, ...(toolCallID ? { _meta: { 'termous/tool-call-id': toolCallID } } : {}) },
+        { name: definition.name, arguments: args, ...(toolCallID ? { _meta: { 'termous/tool-call-id': toolCallID, 'termous/resource-refs': '1' } } : {}) },
         {
           signal,
           timeout: mcpToolTimeoutMs,
@@ -114,6 +119,7 @@ export type MCPToolInvoker = (
 export function mapMCPTools(
   definitions: MCPTool[],
   invoke: MCPToolInvoker,
+  source: ToolSource = termousToolSource,
 ) {
   // 工具目录由 Core 按当前能力与权限返回，不能把旧版本的工具数量作为启动条件。
   if (definitions.length === 0) {
@@ -121,7 +127,7 @@ export function mapMCPTools(
   }
   const originalNames = new Map<string, string>()
   const tools = definitions.map((definition): AgentTool => {
-    const encodedName = encodeMCPToolName(definition.name)
+    const encodedName = source === termousToolSource ? encodeMCPToolName(definition.name) : externalToolName(source, definition.name)
     if (!validEncodedToolName(encodedName) || originalNames.has(encodedName)) {
       throw new Error('AGENT_MCP_TOOL_NAME_CONFLICT')
     }
@@ -131,8 +137,8 @@ export function mapMCPTools(
     } catch {
       throw new Error('AGENT_MCP_TOOL_SCHEMA_INVALID')
     }
-    originalNames.set(encodedName, definition.name)
-    return {
+    originalNames.set(encodedName, source === termousToolSource ? definition.name : `${source.id}::${definition.name}`)
+    const tool = identifyTool({
       name: encodedName,
       label: definition.title || definition.name,
       description: definition.description || definition.title || definition.name,
@@ -146,7 +152,7 @@ export function mapMCPTools(
           toolCallID,
         )
         return {
-          content: projectMCPContent(result, toolCallID),
+          content: projectMCPContent(result, toolCallID, source === termousToolSource),
           details: {
             kind: 'mcp',
             originalToolName: definition.name,
@@ -155,7 +161,14 @@ export function mapMCPTools(
           } satisfies MCPToolDetails,
         } satisfies AgentToolResult<MCPToolDetails>
       },
+    }, source, definition.name)
+    // 只接受同源 Core 的说明分段元数据；外部 MCP 不能声明受管或可信指引身份。
+    const metadata = definition._meta?.['termous/capability']
+    if (source === termousToolSource && isRecord(metadata) && metadata.version === 1) {
+      return withToolDescription(tool, typeof metadata.base_description === 'string' ? metadata.base_description : tool.description,
+        typeof metadata.base_description === 'string' ? 'raw' : 'core')
     }
+    return tool
   })
   return { tools, originalNames }
 }
@@ -239,19 +252,23 @@ function requestURL(input: RequestInfo | URL) {
   return new URL(input.url)
 }
 
-function projectMCPContent(result: CallToolResult, toolCallID: string) {
+function projectMCPContent(result: CallToolResult, toolCallID: string, trusted: boolean) {
   const content: AgentToolResult<unknown>['content'] = []
   for (const block of result.content) {
     if (block.type === 'text') {
       content.push({ type: 'text', text: block.text })
     } else if (block.type === 'image') {
       content.push({ type: 'image', data: block.data, mimeType: block.mimeType })
+    } else if (trusted && block.type === 'resource_link' && block.uri.startsWith('termous-resource://')) {
+      const ref = block._meta?.['termous/resource']
+      if (!isImageResourceReference(ref) || block.uri !== `termous-resource://${ref.resource_id}` || block.mimeType !== ref.mime_type) throw new Error('AGENT_RUNTIME_IMAGE_INVALID')
+      content.push(resourceImage(ref))
     } else {
       content.push({ type: 'text', text: JSON.stringify(block) })
     }
   }
   const imageReferences = content.flatMap((block, index) => {
-    const reference = block.type === 'image' && isAgentDisplayImageMIMEType(block.mimeType)
+    const reference = isRuntimeImage(block) && isAgentDisplayImageMIMEType(isResourceImage(block) ? block.resource_image.mime_type : block.mimeType)
       ? agentToolImageReference(toolCallID, index) : undefined
     return reference ? [reference] : []
   })

@@ -19,6 +19,7 @@ export interface StartupPresentationView {
   attention: CoreStartupSnapshot['attention']
   windowVisible: boolean
   coreVersion?: string
+  ready: boolean
   canComplete: boolean
 }
 
@@ -77,6 +78,7 @@ export class StartupPresentation {
     failure: null,
     attention: null,
     windowVisible: false,
+    ready: false,
     canComplete: false,
   }
 
@@ -187,9 +189,10 @@ export class StartupPresentation {
 
     // 最短停留以真正可见的阶段为起点，不延迟数据库事务或重复累计启动时长。
     const coreReady = snapshot?.phase === 'ready' || snapshot?.phase === 'external'
+    const ready = Boolean(coreReady && this.workspaceReady && phase !== 'error')
     const presentationReady = phase !== 'database-running' && phase !== 'database-completed' && phase !== 'error'
     const windowDeadline = this.visibleAt === null ? null : this.visibleAt + windowMinimumMs
-    const canComplete = Boolean(coreReady && this.workspaceReady && phase !== 'error'
+    const canComplete = Boolean(ready
       && (this.presentationSkipped || (this.visible && presentationReady
         && windowDeadline !== null && now >= windowDeadline)))
     if (coreReady && this.workspaceReady && presentationReady && windowDeadline !== null && now < windowDeadline) {
@@ -208,6 +211,7 @@ export class StartupPresentation {
       attention: snapshot?.attention ?? null,
       windowVisible: this.visible,
       ...(snapshot?.coreVersion ? { coreVersion: snapshot.coreVersion } : {}),
+      ready,
       canComplete,
     }
     if (deadline !== null && deadline > now) {

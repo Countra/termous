@@ -27,7 +27,7 @@ import {
   getMcpScopeCatalogEntry,
   mcpScopeCatalog,
   mcpScopeGroups,
-  normalizeMcpScopes,
+  toggleMcpScopes,
   type McpScopeGroupKey,
 } from '../../model/mcpScopeCatalog'
 import styles from '../McpClientEditor.module.scss'
@@ -41,7 +41,9 @@ interface McpScopeSelectorProps {
 }
 
 const permissionGroupIcons: Record<McpScopeGroupKey, LucideIcon> = {
+  host_desktop: Monitor,
   desktops: Monitor,
+  screen_analyses: Monitor,
   desktop_workflows: ListChecks,
   hosts: Server,
   sessions: KeyRound,
@@ -68,18 +70,10 @@ export function McpScopeSelector({
   const allSelected = mcpScopeCatalog.every(({ scope }) => selected.has(scope))
   const destructive = scopes.includes('sessions:close')
   const toggleScope = (scope: McpScope, checked: boolean) => {
-    const next = new Set(scopes)
-    if (checked) next.add(scope)
-    else next.delete(scope)
-    onScopesChange(normalizeMcpScopes(next))
+    onScopesChange(toggleMcpScopes(scopes, [scope], checked))
   }
   const toggleScopeGroup = (groupScopes: readonly McpScope[], checked: boolean) => {
-    const next = new Set(scopes)
-    for (const scope of groupScopes) {
-      if (checked) next.add(scope)
-      else next.delete(scope)
-    }
-    onScopesChange(normalizeMcpScopes(next))
+    onScopesChange(toggleMcpScopes(scopes, groupScopes, checked))
   }
 
   return (

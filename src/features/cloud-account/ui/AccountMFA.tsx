@@ -116,7 +116,7 @@ export function AccountMFA({ api, generation, value, loading, error, busy, accep
             const next = await api.mfaConfirm(generation, setup.revision, setup.setup_id, values.code!)
             if (current(scope) && !invalidated.current) { update(next.status); setSetup(undefined); setCodes(next.backup_codes); setOpen(true); form.resetFields() }
           })}>
-            <AccountMFAFields method="totp" methods={['totp']} onMethodChange={() => {}} disabled={disabled || expired} />
+            <AccountMFAFields key={setup.setup_id} gap={14} method="totp" methods={['totp']} onMethodChange={() => {}} disabled={disabled || expired} autoFocus />
             <div className={styles.actions}><Button type="primary" htmlType="submit" loading={disabled} disabled={expired}>{t('cloud.mfa.confirm')}</Button><Button disabled={disabled} onClick={close}>{t('cloud.mfa.cancel')}</Button></div>
           </Form>
         </> : <>

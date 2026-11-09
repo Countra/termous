@@ -1,0 +1,26 @@
+.root {
+  min-height: 200px;
+  gap: 8px;
+  padding: 28px 20px;
+  border-style: solid;
+  border-color: var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.root :global(.workbench-empty-state-icon) {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 6px;
+  border-color: var(--border);
+  border-radius: 14px;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
+.root :global(.workbench-empty-state-description) {
+  max-width: 34ch;
+  color: var(--text-muted);
+  line-height: 1.7;
+  text-wrap: pretty;
+}

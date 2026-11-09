@@ -1,8 +1,12 @@
 import { createModelServiceFixture } from './modelServiceFixture'
+import { createIntegrationFixture } from '../integrations/fixture'
 import { PreviewMcpProvider } from './PreviewMcpProvider'
 import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { useTranslation } from 'react-i18next'
+import { presentationDefaults } from '@termous/remote-protocol/presentation'
 import '#shared/styles'
+import type { PageKey } from '#shared/model'
 import { TermousUiProvider } from '#app/ui-runtime'
 import { SettingsDialog } from '#pages/settings'
 import { AppShell } from '#app/app-shell'
@@ -29,7 +33,8 @@ const disconnectClipboard = systemClipboardCapabilities.connect({
 let readiness: AgentReadiness = {
   status: 'ready', mcp_runtime: { status: 'ready', message: '' }, mcp_client: { status: 'ready', message: '' },
   skills_bundle: { status: 'ready', message: '' }, default_model: { status: 'ready', message: '' },
-  mcp_policy: { client_id: 'preview', approval_bypass: false, scope_count: 29, required_scope_count: 29, scope_sync_required: false, revision: 1 },
+  mcp_policy: { client_id: 'preview', approval_bypass: false, scope_count: 29, required_scope_count: 29, scope_sync_required: false, revision: 1,
+    host_desktop: { read: false, capture: false, control: false } },
   settings: { default_model_id: 'model-0', default_reasoning_level: 'off', global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
     max_concurrent_runs: 4, context_compaction_threshold_percent: 80, connect_ssh_profile_on_bind: false,
     show_turn_token_usage: true, execution_budget: defaultExecutionBudget, revision: 1, created_at: '', updated_at: '' },
@@ -44,12 +49,17 @@ const agentGateway: AgentSetupGateway = {
     return readiness.settings
   },
   updateMcpPolicy: async input => {
-    readiness = { ...readiness, mcp_policy: { ...readiness.mcp_policy!, approval_bypass: input.approval_bypass, revision: input.expected_revision + 1 } }
+    readiness = { ...readiness, mcp_policy: { ...readiness.mcp_policy!, approval_bypass: input.approval_bypass, revision: input.expected_revision + 1,
+      ...(input.host_desktop ? { host_desktop: input.host_desktop } : {}) } }
     return readiness.mcp_policy!
   },
 }
 
 const snapshots = new Map<SettingsModuleId, SettingsSnapshot>([
+  ['web_search', { id: 'web_search', schema_version: 1, revision: 1, value: { mode: 'cloud', base_url: '' }, state: { status: 'saved' } }],
+  ['local_network', { id: 'local_network', schema_version: 1, revision: 1, value: { enabled: false, url: '', bypass: ['localhost', '127.0.0.1', '::1'] }, state: { status: 'saved' } }],
+  ['mcp_integrations', { id: 'mcp_integrations', schema_version: 1, revision: 1, value: { install_root: '', install_timeout_seconds: 1800, startup_timeout_seconds: 120 }, state: { status: 'saved' } }],
+  ['desktop_presentation', { id: 'desktop_presentation', schema_version: 1, revision: 1, value: { ...presentationDefaults() }, state: { status: 'saved' } }],
   ['notifications', { id: 'notifications', schema_version: 1, revision: 1, value: { enabled: true, agent: true, file: true, approval: true, cloud: true }, state: { status: 'applied', supported: true } }],
   ['desktop_clipboard', { id: 'desktop_clipboard', schema_version: 1, revision: 1, value: { enabled: true }, state: { status: 'applied' } }],
   ['login_item', { id: 'login_item', schema_version: 1, revision: 1, value: { enabled: false }, state: { status: 'applied', available: true } }],
@@ -72,7 +82,9 @@ const store = new SettingsModuleStore({
     return next
   },
 })
-const gateway = { getModule: store.snapshot.bind(store), readModule: store.read.bind(store), updateModule: store.update.bind(store), subscribeSettings: store.subscribe }
+const gateway = { getModule: store.snapshot.bind(store), readModule: store.read.bind(store), updateModule: store.update.bind(store), subscribeSettings: store.subscribe,
+  testWebSearch: async () => ({ provider: 'searxng' as const, query: 'Termous', page: 1, retrieved_at: new Date().toISOString(), results: [], partial: false, truncated: false, warnings: [] }) }
+const integrationsGateway = createIntegrationFixture()
 async function unsupported(): Promise<never> { throw new Error('此验收入口不执行外部资源操作') }
 const dataGateway: DataPortabilityGateway = {
   dataPortabilitySummary: async () => ({ total_items: 26, asset_count: 2, asset_bytes: 24576,
@@ -100,10 +112,12 @@ const previewUpdateRuntime: UpdatePreferencesRuntime = {
 }
 
 export function Preview() {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(true)
+  const [page, setPage] = useState<PageKey>('workbench')
   const [collapsed, setCollapsed] = useState(false)
   const [appearance, setAppearance] = useState({ theme: new URLSearchParams(location.search).has('light') ? 'light' as const : 'dark' as const })
-  const [language, setLanguage] = useState<'zh-CN' | 'en-US'>('zh-CN')
+  const [language, setLanguage] = useState<'zh-CN' | 'en-US'>(new URLSearchParams(location.search).has('en') ? 'en-US' : 'zh-CN')
   const [terminal, setTerminal] = useState(defaultTerminalSettings)
   const [connection, setConnection] = useState(defaultConnectionSettings)
   const [completion, setCompletion] = useState(defaultCompletionSettings)
@@ -112,17 +126,17 @@ export function Preview() {
     <ShortcutRuntimeContextProvider value={shortcuts}>
       <UpdateRuntimeContext.Provider value={updates}>
       <PreviewMcpProvider>
-      <AppShell page="workbench" appVersion="0.0.0-preview" windowCloseBehavior="exit" sidebarCollapsed={collapsed}
+      <AppShell page={page} appVersion="0.0.0" windowCloseBehavior="exit" sidebarCollapsed={collapsed}
         contentInert={open}
-        actionBusy={false} onNavigate={target => { if (target === 'settings') setOpen(true) }}
+        actionBusy={false} onNavigate={target => { if (target === 'settings') setOpen(true); else setPage(target) }}
         onOpenConnectionLauncher={() => undefined} onOpenLocalTerminal={() => undefined}
         onOpenProductTour={() => undefined} onToggleSidebar={() => setCollapsed(value => !value)}>
-        <WorkspaceEmptyState icon={<SquareTerminal size={24} />} title="工作站" description="连接主机，开始终端会话" />
+        <WorkspaceEmptyState icon={<SquareTerminal size={24} />} title={t(`nav.${page}`)} description={language === 'zh-CN' ? '导航交互预览' : 'Navigation preview'} />
       </AppShell>
-        <SettingsDialog open={open} onClose={() => setOpen(false)} initialTab={new URLSearchParams(location.search).has('models') ? 'models' : 'agent'} settingsGateway={gateway} language={language} appearanceSettings={appearance}
+        <SettingsDialog open={open} onClose={() => setOpen(false)} initialTab={new URLSearchParams(location.search).has('connection') ? 'connection' : new URLSearchParams(location.search).has('extensions') ? 'extensions' : new URLSearchParams(location.search).has('models') ? 'models' : 'agent'} settingsGateway={gateway} language={language} appearanceSettings={appearance}
           terminalSettings={terminal} sshSmoothScrollEnabled={false} completionSettings={completion}
           connectionSettings={connection} shortcutSettings={defaultShortcutSettings} windowSettings={windowSettings}
-          terminalFonts={[]} appVersion="0.0.0-preview" dataPortabilityGateway={dataGateway}
+          terminalFonts={[]} appVersion="0.0.0-preview" dataPortabilityGateway={dataGateway} integrationsGateway={integrationsGateway}
           auditSettingsGateway={gateway} mountSettingsGateway={gateway} agentSetupGateway={agentGateway} actionBusy={false}
           updatePreferencesRuntime={previewUpdateRuntime}
           onLanguageChange={async value => setLanguage(value)} onAppearanceSettingsChange={async value => setAppearance(value)}

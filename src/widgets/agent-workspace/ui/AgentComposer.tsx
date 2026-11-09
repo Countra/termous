@@ -3,6 +3,9 @@ import { Button, Input, Tooltip, type GetRef } from 'antd'
 import { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { agentResourceBindingKey } from '#entities/agent'
+import { IntegrationSourcePicker } from '#features/agent-integrations'
+import { LocalDirectoryPicker } from '#features/agent-local-tools'
+import { uiStyles } from '#shared/ui'
 import type {
   AgentQueuedTurnMovePlacement,
   AgentReasoningLevel,
@@ -31,6 +34,8 @@ import { AgentProfileConnectionStatus } from './AgentProfileConnectionStatus.tsx
 import styles from './AgentComposer.module.scss'
 
 export const AgentComposer = memo(function AgentComposer({
+  onReadIntegrations, onChangeIntegration,
+  onReadLocalDirectory, onChangeLocalDirectory,
   presentation,
   onLoadLocalAttachment,
   value,
@@ -103,6 +108,10 @@ export const AgentComposer = memo(function AgentComposer({
   onDismissProfileConnection,
   onContextCompressionPendingChange,
 }: {
+  onReadIntegrations?: AgentWorkspaceProps['onReadIntegrations']
+  onReadLocalDirectory?: AgentWorkspaceProps['onReadLocalDirectory']
+  onChangeLocalDirectory?: AgentWorkspaceProps['onChangeLocalDirectory']
+  onChangeIntegration?: AgentWorkspaceProps['onChangeIntegration']
   value: string
   focusKey?: number
   paneActive?: boolean
@@ -474,6 +483,8 @@ export const AgentComposer = memo(function AgentComposer({
         />
         <div className={styles['composer-actions']}>
           <div className={styles['composer-secondary-actions']}>
+            <IntegrationSourcePicker sessionKey={sessionKey} read={onReadIntegrations} change={onChangeIntegration} disabled={disabled} active={paneActive} />
+            <LocalDirectoryPicker sessionKey={sessionKey} read={onReadLocalDirectory} change={onChangeLocalDirectory} disabled={disabled} running={active} active={paneActive} />
             <>
                 <input
                   ref={fileInputRef}
@@ -490,7 +501,7 @@ export const AgentComposer = memo(function AgentComposer({
                 <Tooltip title={t('agent.attachments.add')}>
                   <Button
                     type="text"
-                    className={styles['composer-attachment-action']}
+                    className={uiStyles['icon-action']}
                     aria-label={t('agent.attachments.add')}
                     icon={<Paperclip size={15} />}
                     disabled={attachmentInputDisabled}
@@ -523,7 +534,7 @@ export const AgentComposer = memo(function AgentComposer({
             />
             {active && !editing ? (
               <Tooltip title={t('agent.composer.stop')}>
-                <Button className={styles['composer-stop']} danger aria-label={t('agent.composer.stop')} icon={<Square size={12} fill="currentColor" />} disabled={stopDisabled || runStatus === 'stopping'} onClick={onStop} />
+                <Button className={styles['composer-stop']} danger aria-label={t('agent.composer.stop')} icon={<Square size={12} fill="currentColor" />} disabled={stopDisabled} onClick={onStop} />
               </Tooltip>
             ) : null}
             <Tooltip title={t(editing ? 'app.save' : queueMode ? 'agent.composer.queue' : 'agent.composer.send')}>

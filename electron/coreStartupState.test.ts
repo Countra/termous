@@ -22,15 +22,86 @@ function event(sequence: number, fields: Partial<CoreStartupEvent> = {}): CoreSt
   }
 }
 
-test('普通启动超时有界，数据库处理超过 12 秒仍继续等待，services 后重新计时', () => {
+test('慢启动和 services 分别保留两分钟预算，数据库处理不被启动期限截断', () => {
   const { state } = createState()
-  assert.equal(state.hasReadyTimedOut(11_999), false)
-  assert.equal(state.hasReadyTimedOut(12_000), true)
+  assert.equal(state.hasReadyTimedOut(45_000), false)
+  assert.equal(state.hasReadyTimedOut(119_999), false)
+  assert.equal(state.hasReadyTimedOut(120_000), true)
   state.accept(event(1, { database: { status: 'checking' } }), 100)
-  assert.equal(state.hasReadyTimedOut(120_000), false)
-  state.accept(event(2, { phase: 'services', database: { status: 'completed', operation: 'upgrade' } }), 120_000)
-  assert.equal(state.hasReadyTimedOut(131_999), false)
-  assert.equal(state.hasReadyTimedOut(132_000), true)
+  assert.equal(state.hasReadyTimedOut(600_000), false)
+  state.accept(event(2, { phase: 'services', database: { status: 'completed', operation: 'upgrade' } }), 600_000)
+  assert.equal(state.hasReadyTimedOut(645_000), false)
+  assert.equal(state.hasReadyTimedOut(719_999), false)
+  assert.equal(state.hasReadyTimedOut(720_000), true)
+})
+
+test('启动心跳和迟到阶段不能无限续期，新实例独立计时', () => {
+  const { state } = createState()
+  state.accept(event(1, { phase: 'starting', heartbeat: true }), 110_000)
+  assert.equal(state.hasReadyTimedOut(119_000), false)
+  state.accept(event(2, { phase: 'services' }), 119_000)
+  state.accept(event(3, { phase: 'services', heartbeat: true }), 238_000)
+  assert.equal(state.accept(event(4), 238_500), false)
+  assert.equal(state.hasReadyTimedOut(238_999), false)
+  assert.equal(state.hasReadyTimedOut(239_000), true)
+  state.beginInstance('instance-2', 250_000)
+  state.bindPID(456)
+  assert.equal(state.accept(event(5, { phase: 'services' }), 300_000), false)
+  assert.equal(state.hasReadyTimedOut(369_999), false)
+  assert.equal(state.hasReadyTimedOut(370_000), true)
+})
+
+test('超时后的服务事件不能重新打开等待，明确错误仍保留', () => {
+  const { state } = createState()
+  assert.equal(state.accept(event(1, { phase: 'starting', heartbeat: true }), 120_000), false)
+  assert.equal(state.accept(event(2, { phase: 'services' }), 121_000), false)
+  assert.equal(state.hasReadyTimedOut(121_000), true)
+  const error = { code: 'CORE_START_FAILED', message: '启动资源不可用' }
+  assert.equal(state.accept(event(3, { phase: 'failed', error }), 122_000), true)
+  assert.deepEqual(state.getPendingFailure(), error)
+})
+
+test('终态失败前收到迟到的首次数据库快照仍安全等待，失败后不能重新打开', () => {
+  const { state } = createState()
+  assert.equal(state.accept(event(1), 130_000), true)
+  assert.equal(state.hasReadyTimedOut(600_000), false)
+  state.fail({ code: 'DB_MIGRATION_FAILED', message: '数据库处理失败' }, 610_000)
+  assert.equal(state.accept(event(2), 620_000), false)
+  assert.equal(state.getSnapshot().phase, 'failed')
+})
+
+test('系统日期前跳或回拨不影响启动期限与静默判断，快照仍保留真实日期', () => {
+  let elapsed = 0
+  const state = new CoreStartupState(undefined, () => elapsed)
+  const wallTime = Date.parse('2026-11-01T12:00:00Z')
+  state.begin('attempt', wallTime)
+  state.beginInstance('instance-1', wallTime)
+  state.bindPID(123)
+  elapsed = 45_000
+  assert.equal(state.hasReadyTimedOut(wallTime + 3_600_000), false)
+  elapsed = 120_000
+  assert.equal(state.hasReadyTimedOut(wallTime - 3_600_000), true)
+  state.beginInstance('instance-1', wallTime - 3_600_000)
+  state.bindPID(123)
+  state.accept(event(1), wallTime - 3_600_000)
+  elapsed += 59_999
+  state.tick(wallTime + 3_600_000)
+  assert.equal(state.getSnapshot().attention, null)
+  elapsed += 1
+  state.tick(wallTime - 7_200_000)
+  assert.equal(state.getSnapshot().attention, 'unresponsive')
+  assert.equal(state.getSnapshot().updatedAt, new Date(wallTime - 7_200_000).toISOString())
+})
+
+test('空闲、外部 Core 和终态不适用托管启动期限', () => {
+  assert.equal(new CoreStartupState().hasReadyTimedOut(1_000_000), false)
+  const { state } = createState()
+  state.setExternal(100)
+  assert.equal(state.hasReadyTimedOut(1_000_000), false)
+  state.ready(200)
+  assert.equal(state.hasReadyTimedOut(1_000_000), false)
+  state.fail({ code: 'CORE_PROCESS_EXITED', message: '已退出' }, 300)
+  assert.equal(state.hasReadyTimedOut(1_000_000), false)
 })
 
 test('心跳消失仅提示无法确认，慢迁移提示保持，心跳不反复广播状态', () => {
@@ -39,15 +110,17 @@ test('心跳消失仅提示无法确认，慢迁移提示保持，心跳不反�
   const count = changes.length
   state.accept(event(2, { heartbeat: true }), 2000)
   assert.equal(changes.length, count)
-  state.tick(17_000)
-  assert.equal(state.getSnapshot().attention, 'unresponsive')
-  state.accept(event(3, { heartbeat: true }), 17_001)
+  state.tick(32_000)
   assert.equal(state.getSnapshot().attention, null)
-  state.accept(event(4, { heartbeat: true }), 60_100)
+  state.tick(61_999)
+  assert.equal(state.getSnapshot().attention, 'slow')
+  state.tick(62_000)
+  assert.equal(state.getSnapshot().attention, 'unresponsive')
+  state.accept(event(3, { heartbeat: true }), 62_001)
   assert.equal(state.getSnapshot().attention, 'slow')
   const slowCount = changes.length
-  state.accept(event(5, { heartbeat: true }), 62_100)
-  state.tick(62_101)
+  state.accept(event(4, { heartbeat: true }), 64_100)
+  state.tick(64_101)
   assert.equal(changes.length, slowCount)
   assert.equal(state.hasReadyTimedOut(100_000), false)
 })

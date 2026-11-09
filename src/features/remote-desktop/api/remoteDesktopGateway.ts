@@ -5,11 +5,11 @@ import type {
   RemoteDesktopSession,
 } from '#entities/remote-desktop'
 import type { DesktopFilesGateway } from './DesktopFilesClient.ts'
+import type { DesktopControlsGateway } from '#common/contracts'
 
 export interface RemoteDesktopRuntimeGateway {
-  automation?: {
+  automation?: DesktopControlsGateway & {
     show(id: string, generation: number, host: string): Promise<void>
-    reclaim(id: string, generation: number): Promise<void>
   }
   desktopFiles?: DesktopFilesGateway
   execution?: {

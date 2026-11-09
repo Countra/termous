@@ -25,4 +25,5 @@ export { settingsErrorCode, SettingsModuleStore, decodeSettingsSnapshot, decodeS
 
 export { SettingsGatewayContext, useSettingsModule, type SettingsGateway } from './model/useSettingsModule.ts'
 export { decodeMountSettings } from './model/mountSettings.ts'
+export { decodePresentationDefaults, useDesktopPresentationDefaults } from './model/desktopPresentation.ts'
 export { SettingsEditorContext, useSettingsEditor, type SettingsEditor } from './model/settingsEditor.ts'

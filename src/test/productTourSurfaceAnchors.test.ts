@@ -40,3 +40,22 @@ for (const contract of anchorContracts) {
     assert.match(contract.source, contract.pattern)
   })
 }
+
+const featureAnchors = [
+  ['助手会话扩展', '../features/agent-integrations/ui/IntegrationSourcePicker.tsx', 'agent-extensions'],
+  ['会话本地工作区', '../features/agent-local-tools/ui/LocalDirectoryPicker.tsx', 'agent-local-workspace'],
+  ['本机桌面权限', '../features/agent-setup/ui/AgentHostDesktopSettings.tsx', 'agent-host-desktop'],
+  ['助手独立窗口', '../pages/agent/ui/AgentWindowButton.tsx', 'agent-window'],
+  ['自动化画面分析', '../features/desktop-workflows/ui/analysis/WorkflowAnalysis.tsx', 'automation-analysis'],
+  ['自动化功能菜单', '../features/desktop-workflows/ui/editor/WorkflowActionsMenu.tsx', 'automation-functions'],
+  ['自动化总览导入', '../features/desktop-workflows/ui/catalog/WorkflowOverview.tsx', 'automation-import'],
+  ['自动化独立窗口', '../features/desktop-workflows/ui/WorkflowWorkspace.tsx', 'automation-window'],
+  ['远程桌面连接状态', '../widgets/remote-desktop-workspace/ui/RemoteDesktopConnectionQuality.tsx', 'desktop-quality'],
+  ['网络代理', '../features/settings/ui/connection/LocalNetworkSettings.tsx', 'settings-network'],
+] as const
+
+for (const [name, path, anchor] of featureAnchors) {
+  test(`${name} 的向导锚点位于实际功能控件`, () => {
+    assert.ok(source(path).includes(`data-tour="${anchor}"`), name)
+  })
+}

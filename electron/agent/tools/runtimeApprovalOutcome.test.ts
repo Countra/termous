@@ -16,7 +16,7 @@ test('真实的审批后执行冲突保留领域错误码，并立即采用占�
     const navigation = runtimeToolNavigation(name, receipt(data))!
     assert.equal(navigation.recovery, true)
     assert.deepEqual(navigation.names, ['termous.desktops.get'])
-    assert.match(navigation.guidance, /查询当前 attachment_id/)
+    assert.match(navigation.guidance, /Query the current attachment_id/)
   }
 })
 

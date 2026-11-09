@@ -27,7 +27,10 @@ export type { DataPortabilityGateway } from './api/dataPortabilityGateway.ts'
 export { GeneralSettings } from './ui/general/GeneralSettings.tsx'
 export { NotificationSettings } from './ui/notifications/NotificationSettings.tsx'
 export { ConnectionSettings } from './ui/connection/ConnectionSettings.tsx'
+export { LocalNetworkSettings } from './ui/connection/LocalNetworkSettings.tsx'
+export { MCPInstallationSettings } from './ui/connection/MCPInstallationSettings.tsx'
 export { RemoteDesktopSettings } from './ui/remote-desktop/RemoteDesktopSettings.tsx'
+export { ScreenAnalysisSettings } from './ui/screen-analysis/ScreenAnalysisSettings.tsx'
 export { MountSettings } from './ui/mount/MountSettings.tsx'
 export type { MountSettingsGateway } from './api/mountSettingsGateway.ts'
 export { AuditSettings } from './ui/audit/AuditSettings.tsx'
@@ -39,3 +42,5 @@ export {
   UpdateSettings,
   type UpdatePreferencesRuntime,
 } from './ui/update/UpdateSettings.tsx'
+
+export { WebSearchSettings } from './ui/connection/WebSearchSettings.tsx'

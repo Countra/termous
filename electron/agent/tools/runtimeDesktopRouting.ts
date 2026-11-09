@@ -1,8 +1,11 @@
+import { ResourceRoutingError } from '../contracts/toolRecovery.ts'
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { isMCPToolDetails, type AgentMCPConnection } from '../contracts/mcpTools.ts'
 import { isRecord } from '../contracts/validation.ts'
 import type { RuntimeResourceBinding } from '../contracts/resourceBindings.ts'
 import type { RuntimeDesktopBinding, RuntimeWorkflowBinding } from '../contracts/runtimeDesktopBinding.ts'
+import { builtinTool } from '../contracts/toolSources.ts'
+import { bindRuntimeHostDesktopTools } from './runtimeHostDesktopRouting.ts'
 
 interface DesktopSessionRoute {
   generation?: number
@@ -21,23 +24,39 @@ interface DesktopAttachmentRoute {
 
 // 运行内的附着身份只从本轮 MCP 成功响应建立，不接受历史消息中的 ID 充当授权链。
 export function bindRuntimeDesktopTools(mcp: AgentMCPConnection, bindings: RuntimeResourceBinding[]): AgentTool[] {
+  const host = bindings.find(value => value.kind === 'host_desktop')
+  if (host) mcp = { ...mcp, tools: bindRuntimeHostDesktopTools(mcp, host) }
   const desktop = bindings.find((v): v is RuntimeDesktopBinding => v.kind === 'desktop_session' || v.kind === 'desktop_profile')
   const workflow = bindings.find((v): v is RuntimeWorkflowBinding => v.kind === 'desktop_workflow')
   if (!desktop && !workflow) return mcp.tools
   const sessions = new Map<string, DesktopSessionRoute>()
   const attachments = new Map<string, DesktopAttachmentRoute>()
   let revision = 0
+  let retiredRevision = 0
+  const remember = <T extends { revision: number }>(entries: Map<string, T>, id: string, value: T) => {
+    entries.delete(id)
+    entries.set(id, value)
+    while (entries.size > 256) {
+      const oldest = entries.keys().next().value!
+      // 淘汰后仍保留全局水位，防止迟到响应重新启用已经失效的路由。
+      retiredRevision = Math.max(retiredRevision, entries.get(oldest)!.revision)
+      entries.delete(oldest)
+    }
+  }
   const expectedTarget = desktop?.kind === 'desktop_session'
     ? { session_id: desktop.session_id, connection_generation: desktop.connection_generation }
     : desktop ? { profile_id: desktop.desktop_profile_id } : {}
-  const reject = (expected: Record<string, unknown>, prerequisite?: { session_id: string }) => {
-    const missing = prerequisite && sessions.get(prerequisite.session_id)?.missing === true
-    throw new Error(JSON.stringify({ code: 'AGENT_RESOURCE_BINDING_MISMATCH', dispatched: false,
+  const reject = (expected: Record<string, unknown>, prerequisite?: { session_id?: string }) => {
+    const missing = prerequisite?.session_id && sessions.get(prerequisite.session_id)?.missing === true
+    throw new ResourceRoutingError({ code: 'AGENT_RESOURCE_BINDING_MISMATCH', dispatched: false,
       message: missing ? '本轮回执已确认该会话不存在，尚未派发。get 只查询已有会话，不能恢复连接；按本轮精确目标核验现有会话及连接能力，不能使用失效的附着或更换目标。'
-        : prerequisite ? '本轮尚未取得该会话或附着的有效回执，尚未派发。先调用 required_tool 查询 required_arguments，就绪后用当前会话与代次 attach，再使用本轮返回的 attachment.id；原样重试不能补齐查询前置条件，历史附着不可复用。'
+        : prerequisite?.session_id ? '本轮尚未取得该会话或附着的有效回执，尚未派发。先调用 required_tool 查询 required_arguments，就绪后用当前会话与代次 attach，再使用本轮返回的 attachment.id；原样重试不能补齐查询前置条件，历史附着不可复用。'
+        : prerequisite ? '本轮尚未取得该 Profile 的有效附着，尚未派发。先调用 required_tool 查询 required_arguments，按本轮精确 Profile 选择会话，再用 get 核验就绪与代次后 attach；历史附着不可复用。'
         : '调用目标与本轮引用不一致，尚未派发。请按精确引用修正参数；不要重放结果未知的操作。',
-      expected_arguments: expected,
-      ...(missing ? { cause_code: 'REMOTE_DESKTOP_SESSION_NOT_FOUND' } : prerequisite ? { required_tool: 'termous.desktops.get', required_arguments: prerequisite } : {}) }))
+      ...(Object.keys(expected).length ? { expected_arguments: expected } : {}),
+      ...(missing ? { cause_code: 'REMOTE_DESKTOP_SESSION_NOT_FOUND' } : prerequisite ? {
+        required_tool: prerequisite.session_id ? 'termous.desktops.get' : 'termous.desktops.list', required_arguments: prerequisite,
+      } : {}) })
   }
   const knownSession = (id: unknown, generation?: unknown, needsReady = true) => {
     const value = typeof id === 'string' ? sessions.get(id) : undefined
@@ -49,25 +68,28 @@ export function bindRuntimeDesktopTools(mcp: AgentMCPConnection, bindings: Runti
     return value !== undefined && value.usable && knownSession(value.session, value.generation)
   }
   const observeSession = (value: unknown, currentRevision: number) => {
+    if (currentRevision <= retiredRevision) return
     if (!desktop || !isRecord(value) || typeof value.id !== 'string') return
     if ((sessions.get(value.id)?.revision ?? 0) > currentRevision) return
     if (value.profile_id !== desktop.desktop_profile_id || value.host_id !== desktop.host_id || value.protocol !== desktop.protocol
       || !Number.isSafeInteger(value.connection_generation) || Number(value.connection_generation) < 0
       || desktop.kind === 'desktop_session' && (value.id !== desktop.session_id || value.connection_generation !== desktop.connection_generation)) {
-      sessions.set(value.id, { ready: false, revision: currentRevision })
+      remember(sessions, value.id, { ready: false, revision: currentRevision })
       return
     }
-    sessions.set(value.id, { generation: Number(value.connection_generation), revision: currentRevision,
+    remember(sessions, value.id, { generation: Number(value.connection_generation), revision: currentRevision,
       ready: Number(value.connection_generation) > 0 && ['ready', 'streaming', 'reattach_wait'].includes(String(value.status)) })
   }
   const observeAttachment = (value: unknown, currentRevision: number) => {
+    if (currentRevision <= retiredRevision) return
     if (!isRecord(value) || typeof value.id !== 'string' || !knownSession(value.session_id, value.connection_generation, false)) return
     const previous = attachments.get(value.id)
     if (previous?.detached || (previous?.revision ?? 0) > currentRevision) return
-    attachments.set(value.id, { session: String(value.session_id), generation: Number(value.connection_generation),
+    remember(attachments, value.id, { session: String(value.session_id), generation: Number(value.connection_generation),
       usable: !['failed', 'invalidated', 'detached'].includes(String(value.state)), revision: currentRevision })
   }
   return mcp.tools.map((tool) => {
+    if (!builtinTool(tool)) return tool
     const name = mcp.originalName(tool.name) ?? ''
     if (!name.startsWith('termous.desktops.') && !name.startsWith('termous.desktop_workflows.')) return tool
     const validate = (args: unknown) => {
@@ -94,8 +116,9 @@ export function bindRuntimeDesktopTools(mcp: AgentMCPConnection, bindings: Runti
           || name === 'termous.desktops.control.release' || name === 'termous.desktops.operations.get'
         const owned = typeof args.attachment_id === 'string' ? attachments.get(args.attachment_id) : undefined
         const allowed = ownedOnly ? owned !== undefined && !owned.detached : knownAttachment(args.attachment_id)
-        if (!allowed) reject({ attachment_id: [...attachments.keys()] }, desktop.kind === 'desktop_session' ? { session_id: desktop.session_id }
-          : owned ? { session_id: owned.session } : undefined)
+        // 未核验的附着不能用候选 ID 数组冒充 attachment_id 参数，恢复入口由查询提示说明。
+        if (!allowed) reject({}, desktop.kind === 'desktop_session' ? { session_id: desktop.session_id }
+          : owned ? { session_id: owned.session } : {})
       }
       if (name === 'termous.desktop_workflows.runs.start') {
         if (desktop.kind === 'desktop_session') {
@@ -124,11 +147,11 @@ export function bindRuntimeDesktopTools(mcp: AgentMCPConnection, bindings: Runti
         // 保留已核验身份供失败或准备中的连接清理，但输入必须重新取得可用回执。
         if (isRecord(args)) {
           if (typeof args.session_id === 'string' && (name === 'termous.desktops.get' || name === 'termous.desktops.close')) {
-            sessions.set(args.session_id, { ...sessions.get(args.session_id), ready: false, revision: currentRevision })
+            remember(sessions, args.session_id, { ...sessions.get(args.session_id), ready: false, revision: currentRevision })
           }
           const attachment = typeof args.attachment_id === 'string' ? attachments.get(args.attachment_id) : undefined
           if (attachment && (name === 'termous.desktops.get' || name === 'termous.desktops.detach')) {
-            attachments.set(String(args.attachment_id), { ...attachment, usable: false, revision: currentRevision })
+            remember(attachments, String(args.attachment_id), { ...attachment, usable: false, revision: currentRevision })
           }
         }
         const result = await tool.execute(id, args, signal, update)
@@ -138,7 +161,7 @@ export function bindRuntimeDesktopTools(mcp: AgentMCPConnection, bindings: Runti
         if (name === 'termous.desktops.get' && isRecord(args) && typeof args.session_id === 'string'
           && isRecord(output) && isRecord(output.error) && output.error.code === 'REMOTE_DESKTOP_SESSION_NOT_FOUND'
           && (sessions.get(args.session_id)?.revision ?? 0) <= currentRevision) {
-          sessions.set(args.session_id, { ready: false, missing: true, revision: currentRevision })
+          remember(sessions, args.session_id, { ready: false, missing: true, revision: currentRevision })
         }
         if (result.details.result.isError) return result
         if (!isRecord(output) || output.error) return result
@@ -153,10 +176,10 @@ export function bindRuntimeDesktopTools(mcp: AgentMCPConnection, bindings: Runti
         if (isRecord(args) && output.completed) {
           const attachment = attachments.get(String(args.attachment_id))
           if (name === 'termous.desktops.detach' && attachment) {
-            attachments.set(String(args.attachment_id), { ...attachment, usable: false, detached: true, revision: currentRevision })
+            remember(attachments, String(args.attachment_id), { ...attachment, usable: false, detached: true, revision: currentRevision })
           }
           // 留下回执序号，阻止更早的查询在关闭成功后复活路由。
-          if (name === 'termous.desktops.close') sessions.set(String(args.session_id), { ready: false, revision: ++revision })
+          if (name === 'termous.desktops.close') remember(sessions, String(args.session_id), { ready: false, revision: ++revision })
         }
         return result
       },

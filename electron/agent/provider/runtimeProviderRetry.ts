@@ -6,7 +6,7 @@ import {
   type AssistantMessage,
   type AssistantMessageEvent,
 } from '@earendil-works/pi-ai'
-import { AssistantMessageEventStream } from '@earendil-works/pi-ai/utils/event-stream'
+import { RuntimeBoundedStream } from './runtimeBoundedStream.ts'
 import { runtimeProviderFailure, runtimeProviderRetryDetail, sanitizeRuntimeProviderError } from './runtimeProviderFailure.ts'
 import { projectPiUsage, type RuntimeUsage } from './runtimeUsage.ts'
 import type { RuntimeRetryEvent } from '../contracts/runtimeEvents.ts'
@@ -31,7 +31,7 @@ class RuntimeTerminalAssistantError {
 }
 
 // 官方流只支持正常结束；补充拒绝通道，保证回调或适配器异常不会成为悬挂请求。
-class RuntimeRetryStream extends AssistantMessageEventStream {
+class RuntimeRetryStream extends RuntimeBoundedStream {
   private failure: { error: unknown } | undefined
   private failResult!: (failure: { error: unknown }) => void
   private readonly failed = new Promise<{ error: unknown }>((resolve) => { this.failResult = resolve })
@@ -85,6 +85,7 @@ class RuntimeRetryStream extends AssistantMessageEventStream {
   }
 
   override async *[Symbol.asyncIterator]() {
+    this.assertHealthy()
     const iterator = super[Symbol.asyncIterator]()
     let finished = false
     try {
@@ -172,13 +173,15 @@ export function createRuntimeRetryStreamFunction(
           || ((event.type === 'text_delta' || event.type === 'thinking_delta') && event.delta.length > 0)
           || event.type === 'toolcall_start' || event.type === 'toolcall_delta' || event.type === 'toolcall_end'
         if (!started) {
+          if (!hasOutput && (event.type === 'text_delta' || event.type === 'thinking_delta')) continue
+          if (!hasOutput && buffered.length >= 64) throw new Error('AGENT_MODEL_STREAM_INVALID')
           buffered.push(event)
           if (!hasOutput) continue
-          for (const pending of buffered) forward(pending)
+          for (const pending of buffered) await forward(pending)
           buffered = []
           started = true
         } else {
-          forward(event)
+          await forward(event)
         }
       }
       const message = await stream.result()
@@ -196,12 +199,13 @@ export function createRuntimeRetryStreamFunction(
       }
       return message
     }
-    const forward = (event: AssistantMessageEvent) => {
+    const forward = async (event: AssistantMessageEvent) => {
       // 多次物理请求对 pi 仍是一个逻辑 Assistant，第二个 start 会把失败 partial 插入 loop 上下文。
       if (event.type === 'start') {
         if (logicalStarted) return
         logicalStarted = true
       }
+      await output.waitForCapacity(signal)
       output.push(event)
     }
     const run = async () => {
@@ -247,7 +251,7 @@ export function createRuntimeRetryStreamFunction(
       }
       if (message.stopReason === 'error' && message.errorMessage) errorMessage = message.errorMessage
       await publish(message.stopReason === 'aborted' ? 'cancelled' : message.stopReason === 'error' ? 'failed' : 'completed')
-      for (const event of buffered) forward(event)
+      for (const event of buffered) await forward(event)
       if (message.stopReason === 'error' || message.stopReason === 'aborted') {
         output.push({ type: 'error', reason: message.stopReason, error: message })
       } else {

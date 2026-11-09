@@ -100,4 +100,50 @@ describe('文件访问配置编辑器', () => {
 
     expect(screen.getByRole('combobox', { name: 'hosts.access.file.type' })).toBeDisabled()
   })
+
+  it('S3 的明文提示忽略大小写与首尾空格，错误关联到对应字段', () => {
+    const value = s3Editor.createDraft('host-a', [])
+    if (value.engine !== 's3') throw new Error('缺少 S3 草稿')
+    render(<FileAccessProfileEditor mode="create" draft={{ ...value, endpoint: ' HTTP://minio.example ' }} sshProfiles={[]}
+      errors={{ bucket: 'invalid', secret_key: 'required' }} disabled={false} onChange={vi.fn()} />)
+    expect(screen.getByText('files.s3.httpHint')).toBeVisible()
+    const bucket = screen.getByLabelText('files.s3.bucket')
+    expect(bucket).toHaveAttribute('aria-invalid', 'true')
+    expect(bucket).toHaveAccessibleDescription('files.s3.errors.bucket')
+    expect(screen.getByLabelText('files.s3.secret_key')).toHaveAccessibleDescription('files.s3.requiredSecret')
+    expect(screen.getByRole('combobox', { name: 'files.s3.addressing' })).toBeEnabled()
+  })
+
+  it('S3 显式清除 Token 时禁用输入，取消后保留尚未提交的内容', () => {
+    function Harness() {
+      const value = s3Editor.createDraft('host-a', [])
+      if (value.engine !== 's3') throw new Error('缺少 S3 草稿')
+      const [draft, setDraft] = useState<FileAccessProfileEditorDraft>({ ...value, session_token: 'draft-token', configured_slots: ['session_token'] })
+      return <FileAccessProfileEditor mode="edit" draft={draft} sshProfiles={[]} disabled={false} onChange={setDraft} />
+    }
+    render(<Harness />)
+    const token = screen.getByLabelText('files.s3.session_token')
+    const clear = screen.getByRole('checkbox', { name: 'files.s3.clearToken' })
+    fireEvent.click(clear)
+    expect(token).toBeDisabled()
+    expect(token).toHaveValue('draft-token')
+    fireEvent.click(clear)
+    expect(token).toBeEnabled()
+    expect(token).toHaveValue('draft-token')
+  })
+
+  it('切换协议同步默认名称，并保留自定义名称', async () => {
+    function Harness() {
+      const [value, setValue] = useState<FileAccessProfileEditorDraft>({ ...draft, name: 'SFTP' })
+      return <FileAccessProfileEditor mode="create" draft={value} sshProfiles={sshProfiles} disabled={false} onChange={setValue} />
+    }
+    render(<Harness />)
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'hosts.access.file.type' }))
+    fireEvent.click(await screen.findByText('S3 / MinIO'))
+    expect(screen.getByLabelText('files.s3.name')).toHaveValue('S3 / MinIO')
+    fireEvent.change(screen.getByLabelText('files.s3.name'), { target: { value: 'Shared files' } })
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'hosts.access.file.type' }))
+    fireEvent.click(await screen.findByText('WebDAV'))
+    expect(screen.getByLabelText('files.webdav.name')).toHaveValue('Shared files')
+  })
 })

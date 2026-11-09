@@ -13,13 +13,16 @@ export function AgentImage({ image, title, onLoad }: { image: AgentWorkspaceImag
   const load = useCallback((signal?: AbortSignal) => loadAgentImage({
     id, reference, session_id, message_id, part_id, content_index, revision, mime_type, size_bytes,
   }, onLoad, signal), [id, reference, session_id, message_id, part_id, content_index, revision, mime_type, size_bytes, onLoad])
+  const thumbnail = useCallback((signal?: AbortSignal) => loadAgentImage({
+    id, reference, session_id, message_id, part_id, content_index, revision, mime_type, size_bytes,
+  }, onLoad, signal, 'thumbnail'), [id, reference, session_id, message_id, part_id, content_index, revision, mime_type, size_bytes, onLoad])
   return (
     <span className={styles.image}>
       <button type="button" className={styles.card}
         aria-label={t('agent.attachments.previewName', { name: title })}
         onClick={() => setPreviewOpen(true)}
       >
-        <ImageThumbnail className={styles.media} source={{ kind: 'remote', key: image.id, load }} alt={title}
+        <ImageThumbnail className={styles.media} source={{ kind: 'remote', key: image.id, load: thumbnail }} alt={title}
           failureLabel={t('imagePreview.failed')} />
         <span className={styles.caption}>
           <span className={styles.title}>{title}</span>

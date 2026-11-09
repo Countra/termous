@@ -10,7 +10,7 @@ import { ScreenshotEditor } from './ScreenshotEditor'
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 const wrapper = ({ children }: { children: React.ReactNode }) => <ConfigProvider theme={{ token: { motion: false } }}><App>{children}</App></ConfigProvider>
 const step: Step = { id: 'image', kind: 'image.assert', name: '', action: {}, image: { asset_id: 'original', offset: { x: 4, y: 6 }, threshold: .95, anchor: { x: 2, y: 3 } } }
-const gateway = (): WorkflowMediaGateway => ({ openPreview: vi.fn().mockResolvedValue({ id: 'preview', state: 'ready' }), closePreview: vi.fn().mockResolvedValue(undefined), capture: vi.fn(), match: vi.fn(), upload: vi.fn(), asset: vi.fn().mockResolvedValue(new Blob(['image'], { type: 'image/png' })) })
+const gateway = (): WorkflowMediaGateway => ({ ocrDefaults: vi.fn().mockResolvedValue({text_confidence:.5,ocr_max_side:1600}), previewOCR: vi.fn(), ocrReport: vi.fn(), openPreview: vi.fn().mockResolvedValue({ id: 'preview', state: 'ready' }), closePreview: vi.fn().mockResolvedValue(undefined), capture: vi.fn(), match: vi.fn(), validateAnalysisAction: vi.fn(), analysisFull: vi.fn(), renderAnalysisImage: vi.fn(), submitAnalysis: vi.fn(), getAnalysis: vi.fn(), listAnalyses: vi.fn(), cancelAnalysis: vi.fn(), clearAnalyses: vi.fn(), analysisElements: vi.fn(), analysisElement: vi.fn(), analysisSpans: vi.fn(), analysisSpan: vi.fn(), analysisGeometry: vi.fn(), analysisDiagnostics: vi.fn(), exportAnalysis: vi.fn(), analysisStorage: vi.fn(), analysisImage: vi.fn(), deleteAnalysis: vi.fn().mockResolvedValue(undefined), upload: vi.fn(), asset: vi.fn().mockResolvedValue(new Blob(['image'], { type: 'image/png' })) })
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('模板预览与选区应用', () => {
@@ -45,7 +45,7 @@ describe('模板预览与选区应用', () => {
     expect(screen.queryByRole('img', { name: 'desktopWorkflow.readonlyScreen' })).not.toBeInTheDocument()
   })
 
-  it('草稿属性重绘不重新读取缩略图，资源变化时才回收并加载', async () => {
+  it('模板按需预览，草稿重绘不重复读取，关闭和资源变化回收图片', async () => {
     let sequence = 0
     vi.spyOn(URL, 'createObjectURL').mockImplementation(() => `blob:template-${++sequence}`)
     const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
@@ -53,16 +53,26 @@ describe('模板预览与选区应用', () => {
     const api = gateway()
     const props = { gateway: api, target: { mode: 'session' as const }, onTargetChange: vi.fn(), onChange: vi.fn(), sessions: [], step }
     const view = render(<ScreenshotEditor {...props} />, { wrapper })
-    await waitFor(() => expect(screen.getByRole('img', { name: 'desktopWorkflow.template' })).toHaveAttribute('src', 'blob:template-1'))
-    const image = screen.getByRole('img', { name: 'desktopWorkflow.template' })
+    expect(api.asset).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.previewTemplate' }))
+    await waitFor(() => expect(screen.getByAltText('desktopWorkflow.template')).toHaveAttribute('src', 'blob:template-1'))
+    const image = screen.getByAltText('desktopWorkflow.template')
+    Object.defineProperties(image, { naturalWidth: { value: 100 }, naturalHeight: { value: 50 } })
+    fireEvent.load(image)
     for (const threshold of [.8, .85, .9]) view.rerender(<ScreenshotEditor {...props} step={{ ...step, image: { ...step.image!, threshold } }} />)
     await act(async () => {})
     expect(api.asset).toHaveBeenCalledOnce()
     expect(screen.getByRole('img', { name: 'desktopWorkflow.template' })).toBe(image)
     expect(revoke).not.toHaveBeenCalled()
     view.rerender(<ScreenshotEditor {...props} step={{ ...step, image: { ...step.image!, asset_id: 'replacement' } }} />)
+    await waitFor(() => expect(revoke).toHaveBeenCalledWith('blob:template-1'))
+    expect(api.asset).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('img', { name: 'desktopWorkflow.template' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.previewTemplate' }))
     await waitFor(() => expect(api.asset).toHaveBeenCalledTimes(2))
-    expect(revoke).toHaveBeenCalledWith('blob:template-1')
+    await screen.findByAltText('desktopWorkflow.template')
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(revoke).toHaveBeenCalledWith('blob:template-2'))
   })
 
   it('微调完成后才裁剪上传，失败保留原模板，成功保存来源且重新打开后恢复选框', async () => {
@@ -108,7 +118,7 @@ describe('模板预览与选区应用', () => {
     expect(updated.image).toEqual({ ...step.image, asset_id: 'cropped', anchor: undefined,
       template_source: { region: { x: 100, y: 100, width: 201, height: 101 }, reference_width: 1000, reference_height: 500 } })
     expect(drawImage).toHaveBeenCalledWith(image, 100, 100, 201, 101, 0, 0, 201, 101)
-    expect(api.asset).toHaveBeenCalledOnce()
+    expect(api.asset).not.toHaveBeenCalled()
     view.rerender(<ScreenshotEditor {...props} step={{ ...step, id: 'next' }} />)
     expect(screen.queryByRole('button', { name: 'desktopWorkflow.selection.move' })).not.toBeInTheDocument()
     expect(screen.getByText('desktopWorkflow.selection.templateSourceMissing')).toBeVisible()

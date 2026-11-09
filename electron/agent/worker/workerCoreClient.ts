@@ -1,4 +1,8 @@
+import { isWebSearchContext } from '../contracts/webSearch.ts'
 import { WorkerCoreError, type WorkerCoreClientPort } from '../contracts/workerCore.ts'
+import { isDesktopTaskSnapshot } from '../contracts/desktopTasks.ts'
+import { createHash } from 'node:crypto'
+import { isImageResourceReference, isTextResourceReference, type ImageResourceReference, type TextResourceReference } from '#common/contracts'
 import { isRuntimeBootstrap } from '../contracts/runtimeBootstrap.ts'
 import { normalizeRuntimeResourceBindings } from '../contracts/resourceBindings.ts'
 import { validRuntimeSteerInput, type RuntimeEventInput, type RuntimeSteerInput } from '../contracts/runtimeEvents.ts'
@@ -19,6 +23,40 @@ export interface WorkerCoreClientOptions {
 }
 
 export class WorkerCoreClient implements WorkerCoreClientPort {
+  async readWebSearchContext(start: AgentWorkerStartMessage, bearer: string, signal?: AbortSignal) {
+    const value = await this.request(start.core_base_url, '/api/v1/agent/runtime/web/context', { method: 'POST' }, bearer, signal)
+    if (!isWebSearchContext(value)) throw new WorkerCoreError('AGENT_SEARCH_CONTEXT_INVALID')
+    return value
+  }
+  async searchWeb(start: AgentWorkerStartMessage, bearer: string, input: import('#common/contracts').WebSearchRequest, signal?: AbortSignal) {
+    return this.request(start.core_base_url, '/api/v1/agent/runtime/web/search', { method: 'POST', body: JSON.stringify(input) }, bearer, signal, 35_000, true)
+  }
+  async callLocalTool(start: AgentWorkerStartMessage, runtimeBearer: string, input: import('../contracts/localTools.ts').LocalToolCall, signal?: AbortSignal) {
+    // 审批由用户决定时长，不能复用普通读取的 15 秒超时；取消仍传递到实际 HTTP 请求。
+    return this.request(start.core_base_url, '/api/v1/agent/runtime/local/call', {
+      method: 'POST', body: JSON.stringify(input),
+    }, runtimeBearer, signal, 0, true)
+  }
+  async readDesktopTasks(start: AgentWorkerStartMessage, runtimeBearer: string, cursor: string, waitMS: number, signal?: AbortSignal) {
+    const result = await this.request(start.core_base_url, `/api/v1/agent/runs/${encodeURIComponent(start.run_id)}/runtime-desktop-tasks`, {
+      method: 'POST', body: JSON.stringify({ generation: start.generation, after_cursor: cursor, wait_ms: waitMS }),
+    }, runtimeBearer, signal)
+    if (!isDesktopTaskSnapshot(result, start.generation)) throw new WorkerCoreError('AGENT_DESKTOP_TASK_RESPONSE_INVALID')
+    return result
+  }
+  async readToolPreparation(start: AgentWorkerStartMessage, runtimeBearer: string, toolCallID: string, step: string, signal?: AbortSignal) {
+    const result = await this.request(start.core_base_url, `/api/v1/agent/runs/${encodeURIComponent(start.run_id)}/runtime-tool-preparations`, {
+      method: 'POST', body: JSON.stringify({ generation: start.generation, tool_call_id: toolCallID, step }),
+    }, runtimeBearer, signal)
+    if (!isRecord(result)) throw new WorkerCoreError('AGENT_PREPARATION_RESPONSE_INVALID')
+    if (result.preparation === undefined) return undefined
+    const value = result.preparation
+    if (!isRecord(value) || value.tool_call_id !== toolCallID || value.step !== step || !Number.isSafeInteger(value.generation) || Number(value.generation) <= 0 || Number(value.generation) > start.generation
+      || typeof value.tool_name !== 'string' || typeof value.request_id !== 'string'
+      || typeof value.arguments_sha256 !== 'string' || !/^[a-f0-9]{64}$/u.test(value.arguments_sha256) || !isRecord(value.values)) throw new WorkerCoreError('AGENT_PREPARATION_RESPONSE_INVALID')
+    if (result.operation !== undefined && (!isRecord(result.operation) || result.operation.id !== value.request_id || !['accepted', 'failed', 'uncertain', 'running'].includes(String(result.operation.state)))) throw new WorkerCoreError('AGENT_PREPARATION_RESPONSE_INVALID')
+    return { ...value, ...(isRecord(result.operation) ? { operation_result: result.operation } : {}) } as unknown as import('../contracts/toolPreparation.ts').PreparedCall
+  }
   private readonly fetchImplementation: typeof globalThis.fetch
   private readonly requestTimeoutMs: number
   private readonly bootstrapRequestTimeoutMs: number
@@ -127,9 +165,48 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
     const value = await this.request(start.core_base_url, `/api/v1/agent/runs/${encodeURIComponent(start.run_id)}/runtime-images`, {
       method: 'POST', body: JSON.stringify({ generation: start.generation, reference }),
     }, runtimeBearer, signal)
+    if (isRecord(value) && isImageResourceReference(value.resource) && value.resource.mime_type === reference.mime_type && value.resource.sha256 === reference.sha256 && value.data === undefined) return { resource: value.resource, mime_type: reference.mime_type }
     if (!isRecord(value) || typeof value.data !== 'string' || typeof value.mime_type !== 'string'
       || value.mime_type !== reference.mime_type || value.data.length > 12 * 1024 * 1024) throw new WorkerCoreError('AGENT_RUNTIME_IMAGE_INVALID')
     return { data: value.data, mime_type: value.mime_type }
+  }
+
+  async readResourceImage(start: AgentWorkerStartMessage, runtimeBearer: string, reference: ImageResourceReference, signal?: AbortSignal) {
+    if (!isImageResourceReference(reference)) throw new WorkerCoreError('AGENT_RUNTIME_IMAGE_INVALID')
+    return this.readResource(start, runtimeBearer, reference, signal)
+  }
+
+  async readResourceText(start: AgentWorkerStartMessage, runtimeBearer: string, reference: TextResourceReference, signal?: AbortSignal) {
+    if (!isTextResourceReference(reference)) throw new WorkerCoreError('AGENT_RUNTIME_ATTACHMENT_INVALID')
+    return this.readResource(start, runtimeBearer, reference, signal)
+  }
+
+  private async readResource(start: AgentWorkerStartMessage, runtimeBearer: string, reference: ImageResourceReference | TextResourceReference, signal?: AbortSignal) {
+    const invalidCode = reference.kind === 'image' ? 'AGENT_RUNTIME_IMAGE_INVALID' : 'AGENT_RUNTIME_ATTACHMENT_INVALID'
+    const url = new URL(`/api/v1/agent/runs/${encodeURIComponent(start.run_id)}/runtime-resources/${encodeURIComponent(reference.resource_id)}`, validateCoreBaseURL(start.core_base_url))
+    const operationSignal = AbortSignal.any([AbortSignal.timeout(this.requestTimeoutMs), ...(signal ? [signal] : [])])
+    const response = await this.fetchImplementation(url, { headers: { Authorization: `Bearer ${runtimeBearer}` }, signal: operationSignal, redirect: 'error' })
+    if (!response.ok) throw new WorkerCoreError(await responseErrorCode(response), response.status)
+    if (response.headers.get('content-type')?.split(';')[0] !== reference.mime_type || !response.body) {
+      await response.body?.cancel()
+      throw new WorkerCoreError(invalidCode)
+    }
+    const reader = response.body.getReader()
+    const bytes = Buffer.allocUnsafe(reference.size_bytes)
+    let offset = 0
+    try {
+      for (;;) {
+        const chunk = await reader.read()
+        if (chunk.done) break
+        if (chunk.value.byteLength > bytes.length - offset) throw new WorkerCoreError(invalidCode)
+        bytes.set(chunk.value, offset); offset += chunk.value.byteLength
+      }
+      if (offset !== bytes.length || createHash('sha256').update(bytes).digest('hex') !== reference.sha256) throw new WorkerCoreError(invalidCode)
+      return bytes.toString('base64')
+    } finally {
+      // 网络流已失败时 cancel 也会拒绝，仍须释放读取锁及底层缓冲引用。
+      try { await reader.cancel() } finally { reader.releaseLock() }
+    }
   }
 
   async commitCheckpoint(
@@ -175,6 +252,7 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
     bearer?: string,
     signal?: AbortSignal,
     timeoutMs = this.requestTimeoutMs,
+    returnToolError = false,
   ) {
     const baseURL = validateCoreBaseURL(coreBaseURL)
     const controller = new AbortController()
@@ -184,8 +262,8 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
     } else {
       signal?.addEventListener('abort', forwardAbort, { once: true })
     }
-    const timer = setTimeout(() => controller.abort(), timeoutMs)
-    timer.unref?.()
+    const timer = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : undefined
+    timer?.unref?.()
     try {
       const response = await this.fetchImplementation(new URL(pathname, baseURL), {
         ...init,
@@ -199,6 +277,7 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
         },
       })
       if (!response.ok) {
+        if (returnToolError) return await response.json() as unknown
         throw new WorkerCoreError(await responseErrorCode(response), response.status)
       }
       return await response.json() as unknown

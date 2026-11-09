@@ -42,7 +42,7 @@ for (const api of ['responses', 'chat_completions'] as const) {
         const names = body.tools.map((tool) => tool.name ?? tool.function?.name)
         requests++
         if (requests === 1) {
-          assert.deepEqual(names, ['discover_tools', 'read_skill_resource', 'read_history_image'])
+          assert.deepEqual(names, ['discover_tools', 'read_skill_resource', 'read_history_image', 'wait'])
           return response(api, 'discover_tools', { names: ['termous.desktops.list'] })
         }
         if (requests === 2) {

@@ -1,0 +1,14 @@
+.icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+
+.glyph {
+  width: 100%;
+  height: 100%;
+  background: currentcolor;
+  mask: var(--platform-icon) center / contain no-repeat;
+}

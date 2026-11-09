@@ -83,7 +83,11 @@ test('目录响应类型异常时显示错误，刷新成功后清除错误', as
   render(<App><RemoteFiles client={client} session={create(SessionSchema, { id: 'files', generation: 1n, capabilities: ['browse'] })} copy={copy} roots={[]} operations={[]} changed={vi.fn()} /></App>)
   expect(await screen.findByRole('alert')).toHaveTextContent(copy.error)
   const refresh = screen.getByRole('button', { name: copy.refresh })
-  await waitFor(() => expect(refresh).toBeEnabled())
+  // Ant Design 的 loading 会拦截点击，但不会设置 disabled；需等待实际退出加载态。
+  await waitFor(() => {
+    expect(refresh).toBeEnabled()
+    expect(refresh).not.toHaveClass('ant-btn-loading')
+  })
   fireEvent.click(refresh)
   expect(await screen.findByRole('button', { name: '当前.txt' })).toBeVisible()
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()

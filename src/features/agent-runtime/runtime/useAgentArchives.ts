@@ -3,8 +3,9 @@ import type { AgentMessage, AgentSession } from '#entities/agent'
 import type { AgentWorkspaceGateway } from '../api/agentRuntimeGateway.ts'
 import { loadAgentMessages } from './loadAgentMessages.ts'
 import { loadAgentSessions } from './loadAgentSessions.ts'
+import { AgentContentWindow, mergeTimelineMessages, timelineBoundary } from '../model/agentContentWindow.ts'
 
-type ArchiveGateway = Pick<AgentWorkspaceGateway, 'sessions' | 'messages'>
+type ArchiveGateway = Pick<AgentWorkspaceGateway, 'sessions' | 'messages' | 'timelineSupported'>
 
 export function useAgentArchives(gateway: ArchiveGateway, open: boolean, sessionSnapshot?: readonly AgentSession[]) {
   const [query, setQueryValue] = useState('')
@@ -19,6 +20,35 @@ export function useAgentArchives(gateway: ArchiveGateway, open: boolean, session
   const [previewRevision, setPreviewRevision] = useState(0)
   const listController = useRef<AbortController | undefined>(undefined)
   const previewController = useRef<AbortController | undefined>(undefined)
+  const contentWindow = useRef(new AgentContentWindow())
+  const [hasOlder, setHasOlder] = useState(false)
+  const [hasNewer, setHasNewer] = useState(false)
+
+  const loadHistory = async (direction: 'before' | 'after') => {
+    if (!selectedSessionId || !gateway.timelineSupported || !messages.length) return
+    const boundary = direction === 'before' ? messages[0]! : messages[messages.length - 1]!
+    previewController.current?.abort()
+    const controller = new AbortController()
+    previewController.current = controller
+    setPreviewLoading(true)
+    setPreviewError(undefined)
+    try {
+      const page = await gateway.messages(selectedSessionId, { view: 'timeline', limit: 100, direction,
+        cursor: timelineBoundary(selectedSessionId, boundary, direction === 'before' ? 'first' : 'last'), signal: controller.signal })
+      if (controller.signal.aborted || previewController.current !== controller) return
+      if (page.items.some(message => message.session_id !== selectedSessionId)) throw new Error('AGENT_MESSAGE_OWNER_INVALID')
+      setMessages(current => contentWindow.current.boundMessages(mergeTimelineMessages(current, page.items), direction === 'before'))
+      setHasOlder(direction === 'after' || Boolean(page.has_older))
+      setHasNewer(direction === 'before' || Boolean(page.has_newer))
+    } catch (error) {
+      if (!controller.signal.aborted) setPreviewError(archiveErrorCode(error))
+    } finally {
+      if (previewController.current === controller) {
+        previewController.current = undefined
+        setPreviewLoading(false)
+      }
+    }
+  }
 
   const selectSession = useCallback((id?: string) => {
     if (id === selectedSessionId) return
@@ -26,6 +56,7 @@ export function useAgentArchives(gateway: ArchiveGateway, open: boolean, session
     setSelectedSessionId(id)
     setMessages([])
     setPreviewError(undefined)
+    setHasOlder(false); setHasNewer(false)
     setPreviewLoading(Boolean(id))
   }, [selectedSessionId])
 
@@ -101,8 +132,17 @@ export function useAgentArchives(gateway: ArchiveGateway, open: boolean, session
     setMessages([])
     setPreviewLoading(true)
     setPreviewError(undefined)
-    void loadAgentMessages(gateway, selectedSessionId, 0, controller.signal).then((next) => {
-      if (!controller.signal.aborted) setMessages(next)
+    const request = gateway.timelineSupported
+      ? gateway.messages(selectedSessionId, { view: 'timeline', limit: 100, signal: controller.signal })
+      : loadAgentMessages(gateway, selectedSessionId, 0, controller.signal).then(items => ({ items, has_older: false, has_newer: false }))
+    void request.then((page) => {
+      if (!controller.signal.aborted) {
+        if (page.items.some(message => message.session_id !== selectedSessionId)) throw new Error('AGENT_MESSAGE_OWNER_INVALID')
+        const bounded = contentWindow.current.boundMessages(page.items)
+        setMessages(bounded)
+        setHasOlder(Boolean(page.has_older) || timelinePartCount(bounded) < timelinePartCount(page.items))
+        setHasNewer(Boolean(page.has_newer))
+      }
     }).catch((error: unknown) => {
       if (!controller.signal.aborted) setPreviewError(archiveErrorCode(error))
     }).finally(() => {
@@ -110,7 +150,8 @@ export function useAgentArchives(gateway: ArchiveGateway, open: boolean, session
     })
     return () => {
       controller.abort()
-      if (previewController.current === controller) previewController.current = undefined
+      previewController.current?.abort()
+      previewController.current = undefined
     }
   }, [gateway, open, selectedSessionId, previewRevision])
 
@@ -120,7 +161,13 @@ export function useAgentArchives(gateway: ArchiveGateway, open: boolean, session
     selectedSession: sessions.find(({ id }) => id === selectedSessionId),
     messages, previewLoading, previewError,
     selectSession, reload, reloadPreview, removeSession,
+    loadOlder: hasOlder ? () => loadHistory('before') : undefined,
+    loadNewer: hasNewer ? () => loadHistory('after') : undefined,
   }
+}
+
+function timelinePartCount(messages: AgentMessage[]) {
+  return messages.reduce((count, message) => count + Math.max(1, message.parts.length), 0)
 }
 
 function archiveErrorCode(error: unknown) {

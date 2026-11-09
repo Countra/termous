@@ -3,6 +3,8 @@ export type RuntimeEventKind =
   | 'message_delta'
   | 'message_part'
   | 'tool_started'
+  | 'tool_prepared'
+  | 'tool_progress'
   | 'tool_completed'
   | 'tool_failed'
   | 'usage'

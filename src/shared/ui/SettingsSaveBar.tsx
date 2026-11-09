@@ -10,16 +10,17 @@ interface SettingsSaveBarProps {
   invalid: boolean
   ready?: boolean
   saved?: boolean
+  pristineLabel?: string
   onSave(): void
   onReset(): void
 }
 
-export function SettingsSaveBar({ dirty, busy, saving = busy, invalid, ready = true, saved, onSave, onReset }: SettingsSaveBarProps) {
+export function SettingsSaveBar({ dirty, busy, saving = busy, invalid, ready = true, saved, pristineLabel, onSave, onReset }: SettingsSaveBarProps) {
   const { t } = useTranslation()
   return <footer className={styles.bar}>
     <span className={styles.status} role="status" aria-live="polite" data-dirty={dirty}>
-      {dirty || !ready ? <Circle size={7} fill={dirty ? 'currentColor' : 'none'} aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
-      {t(busy ? !ready ? 'settings.editor.loading' : saving ? 'settings.editor.saving' : 'settings.editor.processing'
+      {dirty || !ready || pristineLabel ? <Circle size={7} fill={dirty ? 'currentColor' : 'none'} aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
+      {!busy && ready && !dirty && pristineLabel ? pristineLabel : t(busy ? !ready ? 'settings.editor.loading' : saving ? 'settings.editor.saving' : 'settings.editor.processing'
         : !ready ? 'settings.editor.unavailable' : dirty ? 'settings.editor.unsaved' : saved ? 'settings.editor.saved' : 'settings.editor.upToDate')}
     </span>
     <div className={styles.actions}>

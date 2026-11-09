@@ -1,175 +1,196 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
+import { Compile } from 'typebox/compile'
 import type { ToolNavigation } from './runtimeToolNavigation.ts'
-import { createToolSearch, type DiscoveryInput } from './runtimeToolSearch.ts'
-import { runtimeToolDependencies } from './runtimeToolLifecycle.ts'
-import { runtimeCapabilities, runtimeCapability, runtimeCapabilityStep, runtimeOperations, runtimeToolOperations, skillEntryTools } from './runtimeCapabilityCatalog.ts'
+import { createToolSearch, toolUsageAlias, type DiscoveryInput } from './runtimeToolSearch.ts'
+import type { ToolDeclarationState } from '../contracts/toolCapabilities.ts'
+import { runtimeCapability, runtimeCapabilityStep, runtimeToolOperations, skillEntryTools } from './runtimeCapabilityCatalog.ts'
+import { RuntimeToolRegistry, type RuntimeToolEntry } from './runtimeToolRegistry.ts'
+import { RuntimeActiveTools } from './runtimeActiveTools.ts'
+import { runtimeDiscoveryPage } from './runtimeDiscoveryPage.ts'
+import { runtimeCapabilityIndex } from './runtimeCapabilityIndex.ts'
+import type { RuntimeSkillDirectory } from './runtimeSkillDirectory.ts'
+import type { RuntimeResourceBinding } from '../contracts/resourceBindings.ts'
+import type { ObservationTarget } from '../contracts/desktopObservation.ts'
 
-const groups = [...new Set(runtimeCapabilities.map((capability) => capability.group))].map((group) => [group,
-  [...new Set(runtimeCapabilities.filter((capability) => capability.group === group).flatMap((capability) => capability.keywords.split(' ')))].join(' '),
-] as const)
-
-interface Entry { tool: AgentTool; original: string; group: string; keywords: string }
-
-// 目录保留完整已授权工具；活动集合只在完整工具轮结束后发布。
+// 目录覆盖本轮全部来源；只在完整工具轮结束后发布新的活动声明。
 export class RuntimeToolDiscovery {
-  private readonly entries: Entry[]
-  private readonly permanent: AgentTool[]
-  private readonly selected = new Map<string, number>()
-  private readonly pinned = new Set<string>()
-  private readonly pending = new Set<string>()
+  readonly registry: RuntimeToolRegistry
+  private readonly activeTools: RuntimeActiveTools
   private preferredCapabilities = new Set<string>()
   private readonly unavailable?: (name: string) => string | undefined
   private readonly onLoad?: (name: string) => void
-  private clock = 0
   readonly tool: AgentTool
+  private readonly placeholders = new Map<string, AgentTool['parameters']>()
+  private readonly loadTool?: (name: string, signal?: AbortSignal) => Promise<AgentTool['parameters'] | undefined>
+  private readonly loadErrors = new Map<string, string>()
 
-  constructor(tools: AgentTool[], originalName: (name: string) => string | null, permanent: AgentTool[], unavailable?: (name: string) => string | undefined, onLoad?: (name: string) => void) {
+  constructor(tools: AgentTool[], originalName: (name: string) => string | null, permanent: AgentTool[], unavailable?: (name: string) => string | undefined,
+    onLoad?: (name: string) => void, skills?: RuntimeSkillDirectory,
+    loadTool?: (name: string, signal?: AbortSignal) => Promise<AgentTool['parameters'] | undefined>) {
+    this.loadTool = loadTool
     this.unavailable = unavailable
     this.onLoad = onLoad
-    this.entries = [...tools, ...permanent].map((tool) => {
-      const original = originalName(tool.name) ?? tool.name
-      const capability = runtimeCapability(original)
-      return { tool: this.withDescription(tool, original), original, group: capability?.group ?? 'other', keywords: capability?.keywords ?? original }
-    }).sort((a, b) => a.original.localeCompare(b.original))
+    this.registry = new RuntimeToolRegistry([...tools, ...permanent], originalName, skills)
+    if (loadTool) for (const entry of this.registry.entries) if (!entry.trusted) this.placeholders.set(entry.tool.name, entry.tool.parameters)
     this.tool = {
       name: 'discover_tools', label: '发现工具', executionMode: 'sequential',
-      description: '发现准确操作：已知名称用 names，否则用 operation＋query（如 read＋命令输出），也可浏览 group。多个目标分别搜索。最多加载 8 个已授权工具，下一轮才可调用；返回 name 是实际名称，完整参数进入声明。加载不执行操作，请核对职责。',
+      description: 'Find exact tools or skills. Use names for known names, operation + query for a business action, or group/source to browse. kind defaults to tools; skills returns reading references only. At most 8 results per page; follow next_cursor with identical filters. Returned tools become callable next turn. Discovery never executes or authorizes actions.',
       parameters: Type.Object({
         query: Type.Optional(Type.String({ minLength: 1, maxLength: 512 })),
-        operation: Type.Optional(Type.Union(Object.keys(runtimeOperations).map((name) => Type.Literal(name)))),
-        group: Type.Optional(Type.Union(groups.map(([name]) => Type.Literal(name)))),
-        names: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 128 }), { minItems: 1, maxItems: 8 })),
-      }, { additionalProperties: false, minProperties: 1 }),
-      execute: async (_id, input) => {
-        const args = input as DiscoveryInput
-        const score = createToolSearch(args, this.preferredCapabilities)
-        const scored = this.entries.map((entry) => ({ entry, score: score(entry) }))
-          .filter((v) => v.score > 0).sort((a, b) => b.score - a.score || a.entry.original.localeCompare(b.entry.original))
-        const blocked = scored.filter(({ entry }) => this.unavailable?.(entry.original))
-        const eligible = scored.filter((entry) => !blocked.includes(entry)).slice(0, 8)
-        const admitted = eligible.filter(({ entry }) => this.schedule(entry))
-        if (admitted.length) this.preferredCapabilities = new Set(admitted.flatMap(({ entry }) => {
-          const capability = runtimeCapability(entry.original)
-          return capability ? [capability.id] : []
-        }))
-        const notFound = args.names?.filter((name) => !this.entries.some((entry) => entry.original === name || entry.tool.name === name)) ?? []
-        return { content: [{ type: 'text', text: JSON.stringify({
-          tools: admitted.map(({ entry }) => ({ name: entry.tool.name, original_name: entry.original, purpose: entry.tool.description, group: entry.group,
-            stage: runtimeCapabilityStep(entry.original)?.role, operations: runtimeToolOperations(entry.original), skill: runtimeCapability(entry.original)?.skill })),
-          ...(notFound.length ? { not_found: notFound, unavailable_guidance: '这些名称不在当前授权目录中；按能力组查询实际工具，不要猜测名称。' } : {}),
-          ...(blocked.length ? { unavailable: blocked.slice(0, 8).map(({ entry }) => ({ name: entry.original, reason: this.unavailable?.(entry.original) })) } : {}),
-          ...(admitted.length < eligible.length ? { deferred: eligible.filter((entry) => !admitted.includes(entry)).map(({ entry }) => entry.original), notice: '本轮待加载工具已达容量上限；先使用已加载工具，下一轮再发现其余能力。' } : {}),
-          ...(args.group && admitted.some(({ entry }) => entry.group !== args.group) ? { group_correction: '目标资源和动作与所选能力组不一致；已按明确目标返回当前获准目录中的准确候选，请核对各工具职责。' } : {}),
-          ...(admitted.length ? { guidance: '按准确操作与能力阶段选择工具；声明可见不等于已授权执行，提交回执不等于目标完成。', skills: [...new Set(admitted.flatMap(({ entry }) => {
-            const capability = runtimeCapability(entry.original)
-            return capability ? [capability.skill] : []
-          }))] } : {}),
-          ...(admitted.length === 0 ? { groups: this.catalog(), guidance: '先把目标拆成具体动作与资源，再按能力组、operation 或精确 names 查询；目录仅包含当前获准能力。',
-            examples: this.catalog().slice(0, 3).map(({ group }) => ({ group })) } : {}),
-        }) }], details: { kind: 'tool_discovery' } }
-      },
+        operation: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+        group: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+        source: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+        kind: Type.Optional(Type.Union(['tools', 'skills', 'all'].map((kind) => Type.Literal(kind)))),
+        limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 8 })),
+        cursor: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
+        names: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 512 }), { minItems: 1, maxItems: 8 })),
+      }, { additionalProperties: false }),
+      execute: async (_id, input, signal) => this.discover(input as DiscoveryInput, signal),
     }
-    this.permanent = [this.tool, ...permanent]
+    this.activeTools = new RuntimeActiveTools(this.registry.entries, [this.tool, ...permanent])
   }
 
-  private withDescription(tool: AgentTool, original: string): AgentTool {
-    const capability = runtimeCapability(original)
-    const step = runtimeCapabilityStep(original)
-    const boundary = capability && !tool.description.includes(capability.purpose) ? `\n职责：${capability.purpose}\n说明：${capability.skill}` : ''
-    const guidance = step?.guidance && !tool.description.includes(step.guidance) ? `\n后续：${step.guidance}` : ''
-    const preparation = step?.preparation && !tool.description.includes(step.preparation) ? `\n调用前：${step.preparation}` : ''
-    const action = step && !tool.description.includes('\n动作：') ? `\n动作：${runtimeToolOperations(original).join(', ')}` : ''
-    return { ...tool, description: tool.description + boundary + preparation + guidance + action }
+  private async discover(args: DiscoveryInput, signal?: AbortSignal) {
+    const result = runtimeDiscoveryPage(this.registry, args, this.preferredCapabilities, (entry) => Boolean(this.blocked(entry)))
+    const found = result.page.flatMap((hit) => hit.tool ? [hit.tool] : [])
+    await this.loadDeclarations(found, signal)
+    const blocked = found.filter((entry) => this.blocked(entry))
+    const eligible = found.filter((entry) => !this.blocked(entry))
+    const admitted = eligible.filter((entry) => this.schedule(entry))
+    if (admitted.length) this.preferredCapabilities = new Set(admitted.flatMap((entry) => entry.capability ? [entry.capability.id] : []))
+    const notFound = args.names?.filter((name) => !this.registry.entries.some((entry) => (!args.source || args.source === entry.source.id) && (entry.original === name || entry.tool.name === name))
+      && !this.registry.skills?.catalog.some((skill) => (!args.source || args.source === skill.source.id) && (skill.name === name || skill.entry_uri === name))) ?? []
+    const skills = result.page.flatMap((hit) => hit.skill ? [{ name: hit.skill.name, source: hit.skill.source.id, description: hit.skill.description, uri: hit.skill.entry_uri }] : [])
+    const purposeSearch = args.kind !== 'skills' && args.operation && args.query && !args.names?.length ? createToolSearch({ ...args, operation: undefined }) : undefined
+    const alternatives = purposeSearch ? this.registry.entries.filter(entry => entry.trusted && !this.blocked(entry)
+      && (!args.source || args.source === entry.source.id) && toolUsageAlias(entry.original, args.query!)
+      && !runtimeToolOperations(entry.original).includes(args.operation!) && purposeSearch(entry) > 0).slice(0, 3)
+      .map(entry => ({ source: entry.source.id, original_name: entry.original,
+        discovery: { tool: 'discover_tools', arguments: { source: entry.source.id, query: args.query, operation: runtimeToolOperations(entry.original)[0] } },
+      })) : []
+    return { content: [{ type: 'text' as const, text: JSON.stringify({
+      tools: admitted.map((entry) => ({ ...this.registry.describe(entry, name => this.available(name)), match: args.names?.length ? 'exact_name' : args.query ? 'query' : 'browse' })),
+      skills, total_matches: result.total, ...(result.next_cursor ? { next_cursor: result.next_cursor } : {}),
+      ...(alternatives.length ? { related_actions: alternatives, operation_guidance: 'These tools support the requested purpose but have a different operation. They were not loaded by this explicit operation filter; execution and approval policies remain unchanged.' } : {}),
+      ...(result.ambiguous.length ? { ambiguous: result.ambiguous, guidance: 'Choose an exact returned name or source; no ambiguous tool was loaded.' } : {}),
+      ...(notFound.length ? { not_found: notFound, unavailable_guidance: 'These names are absent from the selected authorized catalog. Browse or search actual capabilities instead of guessing names.' } : {}),
+      ...(blocked.length ? { unavailable: blocked.map((entry) => ({ name: entry.original, source: entry.source.id, reason: this.blocked(entry) })) } : {}),
+      ...(admitted.length < eligible.length ? { deferred: eligible.filter((entry) => !admitted.includes(entry)).map((entry) => entry.tool.name), notice: 'Pending declarations reached capacity. Use loaded tools, then discover the deferred tools next turn.' } : {}),
+      ...(args.group && admitted.some((entry) => entry.group !== args.group) ? { group_correction: 'The explicit resource and operation identify another capability group; inspect the returned tools.' } : {}),
+      ...(!result.page.length && !result.ambiguous.length ? { groups: this.catalog(), guidance: 'No match. Separate the action and resource, browse a source/group, or use exact names. Do not substitute a tool with a different effect.' } : {}),
+    }) }], details: { kind: 'tool_discovery' } }
   }
 
-  // 所有回执由运行时统一观察；这里只安排声明，不执行恢复操作。
-  navigate(navigation: ToolNavigation) {
+  resolveNavigation(navigation: ToolNavigation): ToolNavigation {
+    const query = navigation.prerequisite
+    if (!query) return navigation
+    const entry = this.registry.entries.find(candidate => candidate.trusted && candidate.original === query.tool)
+    if (!entry || this.blocked(entry)) return { ...navigation, prerequisite: undefined,
+      guidance: `${navigation.guidance} The suggested tool is unavailable under current permissions; do not substitute another action.` }
+    if (!Compile(entry.tool.parameters).Check(query.arguments)) return { ...navigation, prerequisite: undefined,
+      guidance: `${navigation.guidance} Inspect this tool's current schema and supply the missing business parameters; no complete call arguments are available.` }
+    return { ...navigation, guidance: `${navigation.guidance} When its declaration is available, call ${query.tool} (callable name ${entry.tool.name}) with ${JSON.stringify(query.arguments)}.` }
+  }
+
+  navigate(navigation: ToolNavigation, concise = false) {
+    const query = navigation.prerequisite
+    const entry = query && this.registry.entries.find(candidate => candidate.trusted && candidate.original === query.tool && !this.blocked(candidate))
+    const action = entry && Compile(entry.tool.parameters).Check(query!.arguments) ? { tool: entry.tool.name, arguments: query!.arguments } : undefined
     const next = this.loadNames(navigation.names)
     const admitted = new Set(next.map((item) => item.original_name))
     const unavailable = navigation.names.filter((name) => !admitted.has(name)).map((name) => ({ name,
-      reason: this.unavailable?.(name) ?? (this.entries.some((entry) => entry.original === name) ? '本轮声明容量不足，下轮按需发现' : '不在当前授权工具目录中'),
+      status: this.available(name) ? 'deferred' : 'unavailable',
+      reason: this.unavailable?.(name) ?? (this.available(name) ? '本轮声明容量不足，下轮按需发现' : '不在当前授权工具目录中'),
+      ...(this.available(name) ? { discovery: { tool: 'discover_tools', arguments: { names: [name] } } } : {}),
     }))
-    return JSON.stringify({ tool_navigation: { guidance: navigation.guidance, available_next_turn: next, skill: navigation.skill,
+    if (concise && !next.length && !unavailable.length) return ''
+    return JSON.stringify({ tool_navigation: { ...(concise ? {} : { guidance: navigation.guidance, skill: navigation.skill }), available_next_turn: next,
       ...(unavailable.length ? { unavailable } : {}),
+      ...(query && action && admitted.has(query.tool) ? { next_action: action } : {}),
     } })
   }
 
-  private schedule(entry: Entry) {
-    if (this.unavailable?.(entry.original)) return false
-    if (this.permanent.some((tool) => tool.name === entry.tool.name)) {
-      this.onLoad?.(entry.original)
-      return true
+  private blocked(entry: RuntimeToolEntry) { return entry.trusted ? this.unavailable?.(entry.original) : this.loadErrors.get(entry.tool.name) }
+  private async loadDeclarations(entries: readonly RuntimeToolEntry[], signal?: AbortSignal) {
+    for (const entry of entries) if (!entry.trusted && this.loadTool) {
+      signal?.throwIfAborted()
+      try {
+        const parameters = await this.loadTool(entry.tool.name, signal)
+        signal?.throwIfAborted()
+        if (parameters) entry.tool = { ...entry.tool, parameters }
+        this.loadErrors.delete(entry.tool.name)
+      } catch (error) {
+        signal?.throwIfAborted()
+        this.loadErrors.set(entry.tool.name, error instanceof Error && /^INTEGRATION_[A-Z_]+$/u.test(error.message) ? error.message : 'INTEGRATION_TOOL_UNAVAILABLE')
+      }
     }
-    const reserved = new Set([...this.pinned, ...this.pending, ...this.cleanupTools(entry).map((tool) => tool.tool.name), entry.tool.name])
-    if (reserved.size + this.permanent.length > 32) return false
-    this.pinCleanup(entry)
-    this.onLoad?.(entry.original)
-    this.pending.add(entry.tool.name)
+  }
+  private schedule(entry: RuntimeToolEntry, notify = true) {
+    if (this.blocked(entry) || !this.activeTools.schedule(entry)) return false
+    if (entry.trusted && notify) this.onLoad?.(entry.original)
     return true
   }
-
-  catalog() {
-    return groups.filter(([id]) => this.entries.some((entry) => entry.group === id)).map(([id, description]) => ({ group: id, description }))
+  catalog() { return this.registry.groups() }
+  declaration(name: string, published: readonly AgentTool[] = this.active()): ToolDeclarationState {
+    const entry = this.registry.entries.find(candidate => candidate.trusted && candidate.original === name)
+    return { original_name: name, ...(entry ? { name: entry.tool.name, source: entry.source.id } : {}),
+      status: !entry || this.blocked(entry) ? 'unavailable' : published.some(tool => tool.name === entry.tool.name) ? 'declared' : 'discoverable' }
   }
-
-  available(name: string) {
-    return this.entries.some((entry) => entry.original === name) && !this.unavailable?.(name)
-  }
-
-  loadNames(names: string[]) {
-    return names.flatMap((name) => {
-      const entry = this.entries.find((candidate) => candidate.original === name)
-      return entry && this.schedule(entry) ? [{ name: entry.tool.name, original_name: name }] : []
+  retainedNames() {
+    return this.activeTools.requested().flatMap(name => {
+      const entry = this.registry.entries.find(candidate => candidate.tool.name === name)
+      return entry ? [entry.trusted ? entry.original : entry.tool.name] : []
     })
   }
-
+  // 重建目录从轻量声明开始，旧的完整外部 Schema 不进入新的占位缓存。
+  catalogTools() {
+    return this.registry.entries.map(entry => {
+      const placeholder = this.placeholders.get(entry.tool.name)
+      return placeholder ? { ...entry.tool, parameters: placeholder } : entry.tool
+    })
+  }
+  async restoreNames(names: string[], signal?: AbortSignal) {
+    const entries = [...new Set(names)].flatMap(name => {
+      const entry = this.registry.entries.find(candidate => candidate.trusted ? candidate.original === name : candidate.tool.name === name)
+      return entry ? [entry] : []
+    })
+    // 外部合同可能已变化，只恢复唯一来源名称，并重新取得本轮 Schema；不恢复执行授权。
+    await this.loadDeclarations(entries, signal)
+    const admitted = entries.filter(entry => this.schedule(entry, false)).map(entry => ({ name: entry.tool.name, original_name: entry.original }))
+    this.activeTools.restorePending()
+    return admitted
+  }
+  index(published: readonly AgentTool[] = this.active()) { return runtimeCapabilityIndex(this.registry, (name) => this.available(name), published) }
+  preload(bindings: readonly RuntimeResourceBinding[], target?: ObservationTarget) { this.loadNames(this.registry.initial(bindings, (name) => this.available(name), target), false); return this.publish() }
+  available(name: string) { return this.registry.entries.some((entry) => entry.trusted && entry.original === name && !this.blocked(entry)) }
+  loadNames(names: string[], notify = true) {
+    return [...new Set(names)].flatMap((name) => {
+      const entry = this.registry.entries.find((candidate) => candidate.trusted && candidate.original === name)
+      return entry && this.schedule(entry, notify) ? [{ name: entry.tool.name, original_name: name }] : []
+    })
+  }
   loadReferencedTools(_content: string, uri?: string) {
-    // Skill 来自当前可信快照；只加载目录中真实存在的引用，不执行文档内操作。
-    const names = (uri ? skillEntryTools(uri) : [])
-      .filter((name) => this.entries.some((entry) => entry.original === name)).slice(0, 8)
-    return this.loadNames(names)
+    if (uri && this.registry.skills && !this.registry.skills.builtin(uri)) return []
+    return this.loadNames((uri ? skillEntryTools(uri) : []).filter(name => this.available(name)).slice(0, 8))
   }
-
-  touch(name: string) {
-    if (this.selected.has(name)) this.selected.set(name, ++this.clock)
-    const entry = this.entries.find((v) => v.tool.name === name)
-    if (!entry) return
-    this.pinCleanup(entry)
-  }
-
+  touch(name: string) { this.activeTools.touch(name) }
+  complete(name: string) { this.activeTools.complete(name) }
   used(name: string) {
+    if (!this.available(name)) return
     const capability = runtimeCapability(name)
     const role = runtimeCapabilityStep(name)?.role
-    // 观察和清理服务于当前目标，不因后台补齐候选或截图而切换任务领域。
     if (capability && role && ['submit', 'mutate', 'input', 'preview'].includes(role)) this.preferredCapabilities = new Set([capability.id])
   }
-
-  private cleanupTools(entry: Entry) {
-    const names = runtimeToolDependencies(entry.original)
-    return this.entries.filter((candidate) => names.includes(candidate.original))
-  }
-
-  private pinCleanup(entry: Entry) {
-    // 首次加载即预留清理入口，批量发现不能挤占随后释放资源所需的容量。
-    for (const candidate of this.cleanupTools(entry)) {
-      this.pending.add(candidate.tool.name)
-      this.pinned.add(candidate.tool.name)
-    }
-  }
-
   publish() {
-    for (const name of this.pending) this.selected.set(name, ++this.clock)
-    const protectedNames = new Set([...this.pinned, ...this.pending])
-    this.pending.clear()
-    for (const [name] of [...this.selected].sort((a, b) => a[1] - b[1])) {
-      if (this.selected.size + this.permanent.length <= 32) break
-      if (!protectedNames.has(name)) this.selected.delete(name)
+    this.activeTools.publish()
+    const active = this.active()
+    const names = new Set(active.map(tool => tool.name))
+    for (const entry of this.registry.entries) {
+      const placeholder = this.placeholders.get(entry.tool.name)
+      if (placeholder && !names.has(entry.tool.name)) entry.tool = { ...entry.tool, parameters: placeholder }
     }
-    return this.active()
+    return active
   }
-
-  active() {
-    return [...this.permanent, ...this.entries.filter((entry) => this.selected.has(entry.tool.name) && !this.unavailable?.(entry.original)).map((entry) => entry.tool)]
-  }
+  active() { return this.activeTools.active().filter((tool) => !this.registry.entries.some((entry) => entry.tool.name === tool.name && this.blocked(entry))) }
 }

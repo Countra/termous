@@ -9,6 +9,25 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
+test.each([
+  [undefined, undefined],
+  [['desktop-presentation-v1', 'desktop-video-limits-v2'], undefined],
+  [['desktop-video-limits-v3'], undefined],
+  [['desktop-video-limits-v2', 'desktop-video-limits-v3'], undefined],
+  [['desktop-presentation-v1', 'desktop-video-limits-v3'], undefined],
+  [['desktop-presentation-v1', 'desktop-video-limits-v2', 'desktop-video-limits-v3'], 3],
+])('实际附着仅在连接支持时声明 v3：%j', async (capabilities, expected) => {
+  const request = vi.fn().mockRejectedValue(new Error('desktop_unavailable'))
+  const runtime = new RemoteDesktopSession({ request, ice: vi.fn(), capabilities }, 'desktop', 1n, {
+    state: vi.fn(), status: vi.fn(), clipboard: vi.fn(), challenge: vi.fn(),
+  })
+  await runtime.start(document.createElement('div'), document.createElement('video'))
+  expect(request).toHaveBeenCalledTimes(1)
+  expect(request.mock.calls[0][0].action).toBe('attach')
+  expect(request.mock.calls[0][0].videoLimitsVersion).toBe(expected)
+  await runtime.close()
+})
+
 test('关闭等待迟到的附着及撤销完成，且不会继续协商媒体', async () => {
   const attached = deferred<DesktopResponse>()
   const detached = deferred<DesktopResponse>()

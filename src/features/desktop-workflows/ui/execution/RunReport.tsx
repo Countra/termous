@@ -11,7 +11,7 @@ import type { WorkflowMediaGateway, WorkflowReport, WorkflowReportExpansion } fr
 import styles from './RunReport.module.scss'
 
 export function RunReportView({ gateway, id, active = true, report, onControl, onRefresh, onView, expansion, onExpansionChange }: {
-  gateway: Pick<WorkflowMediaGateway, 'asset'>; id?: string; active?: boolean; report: WorkflowReport
+  gateway: Pick<WorkflowMediaGateway, 'asset' | 'ocrReport'>; id?: string; active?: boolean; report: WorkflowReport
   onControl: WorkflowExecution['control']; onRefresh: () => Promise<void>; onView: (session: string) => void | Promise<void>
   expansion?: WorkflowReportExpansion; onExpansionChange?: (value: WorkflowReportExpansion) => void
 }) {
@@ -39,7 +39,7 @@ export function RunReportView({ gateway, id, active = true, report, onControl, o
       </>} />
       {run.cleanup_error && <Alert type="warning" title={t('desktopWorkflow.cleanupFailed')} description={workflowError({ code: run.cleanup_error }, t)} />}
       {definition && <div className={styles['definition-hint']} role="status"><span>{t(`desktopWorkflow.definitionStatus.${definition.status}`, { version: run.version })}</span>{['failed', 'unavailable'].includes(definition.status) && <Button type="text" size="small" disabled={loading} onClick={() => void onRefresh()}>{t('desktopWorkflow.refresh')}</Button>}</div>}
-      <RunStepTimeline key={run.id} steps={value?.steps ?? []} definition={definition?.value} gateway={gateway} onImage={setImage}
+      <RunStepTimeline key={run.id} active={active} steps={value?.steps ?? []} definition={definition?.value} gateway={gateway} onImage={setImage}
         expansion={onExpansionChange ? expansion?.runID === run.id ? expansion : { allExpanded: false, exceptions: [] } : undefined}
         onExpansionChange={onExpansionChange ? next => onExpansionChange({ ...next, runID: run.id }) : undefined} />
     </> : <div className={styles.empty}>{loading ? <Spin description={t('desktopWorkflow.loading')} /> : <><ClipboardList size={36} strokeWidth={1.2} /><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('desktopWorkflow.selectRun')} /><p>{t('desktopWorkflow.runSelectionHint')}</p></>}</div>}

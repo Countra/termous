@@ -1,5 +1,7 @@
-import { agentDetachedCommands, canTransferAgentDetachedFiles, type AgentDetachedCommandName, type AgentDetachedFile } from '#common/contracts'
+import { agentDetachedCommands, canTransferAgentDetachedFiles, isAgentDetachedCommand, isAgentDetachedNoArgumentCommand,
+  type AgentDetachedCommandName, type AgentDetachedFile } from '#common/contracts'
 import type { DetachedClient } from '#shared/detached-window'
+import { AgentImageRequests } from '#features/agent-runtime'
 import type { AgentSurfaceModel } from './agentSurfaceModel.ts'
 import { agentEditorOwner } from './agentSurfaceProjection.ts'
 import { AgentPendingReceipts } from './agentPendingReceipts.ts'
@@ -12,6 +14,7 @@ const requiresInputReceipt = new Set<AgentDetachedCommandName>([
 ])
 
 export class AgentRemoteAdapter {
+  private readonly imageRequests = new AgentImageRequests()
   private sequence = 0
   private readonly receipts = new AgentPendingReceipts()
   private echoes = new Map<string, { value: string; sequence: number }>()
@@ -22,7 +25,15 @@ export class AgentRemoteAdapter {
   readonly getSnapshot = () => this.revision
   private changed() { this.revision++; for (const listener of this.listeners) listener() }
 
-  connect(model: AgentSurfaceModel, capabilities: AgentDetachedCommandName[], acknowledged: number): AgentSurfaceModel {
+  connect(source: AgentSurfaceModel, capabilities: AgentDetachedCommandName[], acknowledged: number): AgentSurfaceModel {
+    // 操作及乐观回显只写入视图外壳，不能污染复用的宿主快照。
+    const model: AgentSurfaceModel = { ...source,
+      workspace: source.workspace && { ...source.workspace,
+        session_management: source.workspace.session_management && { ...source.workspace.session_management } },
+      archive: source.archive && { ...source.archive }, readiness: source.readiness && { ...source.readiness },
+      reference: source.reference && { ...source.reference },
+    }
+    this.sequence = Math.max(this.sequence, acknowledged)
     for (const [key, value] of this.echoes) if (value.sequence <= acknowledged) this.echoes.delete(key)
     const owner = agentEditorOwner(model)
     const groups = {
@@ -34,11 +45,18 @@ export class AgentRemoteAdapter {
       const [group, key] = name.split('.')
       const target = groups[group as keyof typeof groups] as Record<string, unknown> | undefined
       if (!target) continue
-      target[key] = (...args: unknown[]) => {
+      target[key] = (...suppliedArgs: unknown[]) => {
+        // 无参数业务回调可能直接绑定按钮；React 点击事件不能进入跨窗口命令。
+        const args = isAgentDetachedNoArgumentCommand(name) ? [] : suppliedArgs
         const input = name === 'workspace.onDraftChange' || name === 'workspace.onQueuedTurnEditChange'
         const sequence = input ? ++this.sequence : undefined
-        if (input) { this.echoes.set(`${owner}:${name}`, { value: args[0] as string, sequence: sequence! }); this.changed() }
         const payload = { name, args, owner, inputSequence: sequence }
+        if (!isAgentDetachedCommand(payload)) {
+          const operation = Promise.reject(new Error('agent_command_invalid'))
+          void operation.catch(this.report)
+          return operation
+        }
+        if (input) { this.echoes.set(`${owner}:${name}`, { value: args[0] as string, sequence: sequence! }); this.changed() }
         const operation = input
           ? this.receipts.start(`${owner}:${name}`, id => this.client.peer.request('command', payload, 10000, id))
           : (requiresInputReceipt.has(name) ? this.receipts.flush(false) : Promise.resolve())
@@ -78,15 +96,17 @@ export class AgentRemoteAdapter {
   // 状态流更新不改变读取能力的身份，避免缩略图和预览反复取消、重新读取。
   private readonly loadLocalAttachment = (clientId: string, signal?: AbortSignal) => this.load({ kind: 'local', clientId }, signal)
   private readonly loadAttachmentContent: NonNullable<AgentSurfaceModel['workspace']>['onLoadAttachmentContent'] =
-    (source, signal) => this.load({ kind: 'attachment', source }, signal)
+    (source, signal, variant) => this.load({ kind: 'attachment', source, variant }, signal)
   private readonly loadToolImage: NonNullable<AgentSurfaceModel['workspace']>['onLoadToolImage'] =
-    (source, signal) => this.load({ kind: 'image', source }, signal)
+    (source, signal, variant) => this.load({ kind: 'image', source, variant }, signal)
 
   private async load(payload: unknown, signal?: AbortSignal) {
-    signal?.throwIfAborted()
-    const result = await this.client.peer.request('binary', payload, 30000) as { bytes: ArrayBuffer; type: string }
-    signal?.throwIfAborted()
-    return new Blob([result.bytes], { type: result.type })
+    // 在跨窗口传输前合并并限制读取，离开视口的等待项不能继续涌入宿主。
+    return this.imageRequests.read(JSON.stringify(payload), async requestSignal => {
+      const result = await this.client.peer.request('binary', payload, 30000) as { bytes: ArrayBuffer; type: string }
+      requestSignal.throwIfAborted()
+      return new Blob([result.bytes], { type: result.type })
+    }, signal)
   }
 
   async flush() {

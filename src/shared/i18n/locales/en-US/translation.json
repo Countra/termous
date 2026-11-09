@@ -1,4 +1,127 @@
 {
+  "hostDesktop": {
+    "approvalTitle": "Local desktop control",
+    "targetType": "Target type",
+    "sourceID": "Source ID",
+    "controlApproval": "Allow mouse and keyboard input on this computer",
+    "controlHint": "Keyboard input affects the currently focused application. Selecting a display does not isolate applications. You can reclaim control at any time.",
+    "activeAccesses": "Active access",
+    "accessFailed": "Could not confirm access or cleanup. Refresh and retry.",
+    "noAccesses": "No devices are accessing this desktop",
+    "stopping": "Stopping",
+    "controlling": "Controlling",
+    "observing": "Viewing",
+    "stopAccess": "Stop access",
+    "localDesktop": "Local desktop",
+    "inputHint": "Keyboard input affects the focused app. Selecting a display does not isolate apps."
+  },
+  "analysisCenter": {
+        "id": "Analysis ID",
+    "image": {
+      "boundary": "boundary",
+      "open": "View result image",
+      "title": "Filtered result image",
+      "ocrHint": "The OCR layer shows all recognized text, including text inside regions. Labels show each span's ID.",
+      "elementsHint": "The element layer shows detected regions and recognized text with their original element IDs. Detection does not imply clickability.",
+      "filterHint": "Render all matches from the current filter, across all pages. Leave crop empty for the full image. Metadata describes the last generated preview.",
+      "crop": "Crop in original pixels (optional)",
+      "maxSide": "Maximum side (optional)",
+      "generate": "Generate preview",
+      "export": "Export filtered image",
+      "invalidCrop": "Crop must be a valid integer box within the original image.",
+      "invalidSize": "Maximum side must be an integer between 256 and 4096.",
+      "counts": "{{matched}} matched, {{drawn}} drawn · {{width}}×{{height}} output · Original bounds {{crop}}"
+    },
+    "title": "Analysis history",
+    "details": "Analysis details",
+    "state": "Task state",
+    "source": "Source",
+    "search": "Search analysis ID or source name",
+    "after": "From",
+    "before": "Until",
+    "empty": "No analysis records",
+    "selectRecord": "Select a record to inspect its overview and results",
+    "reused": "Reused result",
+    "taskTime": "This task: {{seconds}} s",
+    "originalTime": "Original inference: {{seconds}} s",
+    "originalThresholds": "Inference thresholds: detection {{detection}} · OCR {{ocr}}",
+    "inferenceLimited": "Results are limited by the original inference. Lower query thresholds cannot recover candidates removed by thresholds, NMS or limits. Reanalyze the original image instead.",
+    "matches": "{{count}} matches",
+    "ocrSpans": "OCR spans",
+    "readFailed": "Could not load data. Please retry.",
+    "operationFailed": "Operation failed. Please retry.",
+    "submitFailed": "Submission failed. Retrying keeps the same request ID.",
+    "detection_min": "Minimum detection confidence",
+    "detection_max": "Maximum detection confidence",
+    "text_min": "Minimum text confidence",
+    "text_max": "Maximum text confidence",
+    "sort": "Sort",
+    "bbox": "Intersecting bounds",
+    "bboxHint": "Pixel bounds x1,y1,x2,y2; Enter to apply",
+    "bboxInvalid": "Enter nonnegative integer bounds; bottom-right must be beyond top-left.",
+    "textPart": "Text starts at character {{offset}} of {{count}}",
+    "moreText": "Next text segment",
+    "copyPart": "Copy this segment",
+    "moreOCR": "Next OCR page",
+    "identity": "Inference identity",
+    "reanalyze": "Reanalyze",
+    "reanalyzeHint": "Use this record's image and parameters with optional overrides. Runs inference again without changing global settings.",
+    "delete": "Delete record",
+    "deleteHint": "This cannot be undone. Content referenced by other records is preserved.",
+    "expires": "Retained until {{date}}",
+    "historyReadonly": "History is read-only. Inspect, filter or export results; coordinates cannot be applied to the current desktop.",
+    "retryImage": "Retry image",
+    "originalImage": "Original analysis image",
+    "distribution": "Confidence distribution",
+    "interval": "Score interval",
+    "elementCount": "{{count}} elements",
+    "storage": "Analysis storage",
+    "max_bytes": "Capacity limit",
+    "max_bytesHint": "128–10240 MiB. Counts deduplicated images and analysis data, including files pending cleanup.",
+    "max_records": "Record limit",
+    "max_recordsHint": "10–10000 records. Removes the oldest completed records when exceeded; active tasks are preserved.",
+    "retention_days": "Retention period",
+    "retention_daysHint": "1–90 days from task completion, then automatically removed.",
+    "databaseUsage": "Database {{db}} MiB · write log {{wal}} MiB · reusable space {{free}} MiB. Deleting records does not immediately shrink files.",
+    "cleanupFailed": "Could not read storage or complete cleanup. Refresh to retry. Files in use are retried in the background.",
+    "clear": "Clear analysis history",
+    "clearHint": "Permanently delete all completed task records and images. Unfinished tasks and images still in use are preserved.",
+    "states": {
+      "all": "All states",
+      "preparing": "Preparing screenshot",
+      "queued": "Queued",
+      "running": "Running",
+      "cancelling": "Cancelling",
+      "cancelled": "Cancelled",
+      "interrupted": "Interrupted",
+      "succeeded": "Succeeded",
+      "failed": "Failed"
+    },
+    "stages": {
+      "capture": "Capturing screenshot",
+      "queue": "Waiting",
+      "identity": "Verifying environment",
+      "cache_lookup": "Checking reuse",
+      "warmup": "Preparing models",
+      "inference": "Analyzing image",
+      "persist": "Saving result",
+      "complete": "Complete"
+    },
+    "sources": {
+        "attachment": "MCP / Agent attachment",
+      "all": "All sources",
+      "preview": "Desktop preview",
+      "analysis": "Historical image",
+      "detector": "Detector",
+      "detector+ocr": "Detector + OCR",
+      "ocr": "OCR"
+    },
+    "sorts": {
+      "spatial": "Spatial ID",
+      "confidence_asc": "Confidence: low to high",
+      "confidence_desc": "Confidence: high to low"
+    }
+  },
   "systemClipboard": {
     "unavailable": "System file clipboard is temporarily unavailable. It will resume when the connection recovers.",
     "initializationFailed": "System file clipboard initialization failed. Retrying automatically.",
@@ -48,6 +171,7 @@
       "hint": "Scan with Termous on a trusted phone.",
       "confirmHint": "Compare the codes, then confirm on your phone.",
       "completingHint": "Please wait while the cloud connection is established.",
+      "completedHint": "Sign-in confirmed. Updating your account.",
       "refreshHint": "Refresh the code to start again.",
       "checkCode": "Verification code",
       "remaining": "Expires in {{seconds}}s",
@@ -250,18 +374,26 @@
     "localHint": "Offline mode",
     "accountMenu": "{{name}} · Account and settings",
     "signInAccount": "Sign in",
-    "useOffline": "Continue offline",
     "welcome": "Sign in to your account",
-    "welcomeHint": "Use your email and password, or scan with a trusted phone.",
+    "welcomeHint": "Connect your devices and cloud configuration.",
     "login": {
-      "storyTitle": "Your configuration.",
-      "storySubtitle": "Across your devices.",
-      "trustTitle": "Trusted device access",
-      "trustHint": "Approve each new device before granting access",
-      "encryptionTitle": "Encrypted sync",
-      "encryptionHint": "Configuration is encrypted before upload",
-      "scopeHint": "After signing in, you choose devices and sync scope.",
-      "offlineLabel": "Not signing in?",
+      "storyTitle": "Your workspace.",
+      "storySubtitle": "On every device.",
+      "storySecurity": "Trusted devices. End-to-end encryption.",
+      "method": "Sign-in method",
+      "continueLocal": "Continue locally",
+      "syncChoice": "Sync starts when you choose",
+      "noAccount": "New here?",
+      "sendMail": "Send email",
+      "emailRequired": "Enter your email",
+      "emailInvalid": "Enter a valid email",
+      "confirmPassword": "Confirm password",
+      "confirmRequired": "Enter your password again",
+      "confirmPlaceholder": "Enter your password again",
+      "passwordMismatch": "Passwords do not match",
+      "tokenRequired": "Enter the token from your email",
+      "tokenPlaceholder": "Paste the token from your email",
+      "checkMailHint": "Paste the email token in the next step.",
       "reconnectTitle": "Verify your current account",
       "reconnectHint": "Local features remain available. Sign in to reconnect.",
       "emailPlaceholder": "Enter your account email",
@@ -271,11 +403,18 @@
     "backToLogin": "Back to sign in",
     "authOptions": "Other account actions",
     "authHints": {
-      "register": "Create an account with your email, then verify it before signing in.",
-      "verify-email": "Paste the token from your verification email to verify your address.",
-      "resend-verification": "Enter your registered email to receive a new verification email.",
-      "password-reset/request": "Enter your account email to receive a password reset email.",
-      "password-reset/confirm": "Paste the token from your reset email and choose a new password."
+      "register": "Create an account, then verify your email.",
+      "verify-email": "Paste the token from your email.",
+      "resend-verification": "Request a new verification email.",
+      "password-reset/request": "Reset your password by email.",
+      "password-reset/confirm": "Enter your email token and choose a new password."
+    },
+    "authResults": {
+      "register": "Check your verification email",
+      "resend-verification": "Check your verification email",
+      "password-reset/request": "Check your password reset email",
+      "verify-email": "Email verified",
+      "password-reset/confirm": "Password reset"
     },
     "loading": "Loading…",
     "accountConnected": "Signed in to Termous",
@@ -285,7 +424,6 @@
     "passwordRequired": "Enter your password",
     "passwordRule": "Use 12–256 UTF-8 bytes",
     "verificationCode": "Email verification token",
-    "authSent": "Request accepted. Check your email or try signing in.",
     "logout": "Sign out",
     "connectionUnavailable": "Can't connect to the cloud",
     "connectionRetryHint": "Reconnecting. You can keep using local features.",
@@ -346,15 +484,16 @@
       "loading": "Loading two-step verification status…",
       "codesRemaining": "{{count}} backup codes remaining",
       "code": "Authenticator code",
-      "codeRequired": "Enter a verification or backup code",
+      "codeRequired": "Enter a verification code",
+      "backupCodeRequired": "Enter a backup code",
       "codeRule": "Enter a six-digit code",
-      "codePlaceholder": "Six-digit code",
+      "digit": "Code digit {{position}}",
+      "codeGroup": "Six-digit verification code",
       "backupCode": "Backup code",
       "backupCodePlaceholder": "Enter an unused backup code",
       "useBackupCode": "Use a backup code instead",
       "useAuthenticator": "Use an authenticator code",
       "loginTitle": "Complete two-step verification",
-      "loginHint": "Enter an authenticator code or use one backup code. Each backup code works once.",
       "verifyAndLogin": "Verify and sign in",
       "challengeExpired": "This sign-in challenge expired. Go back and sign in again.",
       "loginUncertain": "Sign-in could not be confirmed. Go back and sign in again rather than resubmitting this code.",
@@ -366,7 +505,6 @@
       "confirm": "Confirm and enable",
       "confirmDisable": "Confirm disable",
       "cancel": "Cancel",
-      "scanHint": "Scan this QR code with your authenticator, then enter its new verification code.",
       "scanTitle": "Scan with your authenticator",
       "manualKey": "Can't scan? Enter the key manually",
       "manualHint": "Add an account manually in your authenticator, paste the key below, and select Time-based.",
@@ -463,6 +601,7 @@
       "revision_conflict": "Cloud data changed. Sync again and resolve any conflicts."
     },
     "deviceList": "Registered devices",
+    "unknownPlatform": "Unknown system",
     "deviceColumns": {
       "name": "Device name",
       "authorization": "Authorization",
@@ -902,6 +1041,8 @@
       "detached": "Open in a separate window",
       "detachedDescription": "Your assistant is working in its own window. Conversations, drafts and running tasks stay with you.",
       "failed": "Window handoff did not finish. Please retry. Unconfirmed actions are not sent again automatically.",
+      "syncFailed": "Window state could not be synced. Refresh and try again.",
+      "operationFailed": "The action was not confirmed. Refresh the state to check the result. Unconfirmed actions are not sent again automatically.",
       "approvalWaiting": "Waiting for approval in the main window",
       "approval": "Go to approval"
     },
@@ -1049,7 +1190,9 @@
       }
     },
     "conversation": {
-      "jumpToLatest": "Jump to latest message"
+      "jumpToLatest": "Jump to latest message",
+      "loadOlder": "Load earlier content",
+      "loadNewer": "Load later content"
     },
     "terminalReference": {
       "confirmTitle": "Switch SSH connection?",
@@ -1087,6 +1230,7 @@
     "message": {
       "resources": "Resources linked when sent",
       "resourceKind": {
+        "host_desktop": "Local desktop",
         "desktop_session": "Desktop session",
         "desktop_profile": "Desktop profile",
         "desktop_workflow": "Desktop workflow",
@@ -1170,6 +1314,31 @@
       "completed": "Reasoning"
     },
     "tool": {
+      "batch": {
+        "cancelFailed": "Cancellation was not confirmed. Check the original execution; do not assume input has stopped.",
+        "phase": {
+          "validating": "Validating the action chain",
+          "executing": "Sending desktop input",
+          "waiting": "Waiting after desktop input",
+          "capturing": "Capturing the final desktop image",
+          "finalizing": "Saving the receipt and releasing control",
+          "finished": "Desktop execution finished"
+        },
+        "reason": "Stop reason:",
+        "title": "Desktop action receipt",
+        "accepted": "{{count}} / {{total}} actions accepted",
+        "meaning": "Accepted means input was sent. Check the screenshot to confirm the application result.",
+        "stoppedAt": "Execution stopped at step {{index}}",
+        "cleanup": "Input cleanup is unconfirmed. Inspect the desktop before continuing.",
+        "report": "The receipt could not be saved. Query the original execution; do not replay it.",
+        "run": {"running": "Running", "completed": "Input completed", "stopped": "Stopped", "cancelled": "Cancelled", "uncertain": "Input outcome uncertain"},
+        "step": {"pending": "Pending", "dispatching": "Dispatching", "accepted": "Accepted", "failed": "Failed", "uncertain": "Uncertain", "skipped": "Not executed"},
+        "capture": {"pending": "Waiting for the final screenshot", "unavailable": "The original screenshot is unavailable. Observe the desktop again if needed."},
+        "kind": {"pointer": {"move": "Move pointer", "click": "Click", "click_current": "Click current position", "scroll": "Scroll", "drag": "Drag"}, "keyboard": {"key": "Press key", "shortcut": "Shortcut", "text": "Type text"}}
+      },
+      "phase": { "preparing": "Preparing", "waiting": "Waiting", "executing": "Executing" },
+      "controlApproval": "Requesting desktop control",
+      "inputNotDispatched": "Awaiting authorization; input not sent",
       "status": {
         "queued": "Queued",
         "running": "Running",
@@ -1631,6 +1800,7 @@
       "retainedCount": "Retained sessions, {{count}}"
     },
     "automation": {
+      "badge": { "agent": "AI control", "mcp": "MCP control", "workflow": "Workflow", "remote": "Remote control", "local": "Desktop control" },
       "pointerStandby": "In control",
       "hostHint": "Hosted view · Closing this window hides it; automation continues",
       "hostFailed": "Executor ended. Attach again and request control.",
@@ -1640,6 +1810,9 @@
       "trustOnce": "Trust this time",
       "actionFailed": "Action failed. Check desktop status before retrying.",
       "observing": "Desktop view hosted",
+      "remoteControlling": "Remote device in control",
+      "mcpControlling": "MCP in control",
+      "localControlling": "Local application in control",
       "aiControlling": "AI is operating",
       "workflowControlling": "Workflow running",
       "releasesIn": "Control releases in {{time}}",
@@ -1761,7 +1934,7 @@
       "claimNote": "Clean up retained files after saving them.",
       "clipboardNote": "Transfer files and folders through the remote clipboard.",
       "systemClipboard": "System file clipboard",
-      "systemClipboardHint": "Enable in Settings → Remote desktop. Shared by local RDP sessions; control is required.",
+      "systemClipboardHint": "Enable in Settings → Desktop & remote control. Shared by local RDP sessions; control is required.",
       "systemClipboardEnabled": "Enabled",
       "systemClipboardInactive": "Inactive",
       "systemClipboardFailed": "System file clipboard operation did not finish. Manual transfers remain available.",
@@ -1828,17 +2001,16 @@
       "retained": "Retained sessions", "closeViewer": "Close viewer and keep session", "rememberCertificate": "Remember this certificate on this device",
       "rememberCertificateHint": "Trust applies only to this session by default. Remembering verifies the same certificate automatically; a changed certificate requires confirmation.",
       "protocol": "Desktop protocol", "route": "Connection", "direct": "Direct", "tunnel": "SSH tunnel", "target": "Target address", "port": "Port",
-      "serverName": "Server name (certificate and authentication)", "username": "Username", "domain": "Domain (optional)", "width": "Desktop width", "height": "Desktop height",
+      "serverName": "Server name", "username": "Username", "domain": "Domain (optional)", "width": "Desktop width", "height": "Desktop height",
       "audio": "Play audio locally", "viewOnly": "View only by default", "display": "Display mode", "fit": "Fit window", "resize": "Resize remote desktop", "actual": "Original size",
       "required": "Enter a valid value", "targetInvalid": "Enter a valid target; direct connections require an IP address", "portInvalid": "Enter an integer from 1 to 65535", "sizeInvalid": "Use even dimensions from 200 to 8192, with at most 16M pixels",
       "hostInvalid": "Enter a valid hostname or IP address without a scheme, path, or port.",
       "accountInvalid": "Use at most 256 bytes without newlines or null characters.",
-      "noSSH": "Add an SSH profile to this host to enable SSH tunneling.",
       "tunnelTargetPlaceholder": "For example: 127.0.0.1 or a hostname reachable from the SSH host",
-      "serverNameHint": "Optional; defaults to the target address. For tunneled connections, use the Windows server's actual name for certificate verification and sign-in.",
-      "displayHint": "Width and height set the initial desktop size. Follow window adjusts the remote resolution after you gain control.",
-      "audioHint": "Play sound on this computer once, shared by all viewer windows.",
-      "viewOnlyHint": "Open new viewers without control. Request control when you need to interact.",
+      "serverNameHint": "Used for certificate checks and authentication. Defaults to the target address.",
+      "displayHint": "Initial resolution. Follow window requires control.",
+      "audioHint": "Play remote audio on this computer.",
+      "viewOnlyHint": "View without control. Request control to interact.",
       "targetAuth": {
         "password": "RDP password",
         "savedHint": "Use the saved password to sign in to the Windows account.",
@@ -1879,19 +2051,25 @@
     "targetAddressPlaceholder": "For example: 192.0.2.10 or 2001:db8::10",
     "port": "VNC port",
     "vncOverSsh": "VNC over SSH",
+    "editor": {
+      "vncDescription": "Cross-platform desktop",
+      "rdpDescription": "Windows desktop",
+      "descriptionPlaceholder": "Optional note about this profile",
+      "noSSH": "Add an SSH profile to this host to use a tunnel."
+    },
     "basicSection": "Basic information",
     "connectionSection": "Connection settings",
-    "viewerSection": "Viewer defaults",
+    "viewerSection": "Display & behavior",
     "targetAuth": {
-      "title": "Remote desktop target authentication",
-      "mode": "Password usage",
+      "title": "Authentication",
+      "mode": "Connection password",
       "promptOption": "Ask each time",
       "saveOption": "Save password",
       "savedOption": "Saved password",
       "saved": "Password saved",
       "savedHint": "Used automatically only when the VNC service requests password-only authentication.",
       "notSaved": "Ask when connecting",
-      "notSavedHint": "Termous does not save credentials entered manually for a viewer session.",
+      "notSavedHint": "Enter the password when connecting. It will not be saved.",
       "removePending": "Pending removal",
       "removePendingHint": "Saving the profile will remove the stored VNC password.",
       "add": "Save password",
@@ -1900,7 +2078,7 @@
       "undo": "Undo",
       "password": "VNC password",
       "passwordPlaceholder": "Enter the password to store securely",
-      "passwordHint": "Sent only to the local Core for encrypted storage, up to 4096 bytes.",
+      "passwordHint": "Stored encrypted on this device.",
       "saveFailed": "Could not save the VNC password",
       "profileSavedCredentialFailed": "The profile details were saved, but the VNC password was not updated: {{error}}",
       "errors": {
@@ -1922,7 +2100,24 @@
     "display": {
       "fit": "Fit",
       "resize": "Follow window",
-      "actual": "Actual size"
+      "actual": "Actual size",
+      "scale": "Display scale",
+      "resolution": "Remote resolution",
+      "fixed": "Fixed",
+      "fitHint": "Scale the entire desktop to fit without changing its resolution",
+      "actualHint": "Show remote pixels at actual size without changing the resolution",
+      "resolutionHint": "Follow window changes the remote resolution. Fixed restores the size used before following.",
+      "pending": "Resizing…",
+      "pendingHint": "Waiting for the remote desktop to confirm its new dimensions",
+      "waiting": "Control required",
+      "waitingHint": "Return to this desktop and take control to apply the resolution",
+      "unsupported": "Resize unavailable",
+      "unsupportedHint": "The target does not support resizing. Local scaling remains available.",
+      "failed": "Resize failed",
+      "failedHint": "The resolution could not be changed. The desktop remains available; you can retry.",
+      "timeout": "Not confirmed",
+      "timeoutHint": "The requested dimensions were not confirmed. Check the current desktop before retrying.",
+      "retry": "Reapply resolution"
     },
     "saveAndConnect": "Save and connect",
     "profileInvalid": "Profile details are incomplete",
@@ -2010,7 +2205,10 @@
       "server_identity_missing": "The VNC service did not provide a verifiable identity.",
       "server_identity_unverifiable": "Could not verify the VNC service identity.",
       "server_identity_rejected": "The remote desktop server identity was rejected.",
-      "clipboard_too_large": "Clipboard text cannot exceed 256 KiB."
+      "clipboard_too_large": "Clipboard text cannot exceed 256 KiB.",
+      "clipboard_failed": "Text clipboard sync failed. No paste shortcut was sent. Copy the text again and retry.",
+      "clipboard_unavailable": "Text clipboard is unavailable. Take control and check that the remote desktop allows clipboard redirection.",
+      "clipboard_timeout": "The remote clipboard did not confirm in time. No paste shortcut was sent. Check the connection and retry."
     },
     "status": {
       "connecting": "Establishing connection",
@@ -3743,7 +3941,8 @@
         "empty": "No file access available",
         "binding": "Bound SSH profile",
         "boundTo": "Bound to {{name}}",
-        "bindingHint": "SFTP references an SSH profile without copying connection settings. Rebinding affects newly opened file sessions only.",
+        "bindingHint": "Reuses SSH connection and authentication settings. Rebinding affects new file sessions only.",
+        "companionHint": "Created with this SSH profile and shares its connection and authentication settings.",
         "selectSSH": "Select an SSH profile on this host",
         "sshRequired": "Select an available SSH profile",
         "unsupportedEditor": "This version cannot edit the configuration for this file engine",
@@ -3751,7 +3950,16 @@
         "deleteBlocked": "Close {{sessions}} active file session(s) and remove {{agents}} AI assistant session reference(s) before deleting it. Also remove {{mounts}} saved mount references.",
         "deleteDescription": "This deletes the file access profile. Existing sessions are not closed automatically, and references are checked again before deletion.",
         "missingSSH": "SSH profile unavailable",
-        "missingSSHDescription": "The binding is no longer valid. Refresh and inspect this host."
+        "missingSSHDescription": "The linked SSH profile is unavailable. Select another profile.",
+        "sshProfile": "SSH profile",
+        "noSSH": "No SSH profiles available",
+        "noSSHHint": "Add an SSH profile to this host first.",
+        "sections": {
+          "server": "Server connection",
+          "storage": "Storage location",
+          "authentication": "Authentication",
+          "connection": "Connection details"
+        }
       },
       "desktop": {
         "title": "Remote desktop",
@@ -4066,7 +4274,7 @@
       "root_path": "Workspace directory",
       "advanced": "Advanced options",
       "configured": "Configured; leave empty to keep",
-      "authHint": "Uses NTLMv2 credentials and requires message signing. Signing does not imply encryption. An empty domain uses the domain supplied by the server.",
+      "authHint": "Uses NTLMv2 and requires message signing, not encryption. Leave the domain blank to use the server's domain.",
       "errors": {
         "host": "Enter a hostname or IP without a scheme, port, or path.",
         "share": "Enter one share name without a path, reserved characters, or trailing dots or spaces.",
@@ -4088,8 +4296,8 @@
       "configured": "Configured; leave blank to keep",
       "securityOptions": { "none": "FTP · Unencrypted", "explicit_tls": "FTPS · Explicit TLS", "implicit_tls": "FTPS · Implicit TLS" },
       "plainHint": "Plain FTP sends credentials and file contents without encryption. FTPS is recommended.",
-      "tlsHint": "TLS protects both control and data connections using system-trusted server certificates. Passwords are stored encrypted; leave blank when editing to keep the current value.",
-      "writeHint": "Writes and renames recheck the destination but cannot fully prevent concurrent changes by other clients. Choose auto-rename or skip when copying to an existing file. Transactional batch rename is unavailable.",
+      "tlsHint": "TLS protects control and file transfers with server certificate verification. Passwords are encrypted; leave blank to keep.",
+      "writeHint": "Choose auto-rename or skip for existing files. Writes and renames recheck targets but remain subject to concurrent changes. Transactional batch rename is unavailable.",
       "errors": {
         "host": "Enter a domain or IP address without a scheme, port or path.",
         "port": "Enter an integer between 1 and 65535.",
@@ -4104,7 +4312,7 @@
       "username": "Username",
       "password": "Password / app password",
       "configured": "Configured; leave blank to keep",
-      "authHint": "The endpoint may include the WebDAV root path. Uses username and password authentication. Passwords are encrypted locally; leave blank when editing to keep the saved value.",
+      "authHint": "The endpoint may include a root path. Passwords are encrypted; leave blank when editing to keep.",
       "httpHint": "HTTP sends your username, password and file contents without encryption. HTTPS is recommended.",
       "errors": {
         "endpoint": "Enter a full HTTP / HTTPS URL, optionally with a root path, without credentials, query parameters, fragments or non-canonical path segments.",
@@ -5332,11 +5540,63 @@
     }
   },
   "settings": {
+    "screenAnalysis": {
+      "mode": "Analysis mode",
+      "modeHint": "Mode changes save immediately. Inactive parameters are preserved.",
+      "modeDescriptions": {
+        "combined": "Find candidate interactive regions, text and coordinates.",
+        "detector": "Find candidate interactive regions and coordinates.",
+        "ocr": "Recognize text and coordinates."
+      },
+      "defaults": "Default analysis parameters",
+      "defaultsHint": "Press Enter or leave a number field to save. Applies to new analyses; saved workflow parameters stay unchanged.",
+      "detectorSection": "Region detection",
+      "ocrSection": "Text recognition (OCR)",
+      "inactive": "Inactive",
+      "device": "Inference device",
+      "service": "Service status",
+      "runtimeHint": "Shared by screen analysis and workflow text recognition.",
+      "runtimeUnavailable": "Could not load runtime status.",
+      "storageUnavailable": "Could not load storage settings.",
+      "storageUsage": "Storage usage",
+      "storageCapacity": "{{used}} / {{total}} MiB",
+      "recordCount": "Records",
+      "contentUsage": "Analysis content",
+      "pendingUsage": "Files pending cleanup",
+      "databaseDetails": "Database details",
+      "days": "days",
+      "modes": {
+        "combined": "Region detection + OCR",
+        "detector": "Region detection only",
+        "ocr": "Text recognition only"
+      },
+      "title": "Screen analysis",
+      "confidence": "Detection confidence threshold",
+      "confidenceHint": "Greater than 0, up to 1. Higher values retain fewer detected regions.",
+      "image_size": "Detection input size",
+      "image_sizeHint": "320–1920 px, in multiples of 32. Larger inputs usually take longer.",
+      "ocr_enabled": "Text recognition",
+      "detector_enabled": "Region detection",
+      "text_confidence": "Text confidence threshold",
+      "text_confidenceHint": "0–1. Text below the threshold is excluded.",
+      "nms_iou": "Overlap suppression threshold",
+      "nms_iouHint": "0–1. Lower values remove more overlapping regions.",
+      "max_detections": "Region limit",
+      "max_detectionsHint": "1–300 regions. Applies only to region detection.",
+      "ocr_max_side": "Text detection maximum side",
+      "ocr_max_sideHint": "640–1920 px, in multiples of 32. Larger images are reduced for text detection.",
+      "advanced": "Advanced parameters",
+      "reset": "Restore defaults",
+      "reload": "Load latest settings",
+      "invalid": "Enter a value within the range. Image sizes must be multiples of 32.",
+      "saveFailed": "Could not save. Your input is preserved; try again.",
+      "unavailable": "Could not load analysis parameters."
+    },
     "tabModels": "Model providers",
     "groups": {
       "basics": "Preferences",
       "connections": "Connections & terminal",
-      "intelligence": "AI & integrations",
+      "intelligence": "AI & extensions",
       "maintenance": "Data & maintenance"
     },
     "editor": {
@@ -5357,11 +5617,12 @@
       "general": "Appearance, window behavior and system notifications.",
       "shortcuts": "Customize shortcuts for common actions.",
       "terminal": "Terminal appearance and command completion.",
-      "connection": "SSH keepalive and background forward recovery.",
-      "remote-desktop": "RDP session retention, tunnel recovery and file clipboard.",
+      "connection": "Network proxy, SSH keepalive, and background forward reconnection.",
+      "remote-desktop": "Default viewing quality, RDP desktop effects and connection settings.",
       "mount": "Mount cache location and disk usage.",
       "agent": "Default model, runtime behavior and task limits.",
       "models": "Manage providers, credentials and available models.",
+      "screen-analysis": "Configure the runtime, analysis defaults and record retention.",
       "mcp": "MCP service and authorized clients.",
       "audit": "Operation logging and retention.",
       "data": "Back up configuration or restore from a backup.",
@@ -5373,8 +5634,25 @@
     "tabLanguage": "Language",
     "tabTerminal": "Terminal",
     "tabConnection": "Connection",
-    "tabRemoteDesktop": "Remote desktop",
+    "tabRemoteDesktop": "Desktop & remote control",
     "rdpSettings": "Connection & sessions",
+    "aiRuntime": {
+      "serviceShortStates": { "starting": "Starting", "idle": "Not warmed up", "loading": "Loading", "warming": "Warming up", "ready": "Ready", "busy": "Analyzing", "disconnected": "Reconnecting", "maintenance": "Maintenance", "stopping": "Stopping", "failed": "Not ready", "unavailable": "Unavailable" },
+      "serviceStates": { "starting": "Starting service and detecting environment…", "idle": "Models will load and warm up automatically before analysis", "loading": "Loading models…", "warming": "Warming up models…", "ready": "Models ready", "busy": "Analyzing screen…", "disconnected": "Service disconnected; reconnecting…", "maintenance": "Maintaining inference environment…", "stopping": "Service stopping", "failed": "Inference preparation failed", "unavailable": "Service status unavailable" },
+      "preparationFailed": "Warmup request failed; click Analyze screen to retry",
+      "serviceFailed": "Check AI service logs, models and runtime, then restart the service after resolving the issue. Other features remain available.",
+      "cpuDescription": "A CPU inference runtime is included.",
+      "title": "Runtime", "cpu": "CPU", "gpu": "NVIDIA GPU", "unknown": "Device not confirmed",
+      "description": "A CPU runtime is included. GPU support requires a {{size}} GiB download and replaces the current components.",
+      "download": "Download GPU components", "check": "Check GPU", "development": "Component installation is unavailable in development mode.",
+      "requirements": "GPU acceleration requires an NVIDIA GPU and a CUDA 12.8 compatible driver. Version 570.65 or newer is recommended.",
+      "writing": "Installing; cancellation is unavailable. Keep the application open.",
+      "failed": "Runtime maintenance failed", "repair": "Components are incomplete. Run the Termous installer again to repair the CPU runtime.",
+      "retry": "Check your network, disk space and permissions, then retry.",
+      "fallback": "GPU checks failed. Analysis uses CPU; GPU components remain installed. Check again after updating the driver.",
+      "ready": "GPU and model checks passed.",
+      "phases": { "preflight": "Checking environment…", "downloading": "Downloading GPU components…", "waiting": "Waiting for the current analysis…", "preparing": "Validating components and requesting permission…", "installing": "Installing GPU components…", "checking": "Checking CPU, GPU and models…", "complete": "Complete", "failed": "Failed", "cancelled": "Cancelled" }
+    },
     "rdpFileExchange": "File exchange",
     "systemFileClipboard": "System file clipboard",
     "systemFileClipboardHint": "Copy and paste files and folders between this device and the RDP desktop.",
@@ -5712,6 +5990,23 @@
     },
     "tabAgent": "AI assistant",
     "agent": {
+      "hostDesktop": {
+        "title": "Local desktop permissions",
+        "description": "Off by default. Skipping approvals does not grant these permissions.",
+        "details": "Permission details",
+        "dependencies": "Screen capture requires desktop discovery. Mouse and keyboard control requires both. Related permissions adjust together.",
+        "read": "Desktop discovery",
+        "readHint": "List displays and windows on this device.",
+        "capture": "Screen capture",
+        "captureHint": "Take screenshots to view screen content.",
+        "control": "Mouse and keyboard",
+        "controlHint": "Allow clicks, key presses and text input.",
+        "secureCapture": "View secure desktops",
+        "secureCaptureHint": "Allow viewing lock, sign-in and UAC screens. Off by default.",
+        "secureControl": "Control secure desktops",
+        "secureControlHint": "Allow secure desktop and elevated window input with a valid control grant.",
+        "focusHint": "Keyboard input goes to the active window."
+      },
       "configuration": {
         "behavior": "Runtime behavior",
         "invalidConcurrency": "Choose between 1 and 8 concurrent sessions.",
@@ -6076,7 +6371,7 @@
         "modelCapabilityConflict": "This model is still used by a default or session with reasoning enabled. Turn reasoning off there before disabling the model capability."
       }
     },
-    "tabMcp": "MCP",
+    "tabMcp": "MCP service",
     "mcp": {
       "skills": {
         "hint": "The built-in assistant already includes these skills. External clients still need an MCP connection and permissions.",
@@ -6134,6 +6429,8 @@
       "unavailable": "MCP service status is temporarily unavailable",
       "operationFailed": "The MCP setting could not be changed",
       "enable": "Enable MCP service",
+      "analysisDeleteTitle": "Delete analysis record?",
+      "analysisDeleteDescription": "Delete this terminal record. Images and results referenced by other records remain. No desktop input is sent.",
       "enableHint": "The service uses the current Core address and a separate client token.",
       "endpoint": "Connection URL",
       "endpointHint": "The Core port may change after Termous restarts. Update your MCP client with the latest address shown here. After creating or rotating a token, you can copy the complete address-and-token configuration.",
@@ -6154,6 +6451,15 @@
         "disabled": "Disabled"
       },
       "scope": {
+        "host-desktop_read": "Discover local sources",
+        "host-desktop_capture": "Read local desktop",
+        "host-desktop_control": "Control local desktop",
+        "host-desktop_secure-capture": "View secure desktops",
+        "host-desktop_secure-control": "Control secure desktops",
+        "screen_analyses_read": "Read screen analyses",
+        "screen_analyses_create": "Create screen analyses",
+        "screen_analyses_delete": "Delete analysis records",
+        "desktop_workflows_exchange": "Workflow import and export",
         "desktop_workflows_read": "Read scripts",
         "desktop_workflows_write": "Edit scripts",
         "desktop_workflows_run": "Run scripts",
@@ -6201,6 +6507,15 @@
         "snippets_write": "Manage code snippets"
       },
       "scopeDescription": {
+        "host-desktop_read": "List displays and windows without reading pixels.",
+        "host-desktop_capture": "Read this device’s desktop independently of protocol desktop permissions.",
+        "host-desktop_control": "Requires capture permission. Input follows system focus; display selection does not isolate apps.",
+        "host-desktop_secure-capture": "View lock, sign-in and UAC screens; requires ordinary capture.",
+        "host-desktop_secure-control": "Control secure desktops and elevated windows; requires control and secure capture.",
+        "screen_analyses_read": "Read local analysis history, detected regions, recognized text and result images.",
+        "screen_analyses_create": "Analyze your attached desktop or reanalyze saved images; no input is sent.",
+        "screen_analyses_delete": "Delete terminal records according to approval policy; shared content is retained while referenced.",
+        "desktop_workflows_exchange": "Import and export workflow configuration files on the Core host, including template PNG export, under the current approval policy. Import commit also requires workflow write permission; image export requires capture permission.",
         "desktop_workflows_read": "Read local scripts, versions and reports.",
         "desktop_workflows_write": "Edit scripts and templates without approval.",
         "desktop_workflows_run": "Run a pinned version; control your own runs.",
@@ -6248,6 +6563,8 @@
         "snippets_write": "Create, update, delete, or reorder code snippets and groups; by default, every request requires approval."
       },
       "permissionGroup": {
+        "host_desktop": "Local desktop",
+        "screen_analyses": "Screen analyses",
         "desktop_workflows": "Desktop scripts",
         "desktops": "Remote desktops",
         "hosts": "Hosts and discovery",
@@ -6263,6 +6580,8 @@
         "snippets": "Code snippets"
       },
       "permissionGroupHint": {
+        "host_desktop": "Local desktop",
+        "screen_analyses": "Region detection, OCR, result images and targeted queries",
         "desktop_workflows": "Script management, image templates and bounded runs",
         "desktops": "RDP / VNC observation and bounded automation control",
         "hosts": "View saved hosts and network reachability",
@@ -6721,7 +7040,7 @@
     "steps": {
       "welcome": {
         "title": "Welcome to Termous",
-        "description": "Manage terminals, remote desktops and files in one workspace, with AI assistance and desktop automation. This short overview covers the main entry points; focused guides explain the details."
+        "description": "Use terminals, remote desktops, files and the AI assistant in one app. Explore the main entry points, then choose a topic for details."
       },
       "vaultNav": {
         "title": "Manage credentials",
@@ -6760,8 +7079,8 @@
         "description": "Use session tabs to switch between local terminals and SSH sessions, then read output, enter commands, and handle daily remote work in the central terminal."
       },
       "workbenchTools": {
-        "title": "Explore the right-side toolbox",
-        "description": "The toolbox provides files, system monitoring, snippets, and alias management for the current session. You can also reference selected terminal text in the AI assistant together with its SSH connection for follow-up questions."
+        "title": "Session tools",
+        "description": "The right toolbar provides files, monitoring, snippets and aliases. Reference selected terminal text and its SSH connection in the AI assistant."
       },
       "files": {
         "title": "Manage remote files",
@@ -6788,108 +7107,118 @@
         "description": "Running instances show transferred and pending bytes, distinguishing transfer from finalization. The server may still need to confirm completion after transfer. Upload details explain the progress basis and any compatibility writeback. Sync, restart, or close instances here, and open error details when needed."
       },
       "forwards": {
-        "title": "Manage port forwarding",
-        "description": "Create local, remote, or dynamic forwarding, save reusable profiles, or open temporary tunnels. Enable automatic connection at startup when needed, and check runtime status, traffic, and connection failures here."
+        "title": "Port forwarding",
+        "description": "Create local, remote or dynamic forwarding with saved profiles or temporary tunnels. Check status, traffic and connection errors in the list."
       },
       "snippets": {
         "title": "Reuse common commands",
-        "description": "The Snippets page organizes commands by group and tag, supports variables and risk detection, and makes them ready to insert or run from the workbench."
+        "description": "Organize commands and variables in Snippets, then find them by group or tag. Insert or run them in a terminal, with risk checks before execution."
       },
       "audit": {
-        "title": "Review AI and MCP operations",
-        "description": "The Audit page records operations from the built-in AI assistant and external MCP clients. Filter by time, source, outcome, or keyword, then open details to review approvals, execution results, and related events."
+        "title": "Review action audit",
+        "description": "Filter AI and MCP actions by time, source or keyword. Expand a record to review the request and execution result."
       },
       "settings": {
         "title": "Adjust preferences",
-        "description": "Settings opens as a dialog. General, terminal and connection preferences apply automatically. Pages such as AI assistant and Model services use the Save action at the bottom; resource operations have their own confirmation."
+        "description": "Manage connections, the AI assistant and external extensions in Settings. Pages that require saving show Save changes at the bottom."
       },
       "settingsTerminal": {
-        "title": "Tune your terminal",
-        "description": "Adjust fonts, cursor, theme and scrollback, and choose completion sources. AI command suggestions require an available model in Model services."
+        "title": "Terminal preferences",
+        "description": "Adjust fonts, cursor, scrollback and completion sources. AI command suggestions require an available model in Model providers."
       },
       "settingsMount": {
         "title": "Manage the local mount cache",
         "description": "Set the cache directory, capacity limit, and reserved free space, and inspect clean, private reserved, and reclaimable usage. Clear unused cache skips content in use. Directory changes apply after Core restarts; the old directory is not moved or deleted automatically."
       },
       "settingsMcp": {
-        "title": "Control tool access through MCP",
-        "description": "Use the Termous endpoint and separate access tokens to connect external AI clients. Assign tool permissions and approval policies to control access to hosts, files, and remote operations."
+        "title": "Connect external AI clients",
+        "description": "Configure the Termous MCP endpoint and an access token in your AI client. Set tool permissions and approval rules for each client."
       },
       "settingsSkills": {
-        "title": "Install Skills for external AI clients",
-        "description": "In the desktop app, choose Install Skills, select Codex, Claude Code, or a custom directory, then review the destination and contents. Existing names are skipped by default. Reload Skills in your client and configure MCP access separately. The built-in assistant already includes these Skills."
+        "title": "Install client Skills",
+        "description": "Choose a client or directory from Install Skills, then reload Skills in your client. Configure MCP access and permissions separately."
       },
       "settingsAgent": {
-        "title": "Set assistant preferences",
-        "description": "Choose a default model and adjust context and session preferences, then use Save at the bottom. Manage service URLs, API keys and model lists separately in Model services."
+        "title": "Assistant preferences",
+        "description": "Choose the default model and adjust context and session preferences. Select Save changes at the bottom when finished."
       },
       "settingsData": {
         "title": "Back up your workspace",
         "description": "Export hosts, credentials, settings, and local resources as an encrypted backup. Preview an import before choosing replacement, merge, or selective restore, then restart after applying it."
       },
       "finish": {
-        "title": "Ready to explore",
-        "description": "You've explored the main entry points. Choose Finish & return to browse guides on connections, desktop automation, AI assistance and more, or close the tour to get started."
+        "title": "Get started",
+        "description": "You have explored the main entry points. Continue with another topic, or reopen the tour from Help at any time."
       },
       "desktop": {
         "title": "Remote desktop workspace",
-        "description": "Manage RDP and VNC sessions here. Add a desktop profile to a host, then select it using Connect or the session ＋ menu. Desktop automation is also accessible before connecting."
+        "description": "Manage RDP and VNC sessions. Add a desktop profile to a host, then open it from Connect or the + in the session bar."
       },
       "desktopConnect": {
-        "title": "Choose a desktop profile",
-        "description": "Connect opens the desktop connection page, prioritizing hosts with desktop profiles. The session ＋ menu lists available profiles; hover a profile to inspect its connection details."
+        "title": "Connect and switch desktops",
+        "description": "Connect opens the desktop connection page; the session bar’s + lists saved profiles. Switch between session tabs to change desktops."
       },
       "desktopTools": {
-        "title": "Desktop tools & retained sessions",
-        "description": "Desktop tools provides file and automation entry points. Reopen retained sessions after closing their tabs. Available tools depend on the protocol and connection state."
+        "title": "Desktop tools",
+        "description": "Open file exchange, retained sessions or desktop automation from Desktop tools. Available actions depend on the protocol and connection state.",
+        "fallbackDescription": "Open a remote desktop session to use file exchange and session actions in Desktop tools. Desktop automation is available from the same menu."
       },
       "desktopFiles": {
-        "title": "RDP file exchange",
-        "description": "With an RDP connection, open Files from Desktop tools for file exchange and clipboard access. Ctrl+V accepts files from the local clipboard. The bottom transfer entry opens progress and shows the rate during transfers."
+        "title": "File exchange",
+        "description": "After connecting through RDP, open file exchange from Desktop tools. The bottom entry shows transfer progress and speed.",
+        "fallbackDescription": "File exchange requires a connected RDP session. Open it from Desktop tools and check transfer progress at the bottom."
       },
       "automationEntry": {
         "title": "Open desktop automation",
-        "description": "Open Desktop automation from Desktop tools to build and run desktop tasks. Choose the Desktop automation guide to explore templates and execution steps. The tour never creates templates or starts a run."
+        "description": "Open Desktop automation from Desktop tools to build workflows and review execution history.",
+        "fallbackDescription": "Open Desktop automation from Desktop tools on the remote desktop page. Managing workflows does not require a connected desktop."
       },
       "automationLibrary": {
-        "title": "Templates & run history",
-        "description": "The collapsible left panel contains templates and run history. Select or create a template to display its steps and configuration; the overview appears when none is selected."
+        "title": "Workbench and workflow library",
+        "description": "Select or create a workflow in the library, and use search to find it quickly. Collapse the list for more editing space.",
+        "fallbackDescription": "Manage workflows in the automation Workbench. If the workspace is detached, use its separate window to view the library."
       },
       "automationEditor": {
-        "title": "Compose task steps",
-        "description": "After opening a template, add, reorder and configure steps, and manage parameters in Flow settings. Validate checks the configuration, Save keeps changes, and Run asks for a target and parameters. The guide performs none of these actions."
+        "title": "Edit a workflow",
+        "description": "Add and arrange steps, configure parameters, then save the workflow. Confirm the target and run parameters before execution.",
+        "fallbackDescription": "Open or create a workflow in the Workbench to edit steps. The tour preserves existing drafts and does not create a sample workflow."
       },
       "automationPreview": {
-        "title": "Select points & regions",
-        "description": "With a template and connected desktop selected, refresh the screenshot to pick points or regions. Scroll to zoom, Ctrl+drag to pan, and drag regions directly to adjust them. Ctrl+Z / Ctrl+Shift+Z undo and redo; Delete removes a selection. Zoom leaves configuration coordinates unchanged. New captures are paused during the guide."
+        "title": "Select points and regions",
+        "description": "Choose an available desktop and refresh its screenshot to set coordinates, templates or regions. Zooming does not change image coordinates.",
+        "fallbackDescription": "Open a workflow and select an available desktop to capture its screen and choose points or regions."
       },
       "automationHistory": {
-        "title": "Review task runs",
-        "description": "Switch to run history here. Select a run to inspect its state, step details, keys, input and screenshots, with controls to expand or collapse all details. History and template editing share the same workspace."
+        "title": "Execution history",
+        "description": "Select a run in Execution history to view step states, diagnostics and retained screenshots. Return to the Workbench to continue editing.",
+        "fallbackDescription": "Execution history contains step states and diagnostics. If the workspace is detached, view it in its separate window."
       },
       "automationWindow": {
-        "title": "Use a separate window",
-        "description": "On desktop, open automation in a separate window and return it to the main interface when needed. Desktop sessions stay in place. Use Back to remote desktop to view them."
+        "title": "Detach automation",
+        "description": "Open automation in a separate window while keeping workflows and execution state. Focus that window or return it to the main app at any time.",
+        "fallbackDescription": "The desktop app supports a separate automation window. Use the placeholder to focus it or bring it back when already detached."
       },
       "settingsModels": {
-        "title": "Prepare model services",
-        "description": "Add a service, enter its API URL and key, and choose or edit available models, then Save at the bottom. Select the assistant’s default model and preferences in the next step."
+        "title": "Configure model providers",
+        "description": "Configure endpoints and models in Model providers, then select Save changes at the bottom. Choose the default model in AI assistant settings."
       },
       "agent": {
-        "title": "AI assistant workspace",
-        "description": "When the assistant is not ready, this page lists the remaining setup tasks. Complete model and runtime setup to start chatting. The guide does not prepare the environment, send messages or call models."
+        "title": "AI assistant sessions",
+        "description": "Organize conversations, resources and tasks by session. Configure an available model before starting a conversation."
       },
       "agentContext": {
-        "title": "Reference resources & context",
-        "description": "When ready, reference SSH, file or desktop resources in the composer, or bring in text selected in a terminal. Type / to view shortcuts and provide a clear task target and context."
+        "title": "Resources and attachments",
+        "description": "Link SSH, file or desktop resources and add attachments in the composer. It also accepts text referenced from a terminal.",
+        "fallbackDescription": "Once the assistant is ready, link resources and add attachments in the session composer. Complete the setup shown on the page first if needed."
       },
       "agentApproval": {
-        "title": "Review operations before approval",
-        "description": "Operations requiring approval show their target and details before continuing. Review pending approvals in the message center and inspect results in Audit. Grant access according to the task."
+        "title": "Action approvals",
+        "description": "Actions requiring approval show their target and details before proceeding. Handle pending requests in the message center."
       },
       "agentWindow": {
-        "title": "Work in a separate assistant window",
-        "description": "On desktop, a ready assistant can open separately and return to the main interface while keeping the conversation. Complete setup first if it is not ready. Remote-device assistants follow the remote device’s readiness state."
+        "title": "Detach the assistant",
+        "description": "Open the assistant in a separate window while keeping the current conversation and tasks. Focus that window or return it to the main app.",
+        "fallbackDescription": "The desktop app supports a separate assistant window. Complete setup first if needed; when detached, use the placeholder to focus it or bring it back."
       },
       "account": {
         "title": "Account & devices",
@@ -6897,28 +7226,92 @@
       },
       "cloudSync": {
         "title": "Choose encrypted sync data",
-        "description": "After signing in and establishing device trust, choose data in Sync and review its status and conflicts. Sensitive data is end-to-end encrypted. The guide does not enable sync or upload anything."
+        "description": "After signing in and establishing device trust, choose data in Sync and review its status and conflicts. Sensitive data is end-to-end encrypted. The guide does not enable sync or upload anything.",
+        "fallbackDescription": "After signing in and establishing device trust, choose data in Sync and review its status and conflicts. Sensitive data is end-to-end encrypted. The guide does not enable sync or upload anything."
       },
       "cloudSecurity": {
         "title": "Manage account security",
-        "description": "After signing in, use Security for two-factor authentication, recovery and device trust. Each security operation has its own confirmation flow. Keep recovery information safe; the guide does not read or change it."
+        "description": "After signing in, use Security for two-factor authentication, recovery and device trust. Each security operation has its own confirmation flow. Keep recovery information safe; the guide does not read or change it.",
+        "fallbackDescription": "After signing in, use Security for two-factor authentication, recovery and device trust. Each security operation has its own confirmation flow. Keep recovery information safe; the guide does not read or change it."
       },
       "remoteDevices": {
-        "title": "Open device remote control",
-        "description": "After signing in, choose a trusted, online device in Devices to open remote control. Access depends on the remote device’s settings and availability, separately from host SSH or RDP profiles."
+        "title": "Connect to a device",
+        "description": "Choose a trusted, online device under Devices to open remote control. The remote device must allow access; host SSH and RDP profiles are separate.",
+        "fallbackDescription": "After signing in, choose a trusted, online device under Devices. The remote device must allow remote control first."
       },
       "remotePermissions": {
-        "title": "Limit remote access",
-        "description": "The controlled device manages access permissions. Enable only the features and file roots you need; remote AI access also requires its own permission. The guide does not grant access or connect to a device."
+        "title": "Remote access scope",
+        "description": "Choose full control or custom access. Local file access remains limited to authorized folders.",
+        "fallbackDescription": "After signing in, choose full control or custom access in this device’s access settings. File access still requires authorized folders."
       },
       "notifications": {
         "title": "Find results & approvals",
         "description": "The message center collects task results, file transfers and pending approvals. Open a message to visit its content. Enabled system notifications appear only when the entire app is unfocused, not when switching between Termous windows."
+      },
+      "desktopQuality": {
+        "title": "Connection status",
+        "description": "Check connection quality, latency and transfer rates. Available metrics depend on the connection type.",
+        "fallbackDescription": "Connection status and transfer metrics appear at the bottom after a desktop connects."
+      },
+      "settingsDesktop": {
+        "title": "Desktop display settings",
+        "description": "Adjust display, scaling and interaction preferences in Desktop & remote control settings. Some connection options apply to new connections."
+      },
+      "automationAnalysis": {
+        "title": "Screen analysis",
+        "description": "Use Screen analysis to identify desktop content and apply results to step coordinates, templates or regions. Configure an analysis service first.",
+        "fallbackDescription": "Open Screen analysis at the top of Desktop automation. If the workspace is detached, use its separate window."
+      },
+      "automationExchange": {
+        "title": "Import and export",
+        "description": "Import or export workflows from Actions. Use ZIP or a folder to preserve image assets.",
+        "fallbackDescription": "Import a workflow from the Workbench overview. After opening a saved workflow, use Actions to import or export."
+      },
+      "agentHostDesktop": {
+        "title": "Host desktop permissions",
+        "description": "Allow the assistant to view or control this computer as needed. These settings enable capabilities; individual actions still follow approval rules.",
+        "fallbackDescription": "Manage host desktop permissions under AI assistant in Settings. View and control options become available when the page is ready."
+      },
+      "agentWorkspace": {
+        "title": "Local workspace",
+        "description": "Choose the local working directory for this session. File and command tools use it to resolve relative paths.",
+        "fallbackDescription": "In an available session, use the composer’s folder icon to choose a local working directory. Use the separate window if the assistant is detached."
+      },
+      "agentExtensions": {
+        "title": "Session extensions",
+        "description": "Choose MCPs and Skills for this session. Add and enable sources in Extensions in Settings first.",
+        "fallbackDescription": "Once the assistant and session are ready, use the composer’s extensions icon to choose MCPs and Skills. Manage sources in Extensions."
+      },
+      "extensionsMcp": {
+        "title": "Add an MCP",
+        "description": "Add a configuration or import JSON. Recognized single-package npx commands support managed installation; other commands use the local environment.",
+        "fallbackDescription": "Add a configuration or import JSON under Extensions → MCP in Settings. Managed installation supports recognized single-package npx commands."
+      },
+      "extensionsInstallation": {
+        "title": "Installation & startup",
+        "description": "Set the managed installation root and timeouts. Changing the root affects new installations; existing ones keep their original paths.",
+        "fallbackDescription": "Expand Installation & startup at the bottom of Extensions → MCP. Changing the root does not move existing installations."
+      },
+      "extensionsSkills": {
+        "title": "Import Skills",
+        "description": "Enable imported Skills in a session. Bundled scripts run through the local command tool and follow its approval rules.",
+        "fallbackDescription": "Import resources under Extensions → Skills, then enable them in a session. Reading a Skill does not run scripts or install dependencies."
+      },
+      "extensionsSearch": {
+        "title": "Web search",
+        "description": "Choose Termous cloud service or a self-hosted SearXNG to retrieve web links and snippets. Cloud search requires sign-in.",
+        "fallbackDescription": "Choose Termous cloud service or a self-hosted SearXNG under Extensions → Web search. Cloud search requires sign-in."
+      },
+      "settingsNetwork": {
+        "title": "Network proxy",
+        "description": "Applies to MCP and local commands for new tasks and connections. It does not affect web search.",
+        "fallbackDescription": "Configure the network proxy under Connection in Settings. It applies to MCP and local commands and does not affect web search."
       }
     },
-    "chooseTopic": "Start with the basics or choose a topic. Return to this list during any guide, or close it and reopen it from Help.",
+    "startBasics": "Start tour",
+    "revisitBasics": "View again",
+    "browseTopics": "Explore by topic",
     "topicCompleted": "You've explored {{topic}}",
-    "continueTopic": "Choose another topic, or close the tour to get started.",
     "completed": "Completed",
     "stepCount": "{{count}} steps",
     "topics": {
@@ -6936,15 +7329,15 @@
       },
       "desktop": {
         "title": "Remote desktop",
-        "description": "Desktop profiles, tools and RDP file exchange"
+        "description": "Desktop connections, file exchange and display settings"
       },
       "automation": {
         "title": "Desktop automation",
-        "description": "Templates, steps, screen selection and run history"
+        "description": "Workflow editing, analysis, import, export and history"
       },
       "agent": {
         "title": "AI assistant",
-        "description": "Models, resource references and approvals"
+        "description": "Models, session resources, workspaces and approvals"
       },
       "cloud": {
         "title": "Sync & backup",
@@ -6956,7 +7349,11 @@
       },
       "tools": {
         "title": "Tools & integrations",
-        "description": "Session tools, forwarding, snippets, MCP and audit"
+        "description": "Terminal tools, port forwarding and external AI clients"
+      },
+      "extensions": {
+        "title": "Extensions & search",
+        "description": "Add MCPs, import Skills and configure web search"
       }
     }
   },

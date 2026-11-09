@@ -12,8 +12,9 @@ export class AgentSurfaceAdapter {
   retainResponse(packet: DetachedPacket) {
     if (packet.operation === 'binary' && isAgentDetachedBinary(packet.payload)) return packet.payload.kind === 'attach'
     if (packet.operation === 'command' && isAgentDetachedCommand(packet.payload)) {
-      // 输入另有单调序号保护；频繁输入无需占用整代业务命令的去重表。
-      return !['workspace.onDraftChange', 'workspace.onQueuedTurnEditChange'].includes(packet.payload.name)
+      // 输入另有序号保护，纯正文读取可安全重读；不将复制的长正文保留整代连接。
+      return !['workspace.onDraftChange', 'workspace.onQueuedTurnEditChange',
+        'workspace.onLoadMessageText', 'archive.onLoadMessageText', 'workspace.onLoadFileReview', 'archive.onLoadFileReview'].includes(packet.payload.name)
     }
     return true
   }

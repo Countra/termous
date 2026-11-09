@@ -1,3 +1,5 @@
+import type { HostDesktopTarget } from '#common/contracts'
+
 export const agentSlashCommandIds = ['session', 'profile', 'workflow', 'compact'] as const
 export type AgentSlashCommandId = (typeof agentSlashCommandIds)[number]
 
@@ -5,6 +7,7 @@ export const agentSlashResourceKinds = ['ssh', 'file', 'desktop', 'workflow'] as
 export type AgentSlashResourceKind = (typeof agentSlashResourceKinds)[number]
 
 export const agentSlashCandidateKinds = [
+  'host_desktop',
   'ssh_session',
   'file_session',
   'ssh_profile',
@@ -101,7 +104,7 @@ export interface AgentSlashCandidateCatalog {
   session: {
     ssh: AgentSlashSSHSessionCandidate[]
     file: AgentSlashFileSessionCandidate[]
-    desktop?: AgentSlashDesktopSessionCandidate[]
+    desktop?: (AgentSlashDesktopSessionCandidate | AgentSlashHostDesktopCandidate)[]
   }
   profile: {
     ssh: AgentSlashSSHProfileCandidate[]
@@ -123,7 +126,12 @@ export interface AgentSlashWorkflowCandidate extends AgentSlashCandidateBase {
   kind: 'desktop_workflow'; resource_kind: 'workflow'; workflow_id: string
   workflow_name: string; workflow_version: number; status: 'ready' | 'unavailable'
 }
-export type AgentSlashDesktopCandidate = AgentSlashDesktopSessionCandidate | AgentSlashDesktopProfileCandidate | AgentSlashWorkflowCandidate
+export interface AgentSlashHostDesktopCandidate extends AgentSlashCandidateBase {
+  kind: 'host_desktop'; resource_kind: 'desktop'; desktop_target: HostDesktopTarget
+  status: 'ready' | 'unavailable'
+  host_id?: never; host_name?: never; profile_id?: never; profile_name?: never
+}
+export type AgentSlashDesktopCandidate = AgentSlashDesktopSessionCandidate | AgentSlashDesktopProfileCandidate | AgentSlashWorkflowCandidate | AgentSlashHostDesktopCandidate
 
 export function agentSlashKindsForCommand(command: AgentSlashCommandId): AgentSlashResourceKind[] {
   return command === 'workflow' ? ['workflow'] : command === 'compact' ? [] : ['ssh', 'file', 'desktop']

@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react'
-import { App, Button, ConfigProvider, Popconfirm, Popover } from 'antd'
+import { App, Button, ConfigProvider, Popconfirm, Popover, Tooltip } from 'antd'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
-import { termousPopconfirmProps } from '#shared/ui'
+import { termousPopconfirmProps, termousPopupProps } from '#shared/ui'
 import { TermousUiProvider } from './TermousUiProvider'
 
 function WithoutMotion({ children }: { children: ReactNode }) {
@@ -31,6 +31,8 @@ test.each(['dark', 'light'] as const)('%s 主题下二次确认自动使用公�
   const popup = await findVisiblePopup()
   expect(popup.closest('.ant-popover')).toHaveClass(termousPopconfirmProps.classNames.root, 'feature-confirm')
   expect(popup).toHaveClass(termousPopconfirmProps.classNames.container, 'feature-container')
+  expect(popup.closest('.ant-popover')).toHaveClass(termousPopupProps.classNames.root)
+  expect(popup).toHaveClass(termousPopupProps.classNames.container)
   expect(within(popup).getByRole('button', { name: '删除' })).toHaveClass('ant-btn-dangerous')
   expect(confirm).not.toHaveBeenCalled()
   await user.click(within(popup).getByRole('button', { name: '取消' }))
@@ -60,15 +62,34 @@ test('显式公共样式与全局配置兼容，异步确认完成前保持等�
   await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument())
 })
 
-test('二次确认的全局配置不附加到普通 Popover', async () => {
+test('普通浮层继承公共阴影样式，保留业务样式且不混入二次确认外观', async () => {
   const user = userEvent.setup()
   render(<TermousUiProvider theme="dark" language="zh-CN">
-    <Popover trigger="click" content="普通内容"><Button>展开</Button></Popover>
+    <Popover trigger="click" content="普通内容" classNames={{ root: 'feature-popover', container: 'feature-surface' }}>
+      <Button>展开</Button>
+    </Popover>
   </TermousUiProvider>, { wrapper: WithoutMotion })
   await user.click(screen.getByRole('button', { name: '展开' }))
   const popup = await findVisiblePopup()
+  expect(popup.closest('.ant-popover')).toHaveClass(termousPopupProps.classNames.root, 'feature-popover')
+  expect(popup).toHaveClass(termousPopupProps.classNames.container, 'feature-surface')
   expect(popup.closest('.ant-popover')).not.toHaveClass(termousPopconfirmProps.classNames.root)
   expect(popup).not.toHaveClass(termousPopconfirmProps.classNames.container)
+})
+
+test.each(['dark', 'light'] as const)('%s 主题的悬浮提示保留公共和业务面板样式', async (theme) => {
+  const user = userEvent.setup()
+  render(<TermousUiProvider theme={theme} language="zh-CN">
+    <Tooltip title="操作说明" classNames={{ root: 'feature-tooltip', container: 'feature-tooltip-surface' }}>
+      <Button>查看说明</Button>
+    </Tooltip>
+  </TermousUiProvider>, { wrapper: WithoutMotion })
+  await user.hover(screen.getByRole('button', { name: '查看说明' }))
+  const popup = await findVisiblePopup()
+  expect(popup.closest('.ant-tooltip')).toHaveClass(termousPopupProps.classNames.root, 'feature-tooltip')
+  expect(popup).toHaveClass(termousPopupProps.classNames.container, 'feature-tooltip-surface')
+  await user.unhover(screen.getByRole('button', { name: '查看说明' }))
+  await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument())
 })
 
 test('受控确认保留禁用按钮状态，不触发确认或取消回调', async () => {

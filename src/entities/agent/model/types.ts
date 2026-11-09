@@ -1,4 +1,4 @@
-import type { AgentProgressActivity, AgentProgressData } from '#common/contracts'
+import type { AgentProgressActivity, AgentProgressData, HostDesktopTarget } from '#common/contracts'
 export const agentApiModes = ['responses', 'chat_completions'] as const
 export type AgentApiMode = (typeof agentApiModes)[number]
 
@@ -19,11 +19,9 @@ export interface AgentSettings {
   global_max_output_tokens: number
   context_compaction_threshold_percent: number
   max_concurrent_runs: number
-    connect_ssh_profile_on_bind: boolean
+  connect_ssh_profile_on_bind: boolean
   show_turn_token_usage: boolean
   revision: number
-  created_at: string
-  updated_at: string
 }
 
 export interface AgentReadinessComponent {
@@ -32,6 +30,7 @@ export interface AgentReadinessComponent {
 }
 
 export interface AgentMcpPolicy {
+  host_desktop?: { read: boolean; capture: boolean; control: boolean; secure_capture?: boolean; secure_control?: boolean }
   client_id: string
   approval_bypass: boolean
   scope_count: number
@@ -202,7 +201,7 @@ export type AgentMessageRole = (typeof agentMessageRoles)[number]
 export const agentMessageStatuses = ['pending', 'streaming', 'completed', 'failed', 'interrupted'] as const
 export type AgentMessageStatus = (typeof agentMessageStatuses)[number]
 
-export const agentMessagePartKinds = ['text', 'reasoning', 'tool_call', 'tool_result'] as const
+export const agentMessagePartKinds = ['text', 'reasoning', 'tool_call', 'tool_result', 'task_result'] as const
 export type AgentMessagePartKind = (typeof agentMessagePartKinds)[number]
 
 export const agentAttachmentStates = ['ready', 'reserved', 'bound'] as const
@@ -235,11 +234,12 @@ export interface AgentSourceContext {
   summary: string
 }
 
-export const agentResourceKinds = ['ssh_session', 'ssh_profile', 'file_profile', 'desktop_session', 'desktop_profile', 'desktop_workflow'] as const
+export const agentResourceKinds = ['ssh_session', 'ssh_profile', 'file_profile', 'desktop_session', 'desktop_profile', 'desktop_workflow', 'host_desktop'] as const
 export type AgentResourceKind = (typeof agentResourceKinds)[number]
 export type AgentResourceSlot = 'ssh' | 'file' | 'desktop' | 'workflow'
 
 export type AgentResourceReference =
+  | { kind: 'host_desktop'; desktop_target: HostDesktopTarget }
   | { kind: 'ssh_session'; session_id: string }
   | { kind: 'ssh_profile'; ssh_profile_id: string }
   | { kind: 'file_profile'; file_access_profile_id: string }
@@ -252,6 +252,7 @@ interface AgentResourceBindingBase {
 }
 
 export interface AgentMessageResource {
+  desktop_target?: HostDesktopTarget
   version?: number
   kind: AgentResourceKind
   id: string
@@ -260,6 +261,7 @@ export interface AgentMessageResource {
 }
 
 export type AgentResourceBinding = AgentResourceBindingBase & (
+  | { kind: 'host_desktop'; desktop_target: HostDesktopTarget; host_id?: never; host_name?: never }
   | { kind: 'desktop_session'; session_id: string; connection_generation: number; desktop_profile_id: string; desktop_profile_name: string; host_id: string; host_name: string; protocol: 'rdp' | 'vnc' }
   | { kind: 'desktop_profile'; desktop_profile_id: string; desktop_profile_name: string; host_id: string; host_name: string; protocol: 'rdp' | 'vnc' }
   | { kind: 'desktop_workflow'; workflow_id: string; workflow_name: string; workflow_version: number; host_id?: never; host_name?: never }
@@ -291,10 +293,11 @@ export interface AgentFileResourceState {
   status: 'ready' | 'unavailable'
 }
 
-export type AgentDesktopResourceBinding = Extract<AgentResourceBinding, { kind: 'desktop_session' | 'desktop_profile' | 'desktop_workflow' }>
+export type AgentDesktopResourceBinding = Extract<AgentResourceBinding, { kind: 'desktop_session' | 'desktop_profile' | 'desktop_workflow' | 'host_desktop' }>
 export type AgentDesktopResourceState = Omit<Extract<AgentDesktopResourceBinding, { kind: 'desktop_session' }>, 'bound_at'> & { status: 'ready' | 'unavailable' }
   | Omit<Extract<AgentDesktopResourceBinding, { kind: 'desktop_profile' }>, 'bound_at'> & { status: 'ready' | 'unavailable' }
   | Omit<Extract<AgentDesktopResourceBinding, { kind: 'desktop_workflow' }>, 'bound_at'> & { status: 'ready' | 'unavailable' }
+  | Omit<Extract<AgentDesktopResourceBinding, { kind: 'host_desktop' }>, 'bound_at'> & { status: 'ready' | 'unavailable' }
 export type AgentResourceState = AgentSSHResourceState | AgentSSHProfileResourceState | AgentFileResourceState | AgentDesktopResourceState
 
 export interface AgentSSHResourceState {
@@ -461,6 +464,7 @@ export type AgentMessagePart = {
   | { kind: 'reasoning'; text: string; response_failure?: AgentResponseFailure }
   | { kind: 'tool_call'; tool_call: AgentToolCallPart; response_failure?: AgentResponseFailure }
   | { kind: 'tool_result'; tool_result: AgentToolResultPart; response_failure?: never }
+  | { kind: 'task_result'; task_result: import('#common/desktop-batch').DesktopTaskReceipt; response_failure?: never }
 )
 
 export interface AgentRequestUsage {
@@ -480,6 +484,7 @@ export interface AgentRequestUsage {
 }
 
 export interface AgentMessage {
+  image_sources?: Array<AgentToolImageSource & { reference: string; mime_type: string; size_bytes: number }>
   progress?: AgentProgressActivity[]
   request_usage?: AgentRequestUsage[]
   id: string
@@ -563,6 +568,10 @@ export interface AgentMessageTurnUsage {
 }
 
 export interface AgentMessagePage {
+  before_cursor?: string
+  after_cursor?: string
+  has_older?: boolean
+  has_newer?: boolean
   items: AgentMessage[]
   next_after_sequence?: number
 }
@@ -695,6 +704,8 @@ export const agentRunEventKinds = [
   'message_delta',
   'message_part',
   'tool_started',
+  'tool_prepared',
+  'tool_progress',
   'tool_completed',
   'tool_failed',
   'approval_waiting',
@@ -712,6 +723,7 @@ export const agentRunEventKinds = [
 export type AgentRunEventKind = (typeof agentRunEventKinds)[number]
 
 export interface AgentToolEventData {
+  phase?: 'preparing' | 'waiting' | 'executing'
   tool_call_id: string
   tool_name: string
   arguments?: AgentJsonValue
@@ -741,7 +753,7 @@ export type AgentRunEvent =
       }
     }>
   | AgentRunEventBase<'message_part', { message_part: AgentMessagePart }>
-  | AgentRunEventBase<'tool_started' | 'tool_completed' | 'tool_failed', {
+  | AgentRunEventBase<'tool_started' | 'tool_prepared' | 'tool_progress' | 'tool_completed' | 'tool_failed', {
       tool: AgentToolEventData
     }>
   | AgentRunEventBase<'approval_waiting' | 'approval_resolved', {

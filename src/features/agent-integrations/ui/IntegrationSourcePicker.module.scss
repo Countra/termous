@@ -1,0 +1,201 @@
+.panel {
+  width: min(352px, calc(100vw - 48px));
+  color: var(--text-primary);
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 2px 14px 4px;
+}
+
+.heading strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.close:global(.ant-btn) {
+  width: 24px;
+  height: 24px;
+  color: var(--text-muted);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  padding: 3px;
+  margin-bottom: 10px;
+}
+
+.tabs > button {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.tabs > button[aria-selected='true'] {
+  border-color: var(--border);
+  background: var(--surface-strong);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 7%);
+}
+
+.tabs > button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.tabs small {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.search:global(.ant-input-affix-wrapper) {
+  height: 32px;
+  border-radius: 7px;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+
+.search :global(.ant-input) {
+  font-size: 11px;
+}
+
+.list {
+  min-height: 140px;
+  max-height: min(340px, 44vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.item {
+  height: 60px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  padding: 10px 8px;
+}
+
+.item + .item {
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.item-main {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  gap: 10px;
+}
+
+.item-icon {
+  display: grid;
+  flex: 0 0 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+}
+
+.item-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+}
+
+.item-copy strong {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item[data-enabled='true'] .item-copy strong {
+  color: var(--text-primary);
+}
+
+.item-copy > span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connection {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.connection i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.connection[data-state='connected'] i {
+  background: var(--success);
+}
+
+.connection[data-state='failed'] i,
+.connection[data-state='auth_required'] i {
+  background: var(--warning);
+}
+
+.version-action:global(.ant-btn) {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  color: var(--text-muted);
+
+  &:not(:disabled):hover, &:focus-visible { color: var(--accent); }
+}
+
+.empty {
+  display: flex;
+  min-height: 156px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 20px 16px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.empty strong {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.empty > span {
+  max-width: 30ch;
+  font-size: 11px;
+  line-height: 1.6;
+}

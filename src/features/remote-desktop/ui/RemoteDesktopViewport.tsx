@@ -7,7 +7,7 @@ import { useSystemFileClipboard } from '../model/useSystemFileClipboard.ts'
 
 export function RemoteDesktopViewport({ sessionId }: { sessionId: string }) {
   const { focusViewer, registerViewport, sessions, reclaimRemoteViewer } = useRemoteDesktopRuntime()
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const zh = i18n.language?.startsWith('zh') ?? false
   const [working, setWorking] = useState(false)
   const pending = useRef(false)
@@ -15,6 +15,7 @@ export function RemoteDesktopViewport({ sessionId }: { sessionId: string }) {
   const session = sessions.find(item => item.id === sessionId)
   const clipboard = useSystemFileClipboard(sessionId)
   const { viewerStates } = useRemoteDesktopRuntime()
+  const clipboardError = !clipboard.dragging && !clipboard.busy ? viewerStates[sessionId]?.clipboardError : undefined
   const canDrop = viewerStates[sessionId]?.controlOwned && !viewerStates[sessionId]?.viewOnly
   const remote = session?.protocol === 'vnc' ? session.remote_viewer : undefined
   const hostRef = useRef<HTMLDivElement>(null)
@@ -34,7 +35,7 @@ export function RemoteDesktopViewport({ sessionId }: { sessionId: string }) {
       data-termous-shortcut-exclusive="true"
       tabIndex={-1}
       onMouseDown={() => focusViewer(sessionId)}
-    />{session?.protocol === 'rdp' && (clipboard.dragging || clipboard.busy || clipboard.notice || clipboard.error_code) && <div className={clipboard.dragging ? styles.drop : styles['file-status']} role={clipboard.error_code ? 'alert' : 'status'}>
+    />{clipboardError ? <div className={styles['file-status']} role="alert">{t(`remoteDesktop.viewerErrors.${clipboardError}`)}</div> : session?.protocol === 'rdp' && (clipboard.dragging || clipboard.busy || clipboard.notice || clipboard.error_code) && <div className={clipboard.dragging ? styles.drop : styles['file-status']} role={clipboard.error_code ? 'alert' : 'status'}>
       {clipboard.dragging ? zh ? canDrop ? '松开以准备文件，然后在目标文件夹粘贴' : '取得控制权后才能发送文件' : canDrop ? 'Drop to prepare files, then paste in the target folder' : 'Control is required to send files'
         : clipboard.busy ? zh ? '正在准备文件…' : 'Preparing files…'
           : clipboard.error_code ? <>{zh ? '文件操作失败，桌面连接保持可用' : 'File operation failed; the desktop remains available'}<code>{clipboard.error_code}</code></>

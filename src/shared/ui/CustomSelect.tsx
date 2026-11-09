@@ -1,11 +1,13 @@
-import { Select, type SelectProps } from 'antd'
+import type { SelectProps } from 'antd'
 import { useId } from 'react'
+import { SelectControl } from './SelectControl'
 import styles from './CustomSelect.module.scss'
 
 export interface SelectOption {
   value: string
   label: string
   description?: string
+  disabled?: boolean
 }
 
 interface CustomSelectProps extends Pick<
@@ -43,7 +45,7 @@ export function CustomSelect({
       <label id={labelId} htmlFor={controlId} className={`${styles['field-label']} field-label`}>
         {label}
       </label>
-      <Select
+      <SelectControl
         id={controlId}
         value={value}
         disabled={disabled}
@@ -51,19 +53,14 @@ export function CustomSelect({
         aria-labelledby={labelId}
         aria-invalid={ariaInvalid}
         aria-describedby={ariaDescribedBy}
-        classNames={{
-          popup: {
-            root: [styles['select-popup'], 'termous-select-popup', popupClassName].filter(Boolean).join(' '),
-          },
-        }}
-        className={`${styles.select} termous-select`}
+        popupClassName={popupClassName}
         optionLabelProp="label"
         onChange={onChange}
         options={options.map((option) => ({
           value: option.value,
           label: option.label,
           title: option.description ?? option.label,
-          disabled: false,
+          disabled: option.disabled,
           item: option,
         }))}
         optionRender={(option) => {

@@ -5,7 +5,11 @@ import { AgentPage } from '#pages/agent'
 import { createDetachedFixture } from './detachedFixture.ts'
 
 export function DetachedPreview() {
-  const fixture = useMemo(() => createDetachedFixture(new URLSearchParams(location.search).get('readiness') ?? 'ready'), [])
+  const fixture = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    const run = params.get('run')
+    return createDetachedFixture(params.get('readiness') ?? 'ready', run === 'queued' || run === 'running' ? run : undefined, params.get('history') === 'long')
+  }, [])
   const [theme, setTheme] = useState<'light' | 'dark'>('dark')
   const [language, setLanguage] = useState<'zh-CN' | 'en-US'>('zh-CN')
   const [active, setActive] = useState(true)
@@ -20,7 +24,7 @@ export function DetachedPreview() {
       </nav>
       <div style={{ position: 'relative', minHeight: 0, padding: 12 }}>
         <div style={{ height: '100%', display: active ? 'block' : 'none' }} inert={!active}>
-          <AgentPage gateway={fixture.gateway} setupGateway={fixture.setup} enabled active={active} sshResourcesReady
+          <AgentPage gateway={fixture.gateway} integrationsGateway={fixture.integrations} setupGateway={fixture.setup} enabled active={active} sshResourcesReady
             appearance={{ theme, language }} onOpenSettings={() => setActive(false)}
             onReturnToPage={() => active ? Promise.resolve(true) : new Promise<boolean>(resolve => setConfirm({ resolve }))} />
         </div>

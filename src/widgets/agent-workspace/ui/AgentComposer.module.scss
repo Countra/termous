@@ -337,7 +337,6 @@
   display: none;
 }
 
-.composer-attachment-action:global(.ant-btn),
 .composer-stop:global(.ant-btn),
 .composer-submit:global(.ant-btn) {
   display: inline-flex;
@@ -348,16 +347,6 @@
   justify-content: center;
   border-radius: 8px;
   padding: 0;
-}
-
-.composer-attachment-action:global(.ant-btn) {
-  flex: 0 0 auto;
-  color: var(--text-secondary);
-}
-
-.composer-attachment-action:global(.ant-btn):hover {
-  background: var(--row-hover-bg);
-  color: var(--text-primary);
 }
 
 .composer-stop:global(.ant-btn) {
@@ -382,7 +371,6 @@
   color: var(--text-muted);
 }
 
-.composer-attachment-action:global(.ant-btn):focus-visible,
 .composer-submit:global(.ant-btn):focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 58%, transparent);
   outline-offset: 1px;

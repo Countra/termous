@@ -1,9 +1,32 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { ConfigProvider } from 'antd'
 import { expect, test, vi } from 'vitest'
 import type { RemoteConnection, RemoteWindowBridge } from '#common/contracts'
+import type { RemoteDesktopMediaChanged } from '#entities/remote-desktop'
 import { RemoteWorkbench } from './RemoteWorkbench'
 
-vi.mock('./RemoteSessionPanels', () => ({ RemoteSessionPanels: ({ client, selected, close }: { client: { connection: RemoteConnection }; selected: string; close(id: string): void }) => <div data-testid="session">{client.connection.id}:{selected}<button onClick={() => close(selected)}>关闭视图</button></div> }))
+const mediaFixture = vi.hoisted(() => ({ changed: undefined as RemoteDesktopMediaChanged | undefined }))
+vi.mock('./RemoteSessionPanels', () => ({ RemoteSessionPanels: ({ client, selected, close, onMediaDetails }: { client: { connection: RemoteConnection }; selected: string; close(id: string): void; onMediaDetails?: RemoteDesktopMediaChanged }) => {
+  mediaFixture.changed = onMediaDetails
+  return <div data-testid="session">{client.connection.id}:{selected}<button onClick={() => close(selected)}>关闭视图</button></div>
+} }))
+
+test('选中终端时展示分屏中的唯一可见桌面，忽略旧连接并实时撤销隐藏媒体', async () => {
+  const connection = { id: 'connection', state: 'connected', scope: { generation: '1' } } as RemoteConnection
+  const request = vi.fn<RemoteWindowBridge['request']>().mockResolvedValue({ ok: true, value: { inventory: { sessions: [{ id: 'ssh', name: 'Existing SSH', kind: 'ssh', generation: '1', state: 'connected' }] } } })
+  const bridge = { connection: async () => ({ ok: true, value: connection }), request, subscribe: () => () => {}, localTransfers: async () => ({ ok: true, value: [] }) } as unknown as RemoteWindowBridge
+  render(<ConfigProvider theme={{ token: { motion: false } }}><RemoteWorkbench bridge={bridge} bootstrap={{ generation: '1', deviceId: 'host', deviceName: 'Desktop', language: 'zh-CN', theme: 'dark' }} /></ConfigProvider>)
+  fireEvent.click(await screen.findByRole('button', { name: 'Existing SSH' }))
+  act(() => {
+    mediaFixture.changed?.('desktop', { connectionId: 'connection', title: '分屏桌面', transport: 'h264', phase: 'viewing' })
+    mediaFixture.changed?.('stale', { connectionId: 'old', title: '旧连接桌面', transport: 'h264', phase: 'viewing' })
+  })
+  fireEvent.click(screen.getByRole('button', { name: '连接详情' }))
+  await waitFor(() => expect(screen.getByText('分屏桌面')).toBeVisible())
+  expect(screen.queryByText('旧连接桌面')).not.toBeInTheDocument()
+  act(() => mediaFixture.changed?.('desktop', undefined))
+  expect(screen.queryByText('分屏桌面')).not.toBeInTheDocument()
+})
 
 test.each([true, false, undefined])('AI 入口不依赖本机配置或清单权限标记（%s），首次点击才装配工作区', async agentEnabled => {
   const connection = { id: 'connection', state: 'connected', scope: { generation: '1' } } as RemoteConnection

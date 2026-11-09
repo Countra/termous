@@ -1,0 +1,234 @@
+.modal :global(.ant-modal-body) {
+  padding-top: 12px;
+}
+
+.modal :global(.ant-modal-footer) {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title > svg { color: var(--text-secondary); }
+
+.body {
+  display: grid;
+  min-width: 0;
+  max-height: min(65dvh, 640px);
+  gap: 20px;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--termous-scrollbar-thumb) var(--termous-scrollbar-track);
+}
+
+.description {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.configuration {
+  min-width: 0;
+  padding: 0 1px 1px;
+}
+
+.preview { min-width: 0; }
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-height: 30px;
+  margin-bottom: 10px;
+}
+
+.section-header > label, .section-header > h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.section-header > label > svg { color: var(--text-muted); }
+
+.section-header > h4 > span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.section-header :global(.ant-checkbox-wrapper) {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.code {
+  padding: 14px 16px;
+  border-color: var(--border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  line-height: 1.7;
+  resize: vertical;
+  min-height: 150px;
+  max-height: 360px;
+  tab-size: 2;
+}
+
+.code::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.list {
+  display: grid;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+  padding: 14px 16px;
+  background: var(--surface);
+}
+
+.item + .item { border-top: 1px solid var(--border); }
+
+.item[data-error] { background: color-mix(in srgb, var(--danger) 4%, var(--surface)); }
+
+.item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.item-header :global(.ant-checkbox-wrapper) {
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.transport, .imported {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.imported { color: var(--success); }
+
+.endpoint, .item-description, .item-error {
+  min-width: 0;
+  margin: 0;
+  padding-inline-start: 24px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.endpoint {
+  font-family: var(--font-mono, monospace);
+  white-space: pre-wrap;
+}
+
+.item-description > span {
+  display: block;
+  margin-top: 3px;
+}
+
+.item-error { color: var(--danger); }
+
+.file-selection {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  padding: 28px 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+  text-align: center;
+}
+
+.file-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 5px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.file-selection > strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.file-selection > span:not(.file-icon) {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.file-selection .actions {
+  margin-top: 9px;
+  justify-content: center;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.summary {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: start;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.footer > .actions { margin-inline-start: auto; }
+
+@media (width <= 540px) {
+  .body { max-height: 60dvh; }
+  .item { padding-inline: 12px; }
+  .code { padding: 12px; }
+}

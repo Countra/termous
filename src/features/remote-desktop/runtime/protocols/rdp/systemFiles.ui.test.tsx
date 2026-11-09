@@ -25,12 +25,36 @@ function fixture() {
   const api = { transferClipboard: vi.fn(async () => completed), clipboard: vi.fn(async () => ({ published: true, content_generation: 3 })), tasks: vi.fn(async () => [completed]), cancelTask: vi.fn(async () => undefined) } as unknown as DesktopFilesGateway
   let focused = true, epoch = 0, current: SystemFileClipboardContext | undefined = context
   const paste = vi.fn()
-  const runtime = createRdpSystemFiles({ id: 'test-session', api, context: () => current, focused: () => focused, inputEpoch: () => epoch, paste })
+  const pasteText = vi.fn<(current: () => boolean) => Promise<void>>().mockResolvedValue(undefined)
+  const runtime = createRdpSystemFiles({ id: 'test-session', api, context: () => current, focused: () => focused, inputEpoch: () => epoch, paste, pasteText })
   disposers.push(runtime.dispose)
-  return { runtime, bridge, api, paste, setEnabled: async (value: boolean) => { savedEnabled = value; await runtime.changed() }, blur: () => { focused = false; epoch++ }, loseControl: () => { current = undefined; epoch++ } }
+  return { runtime, bridge, api, paste, pasteText, setEnabled: async (value: boolean) => { savedEnabled = value; await runtime.changed() }, blur: () => { focused = false; epoch++ }, loseControl: () => { current = undefined; epoch++ } }
 }
 
 describe('本机 RDP 文件快捷键与异步发布', () => {
+  it('同一会话的文件剪贴板只发粘贴按键，不覆盖为本机文本', async () => {
+    const f = fixture()
+    await f.setEnabled(true)
+    vi.mocked(f.bridge.importClipboard).mockResolvedValueOnce({ ok: true, value: { kind: 'same_session' } })
+    await f.runtime.prepare(false)
+    expect(f.paste).toHaveBeenCalledOnce()
+    expect(f.pasteText).not.toHaveBeenCalled()
+  })
+
+  it('文本读取期间切换控制或焦点会使传递的有效性检查失效', async () => {
+    const f = fixture()
+    await f.setEnabled(true)
+    vi.mocked(f.bridge.importClipboard).mockResolvedValueOnce({ ok: true, value: { kind: 'text' } })
+    f.pasteText.mockImplementationOnce(async valid => {
+      expect(valid()).toBe(true)
+      f.blur()
+      expect(valid()).toBe(false)
+      f.loseControl()
+      expect(valid()).toBe(false)
+    })
+    await f.runtime.prepare(false)
+    expect(f.paste).not.toHaveBeenCalled()
+  })
   it.each(['import_files', 'publish_files'] as const)('只支持 %s 时不被另一方向阻断', async direction => {
     capabilities.disconnect()
     capabilities = clipboardCapabilitiesFixture(direction === 'import_files' ? 'ready' : 'unsupported', direction === 'publish_files' ? 'ready' : 'unsupported')
@@ -321,14 +345,14 @@ describe('本机 RDP 文件快捷键与异步发布', () => {
     expect(f.bridge.configure).toHaveBeenLastCalledWith(context, false, 'detach')
   })
 
-  it.each(['desktop_file_clipboard_failed', 'desktop_not_ready'])('普通文本正常转发；显式文件失败就地显示并释放选择：%s', async code => {
+  it.each(['desktop_file_clipboard_failed', 'desktop_not_ready'])('普通文本交由文本同步；显式文件失败就地显示并释放选择：%s', async code => {
     const f = fixture()
     await f.setEnabled(true)
     vi.mocked(f.bridge.importClipboard).mockResolvedValueOnce({ ok: true, value: { kind: 'text' } })
-    await f.runtime.prepare(false); expect(f.paste).toHaveBeenCalledTimes(1)
+    await f.runtime.prepare(false); expect(f.pasteText).toHaveBeenCalledOnce()
     vi.mocked(f.api.transferClipboard).mockRejectedValueOnce(new Error(code))
     await f.runtime.prepare(false)
-    expect(f.paste).toHaveBeenCalledTimes(1)
+    expect(f.paste).not.toHaveBeenCalled()
     expect(systemClipboardStore.get('test-session').error_code).toBe(code)
     expect(f.bridge.releaseSelection).toHaveBeenCalledWith('grant')
   })

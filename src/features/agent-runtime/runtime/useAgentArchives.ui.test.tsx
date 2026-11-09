@@ -28,6 +28,34 @@ function deferred<T>() {
 }
 
 describe('useAgentArchives', () => {
+  it('时间线翻页在切换和关闭后取消，迟到页不能覆盖当前归档', async () => {
+    const gateway = { ...gatewayFixture(), timelineSupported: true as const }
+    gateway.messages.mockImplementation(async id => ({ items: [message(id, 2)], has_older: true }))
+    const view = renderHook(({ open }) => useAgentArchives(gateway, open), { initialProps: { open: true } })
+    await waitFor(() => expect(view.result.current.sessions).toHaveLength(2))
+    act(() => view.result.current.selectSession('one'))
+    await waitFor(() => expect(view.result.current.loadOlder).toBeDefined())
+    const old = deferred<AgentMessagePage>()
+    gateway.messages.mockReturnValueOnce(old.promise)
+    let loading!: Promise<void>
+    act(() => { loading = view.result.current.loadOlder!() })
+    const oldSignal = gateway.messages.mock.calls[gateway.messages.mock.calls.length - 1]![1]!.signal
+    act(() => view.result.current.selectSession('two'))
+    await waitFor(() => expect(view.result.current.messages[0]?.session_id).toBe('two'))
+    expect(oldSignal?.aborted).toBe(true)
+    await act(async () => { old.resolve({ items: [message('one', 1)] }); await loading })
+    expect(view.result.current.messages[0]?.session_id).toBe('two')
+    const closing = deferred<AgentMessagePage>()
+    gateway.messages.mockReturnValueOnce(closing.promise)
+    act(() => { loading = view.result.current.loadOlder!() })
+    const closingSignal = gateway.messages.mock.calls[gateway.messages.mock.calls.length - 1]![1]!.signal
+    view.rerender({ open: false })
+    expect(closingSignal?.aborted).toBe(true)
+    await act(async () => { closing.resolve({ items: [message('two', 1)] }); await loading })
+    expect(view.result.current.messages).toEqual([])
+    expect(view.result.current.previewError).toBeUndefined()
+  })
+
   it('关闭时不请求数据，打开后独立读取所有归档页及所选会话记录', async () => {
     const gateway = gatewayFixture()
     gateway.sessions.mockResolvedValueOnce({ items: [archive('one')], next_cursor: 'next' })

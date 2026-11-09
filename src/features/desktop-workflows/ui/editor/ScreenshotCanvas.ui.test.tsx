@@ -34,6 +34,26 @@ function setup(patch: Partial<React.ComponentProps<typeof ScreenshotCanvas>> = {
 }
 
 describe('画面选区编辑', () => {
+  it('查看模式保留范围边框和缩放平移，不允许绘制或键盘修改范围', () => {
+    const { canvas, viewport, apply, point } = setup({ mode: 'region', editing: false, initialRegion: { x: 100, y: 100, width: 200, height: 100 } })
+    expect(canvas).toHaveAttribute('data-disabled', 'true')
+    expect(screen.queryByRole('button', { name: 'desktopWorkflow.selection.move' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'desktopWorkflow.selection.useRegion' })).not.toBeInTheDocument()
+    fireEvent.pointerDown(canvas, pointer(70, 90))
+    fireEvent.pointerUp(canvas, pointer(170, 140))
+    fireEvent.keyDown(canvas, { key: 'Delete' })
+    expect(canvas.querySelector('[data-editing="false"]')).toBeInTheDocument()
+    fireEvent.keyDown(canvas, { key: '1' })
+    expect(canvas).toHaveStyle({ width: '1000px' })
+    const transform = canvas.style.transform
+    fireEvent.pointerDown(canvas, ctrlPointer(270, 165))
+    fireEvent.pointerMove(viewport, ctrlPointer(300, 180))
+    fireEvent.pointerUp(viewport, ctrlPointer(300, 180))
+    expect(canvas.style.transform).not.toBe(transform)
+    expect(apply).not.toHaveBeenCalled()
+    expect(point).not.toHaveBeenCalled()
+  })
+
   it('选框直接左键拖动，不平移截图且整次移动只撤销一步', () => {
     const { canvas, viewport, apply } = setup({ initialRegion: { x: 100, y: 100, width: 200, height: 100 } })
     const move = screen.getByRole('button', { name: 'desktopWorkflow.selection.move' })

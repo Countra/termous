@@ -285,6 +285,24 @@ describe('McpClientEditor', () => {
     expect(onSubmit).toHaveBeenCalledWith({ name: 'Codex', approval_bypass: false, scopes: ['files:write', 'files:delete'] })
   })
 
+  it('导入导出权限提交 exchange 标识，不隐式授予写入、执行或免审批', async () => {
+    const user = userEvent.setup()
+    const { onSubmit } = renderEditor({ editingClient: { ...client, scopes: ['desktop_workflows:read'] } })
+
+    expect(scopeCheckbox('desktop_workflows_exchange')).not.toBeChecked()
+    await user.click(scopeCheckbox('desktop_workflows_exchange'))
+    expect(scopeCheckbox('desktop_workflows_write')).not.toBeChecked()
+    expect(scopeCheckbox('desktop_workflows_run')).not.toBeChecked()
+    expect(approvalBypassSwitch()).not.toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith({
+      name: 'Codex',
+      approval_bypass: false,
+      scopes: ['desktop_workflows:read', 'desktop_workflows:exchange'],
+    })
+  })
+
   it('编辑时回填权限，提交名称与规范顺序的精确权限集合', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn(async () => undefined)

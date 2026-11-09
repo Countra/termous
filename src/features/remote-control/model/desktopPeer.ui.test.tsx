@@ -1,4 +1,4 @@
-import { create, toBinary } from '@bufbuild/protobuf'
+import { create, fromBinary, toBinary } from '@bufbuild/protobuf'
 import { DesktopAttachmentSchema, DesktopPeer } from '@termous/remote-protocol/desktop'
 import { DesktopPacketSchema } from '@termous/remote-protocol/desktop-protocol'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -73,6 +73,45 @@ function recoveryPeer(transport = 'h264') {
   }
   return { peer, change, events, channel }
 }
+
+test('迟到统计不能确认新配置，缓存尺寸不能冒充新增解码帧', async () => {
+  const { peer, channel } = recoveryPeer()
+  const state = (configRevision: bigint) => create(DesktopPacketSchema, { state: { presentation: { configRevision, capabilities: { video: true } } } }).state!.presentation!
+  const sample = (time: number, decoded: number): RTCStatsReport => new Map([['video', {
+    type: 'inbound-rtp', kind: 'video', timestamp: time, bytesReceived: time * 100,
+    packetsReceived: time, packetsLost: 0, framesDecoded: decoded, totalDecodeTime: decoded / 1000,
+    frameWidth: 1920, frameHeight: 1080,
+  }]]) as RTCStatsReport
+  const stats = vi.spyOn(peer.pc, 'getStats')
+  try {
+    peer.setPresentation(state(1n))
+    stats.mockResolvedValueOnce(sample(1000, 10))
+    await vi.advanceTimersByTimeAsync(2000)
+    let resolve!: (value: RTCStatsReport) => void
+    stats.mockImplementationOnce(() => new Promise(done => { resolve = done }))
+    await vi.advanceTimersByTimeAsync(2000)
+    peer.setPresentation(state(2n))
+    resolve(sample(2000, 20))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(channel.send).not.toHaveBeenCalled()
+    // 跨配置区间内的解码增量也可能来自旧画面，先建立新配置的统计基线。
+    stats.mockResolvedValueOnce(sample(3000, 20))
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(channel.send).not.toHaveBeenCalled()
+    stats.mockResolvedValueOnce(sample(4000, 20))
+    await vi.advanceTimersByTimeAsync(2000)
+    const idle = fromBinary(DesktopPacketSchema, channel.send.mock.lastCall![0]).observation!
+    expect(idle.configRevision).toBe(2n)
+    expect(idle.decodedWidth).toBe(0)
+    expect(idle.framerate).toBe(0)
+    stats.mockResolvedValueOnce(sample(5000, 21))
+    await vi.advanceTimersByTimeAsync(2000)
+    const fresh = fromBinary(DesktopPacketSchema, channel.send.mock.lastCall![0]).observation!
+    expect(fresh.configRevision).toBe(2n)
+    expect(fresh.decodedWidth).toBe(1920)
+    expect(fresh.receivedBitrate).toBe(800_000)
+  } finally { peer.close() }
+})
 
 test('视频短暂断线原连接恢复，旧定时器不关闭恢复后的连接', async () => {
   const { peer, change, events, channel } = recoveryPeer()
@@ -177,5 +216,27 @@ test('旧租约拒绝携带的状态不能覆盖已经获得的新控制权', as
     expect(events.packet).toHaveBeenCalledTimes(1)
     expect(events.packet.mock.calls[0][0].controlGeneration).toBe(3n)
     expect(channel.send).toHaveBeenCalledTimes(2)
+  } finally { peer.close() }
+})
+
+test('ACK 中的控制撤销先于待合并移动恢复', async () => {
+  const { peer, events, channel } = recoveryPeer()
+  const receiver = channel as unknown as RTCDataChannel
+  try {
+    peer.input({ kind: 'move', x: 10, control: { generation: 1n } })
+    await vi.advanceTimersByTimeAsync(17)
+    peer.input({ kind: 'move', x: 20, control: { generation: 1n } })
+    peer.input({ kind: 'move', x: 30, control: { generation: 1n } })
+    await vi.advanceTimersByTimeAsync(20)
+    // 会话消费控制状态时同步清理旧代次，基础模块必须在此之后才恢复派发。
+    events.packet.mockImplementation(packet => {
+      if (packet.state && !packet.state.control) peer.resetInputSequence()
+    })
+    const packet = create(DesktopPacketSchema, { kind: 'ack', controlGeneration: 1n, sequence: 2n, state: { available: true } })
+    receiver.onmessage?.call(receiver, new MessageEvent('message', { data: toBinary(DesktopPacketSchema, packet).buffer }))
+    await vi.advanceTimersByTimeAsync(6_000)
+    expect(channel.send).toHaveBeenCalledTimes(2)
+    expect(events.packet).toHaveBeenCalledTimes(1)
+    expect(events.closed).not.toHaveBeenCalled()
   } finally { peer.close() }
 })

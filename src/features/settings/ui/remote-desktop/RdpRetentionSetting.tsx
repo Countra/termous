@@ -1,8 +1,8 @@
-import { InputNumber } from 'antd'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ConnectionSettings, ConnectionSettingsPatch } from '#common/contracts'
 import { SettingsDetails, SettingsField } from '../controls/SettingsGroup'
+import { SettingsNumberInput } from '#shared/ui'
 import fieldStyles from '../controls/SettingsGroup.module.scss'
 import styles from './RdpRetentionSetting.module.scss'
 
@@ -51,25 +51,23 @@ export function RdpRetentionSetting({ value, disabled, onChange }: {
   return <SettingsField label={t('settings.rdpUnattendedTimeout')} htmlFor={id}
     description={t('settings.rdpUnattendedTimeoutHint')} descriptionId={`${id}-hint`}
     control={<div className={styles.control}>
-      <div className={styles.input}>
-        <InputNumber<number>
-          id={id}
-          aria-describedby={`${id}-hint ${id}-range ${id}-status`}
-          aria-invalid={!valid}
-          aria-busy={saving}
-          aria-valuemin={1}
-          aria-valuemax={30}
-          step={1}
-          changeOnBlur={false}
-          value={minutes}
-          disabled={disabled || saving}
-          status={!valid || saveFailed ? 'error' : undefined}
-          onChange={(next) => { dirty.current = next !== value.rdp_unattended_timeout_minutes; setMinutes(next); setSaveFailed(false) }}
-          onBlur={() => void save()}
-          onPressEnter={() => void save()}
-        />
-        <span>{t('settings.rdpUnattendedMinutes')}</span>
-      </div>
+      <SettingsNumberInput
+        id={id}
+        aria-describedby={`${id}-hint ${id}-range ${id}-status`}
+        aria-invalid={!valid}
+        aria-busy={saving}
+        aria-valuemin={1}
+        aria-valuemax={30}
+        step={1}
+        changeOnBlur={false}
+        value={minutes}
+        unit={t('settings.rdpUnattendedMinutes')}
+        disabled={disabled || saving}
+        status={!valid || saveFailed ? 'error' : undefined}
+        onChange={(next) => { dirty.current = next !== value.rdp_unattended_timeout_minutes; setMinutes(next); setSaveFailed(false) }}
+        onBlur={() => void save()}
+        onPressEnter={() => void save()}
+      />
       <p id={`${id}-range`} className={styles.range}>{t('settings.rdpUnattendedRange')}</p>
     </div>}>
     <p id={`${id}-status`} className={fieldStyles.error} aria-live="polite">

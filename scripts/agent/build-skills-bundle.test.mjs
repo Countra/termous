@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import test from 'node:test'
+import { createCanonicalTempDirectory } from '../test-support/temp-directory.ts'
 import { prepareAgentSkillsBundle } from './build-skills-bundle.mjs'
 import { parseAgentSkillsManifest, validateAgentSkillsBundleDirectory } from './validate-skills-bundle.mjs'
 import { AgentSkillBundleSource } from '../../electron/agent/skills/skillBundleSource.ts'
@@ -11,7 +11,7 @@ import { parseAgentSkillProductionManifest } from '../../electron/agent/skills/s
 import { SkillInstaller } from '../../electron/skills/installer.ts'
 
 test('生产构建复制允许资源并生成稳定 manifest', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-agent-skills-build-'))
+  const root = await createCanonicalTempDirectory('termous-agent-skills-build-')
   const sourceDirectory = path.join(root, 'termous-skills', 'skills')
   const backendDirectory = path.join(root, 'backend')
   const outputDirectory = path.join(root, 'web', 'build', 'agent', 'skills')
@@ -42,7 +42,7 @@ test('生产构建复制允许资源并生成稳定 manifest', async () => {
 })
 
 test('生产资源验证拒绝篡改和未登记文件', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-agent-skills-verify-'))
+  const root = await createCanonicalTempDirectory('termous-agent-skills-verify-')
   const sourceDirectory = path.join(root, 'termous-skills', 'skills')
   const backendDirectory = path.join(root, 'backend')
   const outputDirectory = path.join(root, 'output')
@@ -68,7 +68,7 @@ test('生产资源验证拒绝篡改和未登记文件', async () => {
 })
 
 test('Python 资源经开发读取、生产构建与安装保持完整且不执行', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-skills-python-'))
+  const root = await createCanonicalTempDirectory('termous-skills-python-')
   const sourceDirectory = path.join(root, 'skills')
   const backendDirectory = path.join(root, 'backend')
   const outputDirectory = path.join(root, 'bundle')
@@ -121,7 +121,7 @@ test('Python 资源经开发读取、生产构建与安装保持完整且不执�
 })
 
 test('scripts 只接受 Python 源码，拒绝其他格式和目录链接', async (context) => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-skills-python-boundaries-'))
+  const root = await createCanonicalTempDirectory('termous-skills-python-boundaries-')
   const sourceDirectory = path.join(root, 'skills')
   const backendDirectory = path.join(root, 'backend')
   const outputDirectory = path.join(root, 'bundle')
@@ -147,7 +147,7 @@ test('scripts 只接受 Python 源码，拒绝其他格式和目录链接', asyn
 })
 
 test('生产构建拒绝 references 目录符号链接', async (context) => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-agent-skills-references-link-'))
+  const root = await createCanonicalTempDirectory('termous-agent-skills-references-link-')
   const sourceDirectory = path.join(root, 'termous-skills', 'skills')
   const backendDirectory = path.join(root, 'backend')
   const outputDirectory = path.join(root, 'output')
@@ -170,7 +170,7 @@ test('生产构建拒绝 references 目录符号链接', async (context) => {
 })
 
 test('生产构建拒绝 agents 目录符号链接', async (context) => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-agent-skills-agents-link-'))
+  const root = await createCanonicalTempDirectory('termous-agent-skills-agents-link-')
   const sourceDirectory = path.join(root, 'termous-skills', 'skills')
   const backendDirectory = path.join(root, 'backend')
   const outputDirectory = path.join(root, 'output')

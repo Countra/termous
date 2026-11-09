@@ -1,5 +1,7 @@
 import { agentDetachedCommands, type AgentDetachedCommandName } from '#common/contracts'
 import type { AgentSurfaceModel } from './agentSurfaceModel.ts'
+import type { AgentWorkspaceMessage } from '#widgets/agent-workspace'
+import { AgentSurfaceRestoreCache } from './agentSurfaceRestoreCache.ts'
 
 export function agentEditorOwner(model: AgentSurfaceModel) {
   return `${model.workspace?.selected_session_id ?? 'new'}:${model.workspace?.queued_turn_edit?.turn_id ?? 'draft'}`
@@ -30,7 +32,25 @@ function serialize(value: unknown): unknown {
   return value
 }
 
-export function projectAgentSurface(model: AgentSurfaceModel): Record<string, unknown> {
+// 消息投影不可变；独立窗口输入时复用未变片段，弱引用不保留被分页淘汰的历史。
+export class AgentSurfaceMessageCache {
+  private readonly messages = new WeakMap<AgentWorkspaceMessage, { metadata: unknown; parts: Array<{ id: string; value: unknown }> }>()
+  private readonly parts = new WeakMap<AgentWorkspaceMessage['parts'][number], unknown>()
+
+  project(message: AgentWorkspaceMessage) {
+    const cached = this.messages.get(message)
+    if (cached) return cached
+    const { parts, ...metadata } = message
+    const value = { metadata: serialize({ ...metadata, partIds: parts.map(part => part.id) }), parts: parts.map(part => {
+      if (!this.parts.has(part)) this.parts.set(part, serialize(part))
+      return { id: part.id, value: this.parts.get(part) }
+    }) }
+    this.messages.set(message, value)
+    return value
+  }
+}
+
+export function projectAgentSurface(model: AgentSurfaceModel, cache = new AgentSurfaceMessageCache()): Record<string, unknown> {
   const partitions: Record<string, unknown> = { capabilities: [...agentSurfaceActions(model).keys()] }
   // 长工具轮按 Part 分区，流式文字不反复携带整条消息的全部历史步骤。
   for (const [group, value] of Object.entries(model)) {
@@ -40,9 +60,9 @@ export function projectAgentSurface(model: AgentSurfaceModel): Record<string, un
       if (key === 'messages' && Array.isArray(entry)) {
         partitions[`${group}.messageIds`] = entry.map(message => message.id)
         for (const message of entry) {
-          const { parts, ...metadata } = message
-          partitions[`message:${group}:${message.id}`] = serialize({ ...metadata, partIds: parts.map((part: { id: string }) => part.id) })
-          for (const part of parts) partitions[`part:${group}:${message.id}:${part.id}`] = serialize(part)
+          const projected = cache.project(message)
+          partitions[`message:${group}:${message.id}`] = projected.metadata
+          for (const part of projected.parts) partitions[`part:${group}:${message.id}:${part.id}`] = part.value
         }
       } else partitions[`${group}.${key}`] = serialize(entry)
     }
@@ -51,8 +71,9 @@ export function projectAgentSurface(model: AgentSurfaceModel): Record<string, un
   return partitions
 }
 
-export function restoreAgentSurface(partitions: Record<string, unknown>): AgentSurfaceModel {
+export function restoreAgentSurface(partitions: Record<string, unknown>, cache = new AgentSurfaceRestoreCache()): AgentSurfaceModel {
   const model: Record<string, unknown> = {}
+  const messageGroups = new Set<string>()
   for (const [path, value] of Object.entries(partitions)) {
     if (value === null || value === undefined) continue
     const [group, key] = path.split('.')
@@ -60,20 +81,20 @@ export function restoreAgentSurface(partitions: Record<string, unknown>): AgentS
     if (!key) model[group] = value
     else {
       const target = (model[group] ??= {}) as Record<string, unknown>
-      if (key === 'messageIds') target.messages = (value as string[]).flatMap(id => {
-        const message = partitions[`message:${group}:${id}`] as { partIds: string[] } | undefined
-        if (!message) return []
-        const { partIds, ...metadata } = message
-        return [{ ...metadata, parts: partIds.map(partId => partitions[`part:${group}:${id}:${partId}`]).filter(Boolean) }]
-      })
+      if (key === 'messageIds') {
+        messageGroups.add(group)
+        target.messages = cache.messages(group, value as string[], partitions)
+      }
       else target[key] = value
     }
   }
   const result = model as AgentSurfaceModel
   if (result.workspace?.session_management) result.workspace.session_management = {
     ...result.workspace.session_management,
-    pendingIds: new Set(result.workspace.session_management.pendingIds as unknown as string[]),
+    pendingIds: result.workspace.session_management.pendingIds
+      ? cache.pendingIds(result.workspace.session_management.pendingIds as unknown as string[]) : new Set(),
   }
-  if (result.archive?.pendingIds) result.archive.pendingIds = new Set(result.archive.pendingIds as unknown as string[])
+  if (result.archive?.pendingIds) result.archive.pendingIds = cache.pendingIds(result.archive.pendingIds as unknown as string[])
+  cache.retain(messageGroups)
   return result
 }

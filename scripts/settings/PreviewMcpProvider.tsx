@@ -22,6 +22,6 @@ export function PreviewMcpProvider({ children }: { children: ReactNode }) {
     setEnabled: async next => setEnabled(next), createClient: unsupported,
     patchClient: async (id, patch) => setClients(current => current.map(client => client.id === id ? { ...client, ...patch } : client)),
     deleteClient: async id => setClients(current => current.filter(client => client.id !== id)),
-    issueToken: unsupported, decideApproval: unsupported,
+    issueToken: unsupported, decideApproval: unsupported, readFileReview: unsupported,
   }}>{children}</McpAccessRuntimeContext.Provider>
 }

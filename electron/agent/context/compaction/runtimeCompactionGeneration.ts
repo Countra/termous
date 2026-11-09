@@ -1,8 +1,10 @@
 import type { AgentMessage, ThinkingLevel } from '@earendil-works/pi-agent-core'
 import type { Api, Model } from '@earendil-works/pi-ai'
 import { agentToolImageReference, isAgentDisplayImageMIMEType } from '#common/contracts'
+import { isResourceImage, isRuntimeImage } from '../../contracts/runtimeResourceImages.ts'
 import type { RuntimeCompactionPreparation } from './runtimeCompactionTypes.ts'
-import { RuntimeCompactionError, type createRuntimeCompactionRequest } from './runtimeCompactionSummary.ts'
+import { RuntimeCompactionError, runtimeCompactionSummaryInstructions, type createRuntimeCompactionRequest } from './runtimeCompactionSummary.ts'
+import { estimateRuntimeMessageTokens } from '../runtimeContextTokens.ts'
 
 const summaryFormat = [
   '只生成用于继续任务的摘要，不继续执行原任务。',
@@ -23,13 +25,12 @@ export async function generateRuntimeCompaction(
   signal?: AbortSignal,
 ): Promise<string> {
   const summarize = async (messages: AgentMessage[], turn: boolean, previousSummary?: string) => {
-    const maxTokens = Math.min(Math.floor(preparation.settings.reserveTokens * (turn ? 0.5 : 0.8)), model.maxTokens)
-    if (maxTokens < 1) throw new RuntimeCompactionError('AGENT_RUNTIME_CONTEXT_COMPRESSION_UNAVAILABLE')
     const text = [
       '<conversation>', serializeRuntimeConversation(messages), '</conversation>',
       ...(previousSummary ? ['<previous-summary>', previousSummary, '</previous-summary>'] : []),
       turn ? turnFormat : summaryFormat,
     ].join('\n\n')
+    const maxTokens = runtimeSummaryOutputBudget(model, text)
     const result = await request(model, {
       messages: [{ role: 'user', content: [{ type: 'text', text }], timestamp: Date.now() }],
     }, {
@@ -49,6 +50,15 @@ export async function generateRuntimeCompaction(
   return history ? `${history}\n\n---\n\n${turn}` : turn
 }
 
+export function runtimeSummaryOutputBudget(model: Pick<Model<Api>, 'maxTokens' | 'contextWindow'>, text: string): number {
+  // 触发压缩的预留量不限制摘要推理输出；输入估算另留余量，避免摘要请求本身超窗。
+  const input = estimateRuntimeMessageTokens({ role: 'user', content: `${runtimeCompactionSummaryInstructions}\n\n${text}`, timestamp: 0 })
+  const available = Math.floor(model.contextWindow - input * 1.1 - 1024)
+  const budget = Math.min(Math.floor(model.maxTokens), available)
+  if (!Number.isSafeInteger(budget) || budget < 1) throw new RuntimeCompactionError('AGENT_RUNTIME_CONTEXT_COMPRESSION_UNAVAILABLE')
+  return budget
+}
+
 export function serializeRuntimeConversation(messages: AgentMessage[]): string {
   const output: string[] = []
   for (const message of messages) {
@@ -59,11 +69,11 @@ export function serializeRuntimeConversation(messages: AgentMessage[]): string {
       const body = text.length <= 2000 ? text : `${text.slice(0, 2000)}\n[... ${text.length - 2000} more characters truncated]`
       output.push(`[Tool result ${message.toolName} (${message.toolCallId}), ${message.isError ? 'error' : 'success'}]: ${body}`)
     } else if (text) output.push(`[${message.role}]: ${text}`)
-    if (Array.isArray(message.content) && message.content.some((block) => block.type === 'image')) {
+    if (Array.isArray(message.content) && message.content.some(isRuntimeImage)) {
       output.push('[图片正文省略；原始图片仍在消息记录中]')
       if (message.role === 'toolResult') {
         const references = message.content.flatMap((block, index) => {
-          const reference = block.type === 'image' && isAgentDisplayImageMIMEType(block.mimeType)
+          const reference = isRuntimeImage(block) && isAgentDisplayImageMIMEType(isResourceImage(block) ? block.resource_image.mime_type : block.mimeType)
             ? agentToolImageReference(message.toolCallId, index) : undefined
           return reference ? [reference] : []
         })

@@ -7,6 +7,8 @@ import type {
   McpApprovalSnapshot,
   McpApprovalState,
 } from '#entities/mcp-access'
+import { decodeWorkflowExchangeApproval } from './workflowExchangeApproval.ts'
+import { decodeLocalApproval } from './localApproval.ts'
 import {
   McpAccessProtocolError,
   optionalArray,
@@ -35,7 +37,10 @@ const approvalEventTypes = new Set<McpApprovalEvent['type']>([
   'mcp_approval_update',
 ])
 const approvalKinds = new Set<McpApprovalKind>([
+  'local_tool',
+  'external_tool',
   'desktop_workflow',
+  'screen_analysis',
   'desktop',
   'command',
   'files',
@@ -159,7 +164,10 @@ export function decodeMcpApproval(value: unknown): McpApproval {
     }
   }
   if (normalizedKind === 'desktop') return { ...common, kind: 'desktop', command: '', operation: operation! }
+  if (normalizedKind === 'external_tool') return { ...common, kind: 'external_tool', command: '', operation: operation! }
+  if (normalizedKind === 'local_tool') return { ...common, kind: 'local_tool', command: '', operation: operation! }
   if (normalizedKind === 'desktop_workflow') return { ...common, kind: 'desktop_workflow', command: '', operation: operation! }
+  if (normalizedKind === 'screen_analysis') return { ...common, kind: 'screen_analysis', command: '', operation: operation! }
   if (normalizedKind === 'snippet') {
     return {
       ...common,
@@ -182,10 +190,20 @@ function decodeMcpApprovalOperation(
 ): McpApprovalOperation {
   const operation = requireRecord(value, 'MCP 审批操作无效')
   const action = requireString(operation.action, 'MCP 审批操作类型缺失')
+  if (kind === 'local_tool') {
+    if (action !== 'local_tool') throw new McpAccessProtocolError('本地操作审批动作无效')
+    return { action, local: decodeLocalApproval(operation.local), remote_paths: [], local_paths: [], rename_mappings: [] }
+  }
+  if (kind === 'external_tool') {
+    const external = requireRecord(operation.external, '外部工具审批来源缺失')
+    if (action !== 'external_tool') throw new McpAccessProtocolError('外部工具审批动作无效')
+    return { action, external: {source_id:requireString(external.source_id,'外部来源 ID 缺失'),source_name:requireString(external.source_name,'外部来源名称缺失'),
+      tool:requireString(external.tool,'外部工具名称缺失'),arguments:requireString(external.arguments,'外部工具参数缺失')},remote_paths:[],local_paths:[],rename_mappings:[] }
+  }
   const resourceKind = operation.resource_kind === undefined
     ? undefined
     : requireString(operation.resource_kind, 'MCP 审批资源类型无效')
-  if (resourceKind && !(['desktop', 'desktop_workflow'].includes(kind) ? ['rdp', 'vnc'] : ['images', 'volumes', 'networks']).includes(resourceKind)) {
+  if (resourceKind && !(['desktop', 'desktop_workflow'].includes(kind) ? ['rdp', 'vnc', 'host_desktop'] : ['images', 'volumes', 'networks']).includes(resourceKind)) {
     throw new McpAccessProtocolError('MCP 审批资源类型无效')
   }
   if (kind === 'desktop') {
@@ -195,6 +213,13 @@ function decodeMcpApprovalOperation(
     }
   }
   const internal = optionalBoolean(operation.internal, 'MCP Docker 内部网络标识无效')
+  if (kind === 'screen_analysis') {
+    requireString(operation.resource_id, 'MCP 分析记录审批目标缺失')
+    if (action !== 'delete' || operation.domain !== 'screen_analysis' || resourceKind) throw new McpAccessProtocolError('MCP 分析记录审批范围无效')
+  }
+  if (kind === 'desktop_workflow' && ['import', 'export', 'export_template'].includes(action)) {
+    return decodeWorkflowExchangeApproval(operation, action, state)
+  }
   if (kind === 'desktop_workflow') {
     requireString(operation.script_id, 'MCP 脚本审批目标缺失')
     if (requireNonNegativeInteger(operation.script_version, 'MCP 脚本审批版本无效') < 1 || !['run', 'delete'].includes(action)) {
@@ -203,7 +228,9 @@ function decodeMcpApprovalOperation(
     if (action === 'run') {
       requireString(operation.run_id, 'MCP 脚本审批运行缺失')
       requireString(operation.resource_id, 'MCP 脚本审批连接缺失')
-      if (!resourceKind || operation.timeout_seconds !== 1800 || !['observe_to_control', 'takeover'].includes(String(operation.mode)) || !['keep_connection', 'close_owned', 'existing_connection'].includes(String(operation.lifecycle))) {
+      // 本机只管理观察绑定，不借用 RDP/VNC 的连接关闭策略。
+      const lifecycles = resourceKind === 'host_desktop' ? ['binding_only'] : ['keep_connection', 'close_owned', 'existing_connection']
+      if (!resourceKind || operation.timeout_seconds !== 1800 || !['observe_to_control', 'takeover'].includes(String(operation.mode)) || !lifecycles.includes(String(operation.lifecycle))) {
         throw new McpAccessProtocolError('MCP 脚本运行授权范围无效')
       }
     }
@@ -339,6 +366,9 @@ function validateDeleteApproval(operation: Pick<McpApprovalOperation,
 }
 
 const approvalOperationMissingMessage: Record<Exclude<McpApprovalKind, 'command'>, string> = {
+  external_tool: '外部工具审批操作缺失',
+  local_tool: '本地工具审批操作缺失',
+  screen_analysis: 'MCP 分析记录审批操作缺失',
   desktop_workflow: 'MCP 桌面脚本审批操作缺失',
   desktop: 'MCP 桌面控制审批操作缺失',
   files: 'MCP 文件管理审批操作缺失',

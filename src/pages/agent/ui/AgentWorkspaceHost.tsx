@@ -1,3 +1,7 @@
+import { useAgentHostDesktopSources } from '../model/host/useAgentHostDesktopSources.ts'
+import { useAgentIntegrationActions } from '../model/host/useAgentIntegrationActions.ts'
+import { useAgentLocalDirectory } from '../model/host/useAgentLocalDirectory.ts'
+import { useAgentDesktopTasks } from '../model/host/useAgentDesktopTasks.ts'
 import type { AgentDesktopResourceState } from '#entities/agent'
 import {
   isAgentModelRunnable,
@@ -18,6 +22,7 @@ import {
 import {
   AgentDraftSessionCoordinator,
   AgentWorkspaceController,
+  loadAgentMessageText,
   projectAgentReferenceTargets,
   useAgentArchives,
   useAgentQueuedTurnEditOwners,
@@ -34,9 +39,10 @@ import {
   agentWorkspaceInfrastructureReady,
   latestSessionRun,
   projectAgentMessages,
-  projectAgentModelOptions,
-  projectAgentSessions
+  projectAgentModelOptions
 } from '../model/agentWorkspaceProjection.ts'
+import { createAgentMessageProjector } from '../model/agentMessageProjectionCache.ts'
+import { createAgentSessionProjector } from '../model/agentSessionProjectionCache.ts'
 import { createOperationBusy, notifyError, type AgentOperationBusy } from '../model/host/agentHostHelpers.ts'
 import { createAgentQueueActions } from '../model/host/createAgentQueueActions.ts'
 import { createAgentResourceActions } from '../model/host/createAgentResourceActions.ts'
@@ -59,6 +65,7 @@ const noSlashCandidates: AgentSlashCandidateCatalog = {
 }
 
 export function AgentWorkspaceHost({
+  integrationsGateway,
   backgroundActive = false,
   feedback,
   renderSurface,
@@ -71,12 +78,13 @@ export function AgentWorkspaceHost({
   fileResources = [],
   fileResourcesReady = sshResourcesReady,
   sshProfileResourcesReady = fileResourcesReady,
-  desktopResources = [],
+  desktopResources: providedDesktopResources = [],
   desktopResourcesReady = false,
   workflowResourcesReady = false,
-  slashCandidates = noSlashCandidates,
+  slashCandidates: providedSlashCandidates = noSlashCandidates,
   enabled,
   active,
+  guided = false,
   launchIntent,
   onLaunchIntentHandled,
   onRuntimeSummaryChange,
@@ -84,6 +92,7 @@ export function AgentWorkspaceHost({
   onOpenSettings,
   remote = false,
 }: {
+  integrationsGateway?: import('#entities/agent-integrations').AgentIntegrationsGateway
   backgroundActive?: boolean
   feedback: import('../model/surface/agentFeedback.ts').AgentFeedback
   renderSurface: (model: AgentSurfaceModel) => import('react').ReactNode
@@ -101,6 +110,7 @@ export function AgentWorkspaceHost({
   slashCandidates?: AgentSlashCandidateCatalog
   enabled: boolean
   active: boolean
+  guided?: boolean
   notificationSessionId?: string
   onNotificationSessionHandled?: () => void
   launchIntent?: AgentLaunchIntent | null
@@ -166,7 +176,10 @@ export function AgentWorkspaceHost({
   const slashExecutionSessionIdsRef = useRef(new Set<string>())
   notificationRef.current = notification
   tRef.current = t
-  const { readiness, setReadiness, providers, models, setupLoading, draftModelId, setDraftModelId, draftReasoningLevel, setDraftReasoningLevel, activeSetupEpochRef, activeSetupReadyEpochRef, activeSetupAbortRef, acceptSetupSnapshot, markActiveSetupReady, hydrateActiveSetup, activeSetupReady, activeSetupFailed } = useAgentSetupState({ setupGateway, controller, remote, notificationRef, tRef, enabled, active })
+  const { readiness, setReadiness, providers, models, setupLoading, draftModelId, setDraftModelId, draftReasoningLevel, setDraftReasoningLevel, activeSetupEpochRef, activeSetupReadyEpochRef, activeSetupAbortRef, acceptSetupSnapshot, markActiveSetupReady, hydrateActiveSetup, activeSetupReady, activeSetupFailed } = useAgentSetupState({ setupGateway, controller, remote, notificationRef, tRef, enabled, active, guided })
+  const hostSources = useAgentHostDesktopSources(gateway, enabled && active && !remote && readiness?.mcp_policy?.host_desktop?.read === true)
+  const desktopResources = useMemo(() => [...providedDesktopResources, ...hostSources.resources], [providedDesktopResources, hostSources.resources])
+  const slashCandidates = useMemo(() => ({ ...providedSlashCandidates, session: { ...providedSlashCandidates.session, desktop: [...(providedSlashCandidates.session.desktop ?? []), ...hostSources.candidates] } }), [providedSlashCandidates, hostSources.candidates])
 
   const providerById = useMemo(
     () => new Map(providers.map((provider) => [provider.id, provider])),
@@ -184,13 +197,15 @@ export function AgentWorkspaceHost({
     () => projectAgentModelOptions(models, providerById),
     [models, providerById],
   )
+  const projectSessions = useMemo(() => createAgentSessionProjector(), [])
+  const projectSearchSessions = useMemo(() => createAgentSessionProjector(), [])
   const workspaceSessions = useMemo(
-    () => projectAgentSessions(state.sessions, models, providers, state.runs),
-    [models, providers, state.runs, state.sessions],
+    () => projectSessions(state.sessions, models, providers, state.runs),
+    [projectSessions, models, providers, state.runs, state.sessions],
   )
   const searchSessions = useMemo(
-    () => projectAgentSessions(management.searchResults, models, providers, state.runs),
-    [management.searchResults, models, providers, state.runs],
+    () => projectSearchSessions(management.searchResults, models, providers, state.runs),
+    [projectSearchSessions, management.searchResults, models, providers, state.runs],
   )
   const archiveMessages = useMemo(() => projectAgentMessages(archives.messages, undefined, []), [archives.messages])
   const referenceTargets = useMemo(() => projectAgentReferenceTargets(state, enabled), [state, enabled])
@@ -252,6 +267,12 @@ export function AgentWorkspaceHost({
   }, [activeSetupEpochRef, activeSetupReadyEpochRef, gateway, perform, readiness?.mcp_policy, setReadiness, setupGateway, remote])
 
   const selected = state.sessions.find((session) => session.id === state.selected_session_id)
+  const reviewSessionId = selected?.id
+  const archiveReviewSessionId = archives.selectedSession?.id
+  const loadFileReview = useMemo<NonNullable<AgentSurfaceModel['workspace']>['onLoadFileReview']>(() => gateway.fileReview && reviewSessionId
+    ? (id, digest, cursor) => gateway.fileReview!(reviewSessionId, id, digest, cursor) : undefined, [gateway, reviewSessionId])
+  const loadArchiveFileReview = useMemo<NonNullable<AgentSurfaceModel['archive']>['onLoadFileReview']>(() => gateway.fileReview && archiveReviewSessionId
+    ? (id, digest, cursor) => gateway.fileReview!(archiveReviewSessionId, id, digest, cursor) : undefined, [gateway, archiveReviewSessionId])
   const newSessionModelId = draftModelId
     ?? readiness?.settings.default_model_id
     ?? firstRunnableModelId
@@ -268,6 +289,8 @@ export function AgentWorkspaceHost({
     readiness && agentWorkspaceInfrastructureReady(readiness),
   )
   const { createDraftSession, ensureDraftSession, ensureAttachmentSession } = useAgentDraftOwnership({ controller, newSessionModelId, modelById, providerById, tRef, draftGroupId, newSessionReasoningLevel, setDraftGroupId, draftSessionCoordinator })
+  const integrationActions = useAgentIntegrationActions(integrationsGateway,selected?.id,ensureAttachmentSession)
+  const localDirectoryActions = useAgentLocalDirectory(gateway, selected?.id, ensureAttachmentSession)
 
   const { loadAttachmentContent, loadToolImage, draftAttachments, queuedTurnEditAttachments } = useAgentAttachmentWorkspace({ notificationRef, tRef, gateway, ensureAttachmentSession, controller, committedQueuedTurnEditSessionIdsRef, getQueuedEditOwner, state, previousQueuedTurnEditSessionIdsRef })
 
@@ -284,10 +307,12 @@ export function AgentWorkspaceHost({
   }, [selected, state.active_run_ids, state.runs])
   const selectedMessageEntities = selected ? state.messages[selected.id] : undefined
   const selectedRunEvents = selectedRun ? state.run_events[selectedRun.id] : undefined
-  const workspaceMessages = useMemo(
-    () => projectAgentMessages(selectedMessageEntities ?? [], selectedRun, selectedRunEvents ?? []),
-    [selectedMessageEntities, selectedRun, selectedRunEvents],
+  const projectMessages = useMemo(() => createAgentMessageProjector(), [])
+  const projectedMessages = useMemo(
+    () => active ? projectMessages(selectedMessageEntities ?? [], selectedRun, selectedRunEvents ?? []) : [],
+    [active, projectMessages, selectedMessageEntities, selectedRun, selectedRunEvents],
   )
+  const workspaceMessages = useAgentDesktopTasks(gateway, selectedRun, projectedMessages, active && enabled)
   const selectedQueuedTurnEdit = selected ? state.queued_turn_edits?.[selected.id] : undefined
   const selectedQueuedTurns = selected ? state.queued_turns?.[selected.id] ?? [] : []
   const selectedQueueState = selected ? state.queue_states?.[selected.id] : undefined
@@ -314,6 +339,7 @@ export function AgentWorkspaceHost({
     return createDraftSession(request.resource_reference, selectionRevision)
   }, [controller, createDraftSession, draftSessionCoordinator])
   const referenceImport = useAgentTerminalReferenceImport({
+    paused: guided,
     intent: launchIntent ?? undefined,
     controller,
     active,
@@ -393,6 +419,8 @@ export function AgentWorkspaceHost({
   const resourceActions = createAgentResourceActions({ selected, controller, readiness, connectSSHProfileBinding, performResourceMutation, recovery })
 
   const workspace: AgentSurfaceModel['workspace'] = {
+    ...integrationActions,
+    ...localDirectoryActions,
     composerFocusKey: composerFocusKey,
     composerActive: active,
     sessions: workspaceSessions,
@@ -493,7 +521,22 @@ export function AgentWorkspaceHost({
       ? queuedTurnEditAttachments.retry
       : draftAttachments.retry,
     onLoadAttachmentContent: loadAttachmentContent,
+    onLoadMessageText: gateway.timelineSupported && selected ? async id => {
+      const message = controller.getSnapshot().messages[selected.id]?.find(message => message.id === id)
+      if (!message) throw new Error('AGENT_MESSAGE_NOT_FOUND')
+      return loadAgentMessageText(gateway, message)
+    } : undefined,
     onLoadToolImage: loadToolImage,
+    onLoadFileReview: loadFileReview,
+    onLoadOlder: gateway.timelineSupported && selected && controller.canLoadOlder(selected.id) ? async () => {
+      try { await controller.loadHistory(selected.id) } catch (error) { notifyError(notificationRef.current, tRef.current, error, 'generic', remote) }
+    } : undefined,
+    onLoadNewer: gateway.timelineSupported && selected && controller.viewingHistory(selected.id) ? async () => {
+      try { await controller.loadHistory(selected.id, 'after') } catch (error) { notifyError(notificationRef.current, tRef.current, error, 'generic', remote) }
+    } : undefined,
+    onLoadLatest: gateway.timelineSupported && selected ? async () => {
+      try { await controller.loadLatest(selected.id) } catch (error) { notifyError(notificationRef.current, tRef.current, error, 'generic', remote) }
+    } : undefined,
     onExecuteSlashCommand: executeSlashCommand,
     onCancelProfileConnection: async () => selected
       ? profileConnection.coordinator.cancel(selected.id)
@@ -554,8 +597,16 @@ export function AgentWorkspaceHost({
     onSelect: archives.selectSession,
     onReload: archives.reload,
     onReloadPreview: archives.reloadPreview,
+    onLoadMessageText: gateway.timelineSupported ? async id => {
+      const message = archives.messages.find(message => message.id === id)
+      if (!message) throw new Error('AGENT_MESSAGE_NOT_FOUND')
+      return loadAgentMessageText(gateway, message)
+    } : undefined,
+    onLoadOlder: archives.loadOlder,
+    onLoadNewer: archives.loadNewer,
     onLoadAttachmentContent: loadAttachmentContent,
     onLoadToolImage: loadToolImage,
+    onLoadFileReview: loadArchiveFileReview,
     onRestore: async (session) => {
       const selection = controller.getSnapshot()
       try {

@@ -1,0 +1,41 @@
+.controls {
+  display: flex;
+  min-width: 0;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.mode {
+  display: inline-flex;
+  height: 24px;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+}
+
+.resolution {
+  min-width: 136px;
+}
+
+.status, .size {
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+@container remote-desktop-workspace (inline-size <= 760px) {
+  .size {
+    display: none;
+  }
+
+  .mode > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

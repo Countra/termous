@@ -33,7 +33,6 @@ export function AccountMFASetup({ setup, disabled, onCopyError }: Props) {
       </div>
       <div className={styles['setup-copy']}>
         <h3>{t('cloud.mfa.scanTitle')}</h3>
-        <p>{t('cloud.mfa.scanHint')}</p>
       </div>
     </div>
     <details className={styles['manual-key']}>

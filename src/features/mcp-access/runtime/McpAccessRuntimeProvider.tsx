@@ -237,11 +237,13 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
     return issued
   }), [api, clients, runMutation])
 
-  const decideApproval = useCallback((approvalId: string, decision: McpApprovalDecision) => (
+  const decideApproval = useCallback((approvalId: string, decision: McpApprovalDecision, rememberSession?: boolean) => (
     runMutation(`approval:${approvalId}`, async (isCurrent) => {
       const approval = approvalSnapshotRef.current.items.find((item) => item.id === approvalId)
       if (!approval) throw new Error('MCP 审批请求不存在')
-      const result = await api.decideApproval(approvalId, decision, approval.revision)
+      const result = rememberSession && approval.kind==='external_tool'
+        ? await api.decideApproval(approvalId, decision, approval.revision, undefined, true)
+        : await api.decideApproval(approvalId, decision, approval.revision)
       if (!isCurrent()) return
       const current = approvalSnapshotRef.current
       const next = mergeApprovalDecision(current, result.approval)
@@ -250,7 +252,9 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
     })
   ), [api, runMutation])
 
+  const readFileReview = useCallback<McpAccessGateway['readFileReview']>((id, query, signal) => api.readFileReview(id, query, signal), [api])
   const value = useMemo(() => ({
+    readFileReview,
     phase,
     status,
     clients,
@@ -265,6 +269,7 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
     issueToken,
     decideApproval,
   }), [
+    readFileReview,
     approvals,
     clients,
     createClient,

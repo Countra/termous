@@ -1,6 +1,6 @@
 import { Button, Spin, Tooltip } from 'antd'
 import { Check, Crosshair, Move, RotateCcw } from 'lucide-react'
-import { useEffect, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { useEffect, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Candidate, Point, Region } from '#entities/desktop-workflow'
 import { useImageViewport } from '#shared/ui'
@@ -13,17 +13,19 @@ import styles from './ScreenshotCanvas.module.scss'
 interface Props {
   url: string; size: ImageSize; mode: PreviewMode; disabled: boolean; busy: boolean
   initialRegion?: Region; point?: Point; matches?: Candidate[]; emptyHint?: string
+  editing?: boolean
+  overlay?: ReactNode
   onPoint: (point: Point) => void
   onApply: (region: Region, image: HTMLImageElement) => Promise<boolean>
 }
 
-export function ScreenshotCanvas({ url, size, mode, disabled, busy, initialRegion, point, matches, emptyHint, onPoint, onApply }: Props) {
+export function ScreenshotCanvas({ url, size, mode, disabled, busy, initialRegion, point, matches, emptyHint, overlay, onPoint, onApply, editing = true }: Props) {
   const { t } = useTranslation()
   const [ready, setReady] = useState(false)
   const [control, setControl] = useState(false)
   const view = useImageViewport(size, true)
   const stopPanning = view.stopPanning
-  const editor = useScreenshotSelection({ size, mode, disabled: disabled || !ready, initialRegion, onPoint })
+  const editor = useScreenshotSelection({ size, mode, disabled: disabled || !ready || !editing, initialRegion, onPoint })
   const { canvas, image, selection, applied, dragging, cancel } = editor
   useEffect(() => { cancel() }, [view.zoom, cancel])
   useEffect(() => {
@@ -54,7 +56,7 @@ export function ScreenshotCanvas({ url, size, mode, disabled, busy, initialRegio
   const changed = selection && !sameSelection(selection, applied)
   const recapture = mode === 'template' && !changed
 
-  return <div className={styles.root} onKeyDown={keyDown} onBlur={event => {
+  return <div className={styles.root} data-analysis={!!overlay} onKeyDown={keyDown} onBlur={event => {
     if (!event.currentTarget.contains(event.relatedTarget)) { setControl(false); cancel(); stopPanning() }
   }}>
     <div className={styles.stage}>
@@ -68,12 +70,13 @@ export function ScreenshotCanvas({ url, size, mode, disabled, busy, initialRegio
         }} onPointerUp={view.handlers.onPointerUp}
         onPointerCancel={view.handlers.onPointerCancel} onLostPointerCapture={view.handlers.onLostPointerCapture}>
         <div ref={canvas} className={styles.canvas} style={{ width: size.width * view.scale, height: size.height * view.scale,
-          transform: `translate(-50%, -50%) translate(${view.offset.x}px, ${view.offset.y}px)` }} data-disabled={disabled || !ready} data-dragging={dragging}
+          transform: `translate(-50%, -50%) translate(${view.offset.x}px, ${view.offset.y}px)` }} data-disabled={disabled || !ready || !editing} data-dragging={dragging}
           tabIndex={disabled ? -1 : 0} role="group" aria-label={t('desktopWorkflow.selection.canvas')} {...editor.handlers}>
           <img ref={image} src={url} alt={t('desktopWorkflow.readonlyScreen')} draggable={false} onLoad={() => setReady(true)} />
-          {mode !== 'point' && selection && <div className={styles.selection} style={boxStyle(selection)}>
-            <button type="button" className={styles.move} aria-label={t('desktopWorkflow.selection.move')} disabled={disabled} onPointerDown={event => editor.start(event, 'move')} onKeyDown={event => editor.nudge(event, 'move')} />
-            {resizeHandles.map(handle => <button key={handle} type="button" className={styles.handle} data-handle={handle} aria-label={t(`desktopWorkflow.selection.resize.${handle}`)} disabled={disabled}
+          {ready && overlay}
+          {mode !== 'point' && selection && <div className={styles.selection} data-editing={editing} style={boxStyle(selection)}>
+            {editing && <button type="button" className={styles.move} aria-label={t('desktopWorkflow.selection.move')} disabled={disabled} onPointerDown={event => editor.start(event, 'move')} onKeyDown={event => editor.nudge(event, 'move')} />}
+            {editing && resizeHandles.map(handle => <button key={handle} type="button" className={styles.handle} data-handle={handle} aria-label={t(`desktopWorkflow.selection.resize.${handle}`)} disabled={disabled}
               onPointerDown={event => editor.start(event, handle)} onKeyDown={event => editor.nudge(event, handle)} />)}
           </div>}
           {mode === 'point' && point && <span className={styles.point} style={{ left: `${(point.x + .5) * 100 / size.width}%`, top: `${(point.y + .5) * 100 / size.height}%` }}><Crosshair size={22} /></span>}
@@ -82,8 +85,8 @@ export function ScreenshotCanvas({ url, size, mode, disabled, busy, initialRegio
       </div>
     </div>
     <ScreenshotCanvasToolbar zoom={view.zoom} scale={view.scale} ready={ready && !busy} onZoom={view.changeZoom}
-      selectionMode={mode !== 'point'} disabled={disabled || dragging} canUndo={editor.canUndo} canRedo={editor.canRedo} hasSelection={!!selection} onEdit={editor.edit} />
-    {mode !== 'point' && <div className={styles.tools}>
+      selectionMode={editing && mode !== 'point'} disabled={disabled || dragging} canUndo={editor.canUndo} canRedo={editor.canRedo} hasSelection={!!selection} onEdit={editor.edit} />
+    {editing && mode !== 'point' && <div className={styles.tools}>
       <div className={styles.measurement} aria-live="polite" aria-atomic="true">
         <Move size={13} />{selection ? <><span>X <b>{selection.x}</b></span><span>Y <b>{selection.y}</b></span><strong>{selection.width} × {selection.height}</strong></> : <span>{emptyHint ?? t('desktopWorkflow.selection.drawHint')}</span>}
       </div>

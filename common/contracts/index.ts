@@ -1,7 +1,9 @@
 export { defaultExecutionBudget, isExecutionBudget, maxAgentMessageRequestUsage, type ExecutionBudget, type ExecutionLimits } from './agent-execution.ts'
+export { isHostDesktopTarget, hostDesktopTargetKey, type HostDesktopTarget, type HostDesktopSource } from './desktop-target.ts'
 export { isAgentProgressData, type AgentProgressData, type AgentProgressActivity } from './agent-progress.ts'
 export type { NotificationKind, NotificationOutcome, NotificationMessage, NotificationPage, NotificationEvent, NotificationTarget, NotificationActivation, NotificationPreferences, NotificationCapabilities, NotificationBridge } from './notification.ts'
-export type { RemoteAgentQuote, RemoteConnection, RemoteDevice, RemotePolicy, RemoteBootstrap, RemoteResult, RemoteLauncher, RemoteWindowBridge, RemoteLocalSelection, RemoteLocalTask } from './remote-control'
+export type { RemoteAccessMode, RemoteAgentQuote, RemoteConnection, RemoteDevice, RemotePolicy, RemoteBootstrap, RemoteResult, RemoteLauncher, RemoteWindowBridge, RemoteLocalSelection, RemoteLocalTask } from './remote-control'
+export type { RemotePolicyChange, RemotePolicyEditor, RemotePolicyResource, RemotePolicyReceipt } from './remote-control'
 export { notificationIPCChannels, decodeNotification, decodeNotificationPage, decodeNotificationEvent, validateNotificationPreferences, notificationTarget, notificationText } from './notification.ts'
 export type {
   AgentRuntimeCommandResult,
@@ -49,7 +51,7 @@ export type {
   TrayMenuState,
   TrayRecentHost,
 } from './application'
-export { appDebugModeArgument } from './application.ts'
+export { appDebugModeArgument, decodeAppBuildInfo } from './application.ts'
 export type {
   AppearanceSettings,
   ConnectionSettings,
@@ -140,6 +142,9 @@ export type {
 } from './bridge'
 
 export * from './settings-center.ts'
+export * from './screen-analysis.ts'
+export * from './screen-analysis-records.ts'
+export * from './analysis-media.ts'
 export * from './system-clipboard.ts'
 export type { DesktopAutomationHost, DesktopAutomationBootstrap, DesktopAutomationBridge } from './desktop-automation'
 export { isDesktopPointer, isDesktopPointerEvent } from './desktop-pointer.ts'
@@ -148,9 +153,24 @@ export * from './cloud.ts'
 export * from './detached-window.ts'
 export * from './agent-detached.ts'
 export * from './workflow-detached.ts'
+export * from './workflow-layout.ts'
+export * from './workflow-ocr.ts'
 export * from './cloud-security.ts'
 export * from './cloud-recovery.ts'
 export type { DesktopFileBridge, SystemFileClipboardContext, SystemFileClipboardState, SystemFileSelection } from './desktop-files'
 
 export type { FileClipboardImport, FileClipboardImportRequest, FileSystemClipboardBridge, FileSystemClipboardRequest, FileSystemClipboardState } from "./file-system-clipboard"
 export { agentToolImageReference, isAgentToolImageReference, isAgentDisplayImageMIMEType } from './agent-images.ts'
+export { isImageResourceReference, isTextResourceReference, type ContentResourceReference, type ImageResourceReference, type TextResourceReference } from './content-resources.ts'
+
+export type { HostDesktopAccess } from './remote-control'
+export * from './desktop-controls.ts'
+
+export type * from './agent-integrations.ts'
+
+export type { LocalNetworkSettings, MCPIntegrationSettings, IntegrationConfiguration, IntegrationDiagnostic } from './local-integrations.ts'
+
+export * from './web-search.ts'
+
+export { workflowExchangeChannels, isWorkflowFileRequest, isWorkflowExportLocationRequest } from './workflow-exchange.ts'
+export type { WorkflowFileBridge, WorkflowFileRequest, WorkflowFileResponse, WorkflowFileProgress, WorkflowExportLayout, WorkflowFileErrorDetails, WorkflowExportLocationRequest } from './workflow-exchange.ts'

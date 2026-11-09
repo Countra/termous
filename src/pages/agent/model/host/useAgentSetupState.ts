@@ -8,6 +8,7 @@ import {
 import { loadAgentModelCatalog } from '#features/agent-setup'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { notifyError } from './agentHostHelpers.ts'
+import { useIntegrationPreparation } from './useIntegrationPreparation.ts'
 
 interface Context {
   setupGateway: Pick<import('#features/agent-setup').AgentSetupGateway, "readiness" | "modelProviders" | "models"> & Partial<Pick<import('#features/agent-setup').AgentSetupGateway, "setup">>
@@ -17,9 +18,13 @@ interface Context {
   tRef: React.RefObject<import('i18next').TFunction<"translation", undefined>>
   enabled: boolean
   active: boolean
+  guided?: boolean
 }
 
-export function useAgentSetupState({ setupGateway, controller, remote, notificationRef, tRef, enabled, active }: Context) {
+export function useAgentSetupState({ setupGateway, controller, remote, notificationRef, tRef, enabled, active, guided = false }: Context) {
+  const preparationError = useCallback(() => notifyError(notificationRef.current, tRef.current), [notificationRef, tRef])
+  // 向导导航只暂停新准备，保留已取得的所有权；退出后恢复正常离页清理。
+  useIntegrationPreparation(controller, enabled && (active || guided) && !remote, preparationError, guided)
   const [readiness, setReadiness] = useState<AgentReadiness | null>(null)
 
   const [providers, setProviders] = useState<AgentModelProvider[]>([])

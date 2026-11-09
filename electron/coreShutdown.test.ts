@@ -41,3 +41,31 @@ test('轮询超时不表示进程已经退出，也不接受其他进程状态',
   assert.equal((await awaitCoreShutdown(value.dependencies, 1000)).status, 'failed')
   assert.equal(value.committed(), 0)
 })
+
+test('组件写入超过普通退出超时仍等待，完成后才发送关闭请求', async () => {
+  let maintenanceCalls = 0
+  let requested = false
+  const value = fixture({
+    maintenance: async () => ++maintenanceCalls < 300,
+    request: async () => { assert.ok(maintenanceCalls >= 300); requested = true; return true },
+    exited: () => requested,
+  })
+  assert.deepEqual(await awaitCoreShutdown(value.dependencies, 1000), { status: 'stopped' })
+  assert.ok(requested)
+})
+
+test('无法确认维护状态时保留应用，不发送关闭请求', async () => {
+  const value = fixture({ maintenance: async () => { throw new Error('offline') },
+    request: async () => { assert.fail('不应发起关闭') } })
+  assert.equal((await awaitCoreShutdown(value.dependencies)).status, 'failed')
+})
+
+test('维护查询期间所属 Core 已退出时按成功关闭处理', async () => {
+  let exited = false
+  const value = fixture({
+    maintenance: async () => { exited = true; throw new Error('connection closed') },
+    exited: () => exited,
+    request: async () => { assert.fail('已退出的 Core 不应再次请求关闭') },
+  })
+  assert.deepEqual(await awaitCoreShutdown(value.dependencies), { status: 'stopped' })
+})

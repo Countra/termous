@@ -76,7 +76,7 @@ export function AccountAuthorization({ api, generation, value, mfaEnabled, mfaRe
       await run(async () => {
         try {
           const result = await api.authorizationAction(generation, current.kind, current.id, name, { expected_revision: current.revision, confirm_trust: trust, ...proof })
-          if (scope.active && generation === api.getStatus()?.generation) { scope.request++; setCurrent(result); setError(false); onChanged() }
+          if (scope.active && generation === api.getStatus()?.generation) { scope.request++; setCurrent(result); setError(false); form.resetFields(); onChanged() }
           return result
         } catch (cause) {
           const code = cloudOperationErrorCode(cause, value => i18n.exists(`cloud.errors.${value}`))
@@ -84,7 +84,7 @@ export function AccountAuthorization({ api, generation, value, mfaEnabled, mfaRe
           throw Object.assign(new Error(code), { cause })
         }
       })
-    } finally { scope.submitting = false; if (scope.active) { setWorking(false); form.resetFields(['password', 'code']); await read() } }
+    } finally { scope.submitting = false; if (scope.active) { setWorking(false); form.resetFields(['password']); await read() } }
   }, [api, generation, current, trust, form, run, onChanged, read, mfaEnabled, open, i18n])
   useEffect(() => {
     if (open && current.kind === 'recovery' && trust && current.status === 'approved' && current.allowed_actions.includes('claim') && !busy && !working && automatic.current !== current.revision) {
@@ -143,9 +143,9 @@ export function AccountAuthorization({ api, generation, value, mfaEnabled, mfaRe
       {approval && !requester && approved ? <FeedbackMessage type="success" title={t('cloud.authorization.approvedTitle')} description={t('cloud.authorization.approvedHint')} /> : null}
       {requester && approved && !current.keys_verified ? <FeedbackMessage type={retryClaim ? 'warning' : 'info'} title={t(retryClaim ? 'cloud.authorization.localRetryHint' : 'cloud.authorization.finishingLocal')} /> : null}
       {current.kind !== 'approval' ? <Checkbox checked={trust} disabled={disabled} onChange={event => setTrust(event.target.checked)}>{t('cloud.authorization.platformTrust')}</Checkbox> : null}
-      <Form form={form} hidden={!canVerify} layout="vertical" onFinish={proof => { if (canVerify && !error && !disabled && mfaEnabled !== undefined && (current.kind === 'approval' || mfaEnabled)) void action(current.kind === 'approval' ? 'approve' : 'verify', buildCloudStepUpProof(mfaEnabled, proof, current.kind !== 'approval')) }}>
+      <Form form={form} hidden={!canVerify} layout="vertical" onFinish={proof => { if (open && canVerify && !error && !disabled && mfaEnabled !== undefined && (current.kind === 'approval' || mfaEnabled && trust)) void action(current.kind === 'approval' ? 'approve' : 'verify', buildCloudStepUpProof(mfaEnabled, proof, current.kind !== 'approval')) }}>
         {canVerify ? <>
-          <AccountStepUpFields enabled={mfaEnabled} revision={mfaRevision} disabled={disabled} totpOnly={current.kind !== 'approval'} />
+          <AccountStepUpFields gap={14} enabled={mfaEnabled} revision={mfaRevision} disabled={disabled || !open || error} autoSubmit={current.kind === 'approval' || trust} totpOnly={current.kind !== 'approval'} />
           <div className={styles.actions}>
             {allowed('reject') ? <Button danger type="text" disabled={disabled} onClick={() => void action('reject')}>{t('cloud.authorization.reject')}</Button> : null}
             <Button type="primary" htmlType="submit" loading={disabled} disabled={error || expired || mfaEnabled === undefined || current.kind !== 'approval' && (!mfaEnabled || !trust)}>{t(current.kind === 'approval' ? 'cloud.authorization.approve' : 'cloud.authorization.verify')}</Button>

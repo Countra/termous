@@ -28,26 +28,19 @@
 }
 
 .bar {
-  display: flex;
-  max-width: 100%;
   min-width: 0;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border-strong));
-  border-radius: 9px;
-  background: rgb(from var(--surface) r g b / 100%);
-  padding: 4px;
-  box-shadow: 0 3px 14px rgb(0 0 0 / 16%);
-  color: var(--text-primary);
+  gap: 10px;
+  padding: 6px;
 }
 
 .summary:global(.ant-btn) {
   min-width: 0;
-  height: 26px;
-  gap: 6px;
-  padding-inline: 7px;
-  color: var(--accent);
-  font-size: 11px;
+  height: 32px;
+  gap: 8px;
+  padding-inline: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
 
   > span {
     overflow: hidden;
@@ -58,8 +51,12 @@
 
 .countdown {
   flex: 0 0 auto;
-  color: var(--text-muted);
-  font-size: 11px;
+  border-radius: 5px;
+  background: var(--surface-subtle);
+  padding: 4px 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
@@ -71,10 +68,10 @@
   padding-left: 6px;
 
   > :global(.ant-btn) {
-    height: 26px;
-    padding-inline: 8px;
-    border-radius: 6px;
-    font-size: 11px;
+    height: 32px;
+    padding-inline: 10px;
+    border-radius: 8px;
+    font-size: 12px;
     box-shadow: none;
   }
 }

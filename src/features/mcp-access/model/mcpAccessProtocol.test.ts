@@ -10,6 +10,16 @@ import {
   decodeMcpStatus,
 } from './mcpAccessProtocol.ts'
 
+test('画面分析删除审批必须绑定明确的记录，不能冒用其他操作', () => {
+  const decode = (operation: unknown) => decodeMcpApprovalSnapshot({ instance_id: 'instance-1', revision: 1,
+    items: [{ ...approvalFixture('pending'), kind: 'screen_analysis', operation }] })
+  const valid = { domain: 'screen_analysis', action: 'delete', resource_id: 'analysis-1' }
+  assert.equal(decode(valid).items[0]?.operation?.resource_id, 'analysis-1')
+  for (const invalid of [{ ...valid, resource_id: '' }, { ...valid, action: 'create' }, { ...valid, domain: 'files' }]) {
+    assert.throws(() => decode(invalid), McpAccessProtocolError)
+  }
+})
+
 test('MCP 管理协议解码 canonical 状态、客户端和一次性令牌', () => {
   const status = decodeMcpStatus(statusFixture())
   assert.equal(status.endpoint, 'http://127.0.0.1:18131/mcp')
@@ -56,6 +66,15 @@ test('MCP 管理协议接受 Agent 托管投影并兼容旧 Core 与外部写响
   }])[0]
   assert.equal(externalWriteResponse?.source, 'external')
   assert.equal(externalWriteResponse?.read_only, false)
+})
+
+test('工作流交换权限在外部与内置客户端投影中保持一致', () => {
+  const scopes = ['desktop_workflows:read', 'desktop_workflows:exchange']
+  const clients = decodeMcpClients([
+    { ...clientFixture(), scopes },
+    { ...clientFixture(), id: 'builtin-exchange', scopes, source: 'builtin_agent', read_only: true, token_prefix: '' },
+  ])
+  assert.deepEqual(clients.map((client) => client.scopes), [scopes, scopes])
 })
 
 test('MCP 文件权限仅接受新名称，存储兼容不能混入 HTTP 投影', () => {

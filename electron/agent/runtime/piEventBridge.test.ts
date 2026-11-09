@@ -12,6 +12,21 @@ class EventSink {
   }
 }
 
+test('准备阶段归属实际调用且相同轮询阶段不会重复发布', () => {
+  const sink = new EventSink()
+  const bridge = new PiEventBridge({ writer: sink, assistantMessageID: 'message', originalToolName: () => 'wait_workflow_run' })
+  bridge.toolProgress('call', 'preparing')
+  assert.equal(sink.values.length, 0)
+  bridge.handle({ type: 'tool_execution_start', toolCallId: 'call', toolName: 'wait_workflow_run', args: { run_id: 'run' } })
+  for (let i = 0; i < 1000; i++) bridge.toolProgress('call', 'waiting')
+  bridge.toolProgress('call', 'executing')
+  assert.equal(sink.values.length, 3)
+  assert.deepEqual(sink.values[1]!.payload, { tool: { tool_call_id: 'call', tool_name: 'wait_workflow_run', phase: 'waiting' } })
+  bridge.handle({ type: 'tool_execution_end', toolCallId: 'call', toolName: 'wait_workflow_run', result: {}, isError: false })
+  bridge.toolProgress('call', 'preparing')
+  assert.equal(sink.values.length, 4)
+})
+
 test('pi 事件映射流式片段、签名、Tool 时间线和累计 usage', () => {
   const sink = new EventSink()
   let now = 100

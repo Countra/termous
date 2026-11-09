@@ -1,0 +1,89 @@
+@use '../../../../shared/styles/settings' as settings;
+
+.root {
+  min-width: 0;
+}
+
+.toggle {
+  @include settings.row;
+
+  align-items: center;
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.label > button {
+  color: var(--text-muted);
+}
+
+.copy label {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.6;
+}
+
+.copy > p,
+.control > p {
+  @include settings.hint;
+}
+
+.fields {
+  display: grid;
+  min-width: 0;
+  gap: 22px;
+  border-top: 1px solid var(--border);
+  padding: 18px 18px 20px;
+}
+
+.field {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(0, 1.5fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.field > .copy {
+  padding-top: 5px;
+}
+
+.control {
+  min-width: 0;
+}
+
+.field input,
+.field textarea {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+}
+
+.help > p {
+  margin: 0;
+}
+
+.help > p + p {
+  margin-top: 8px;
+}
+
+@media (width <= 600px) {
+  .toggle,
+  .fields {
+    padding: 14px;
+  }
+}
+
+@container settings-options (width <= 520px) {
+  .field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .field > .copy {
+    padding-top: 0;
+  }
+}

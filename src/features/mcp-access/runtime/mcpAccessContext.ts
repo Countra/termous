@@ -12,6 +12,7 @@ import type {
 export type McpAccessRuntimePhase = 'idle' | 'loading' | 'ready' | 'reconciling' | 'degraded'
 
 export interface McpAccessRuntimeValue {
+  readFileReview: import('../api/mcpAccessGateway').McpApprovalGateway['readFileReview']
   phase: McpAccessRuntimePhase
   status: McpStatus | null
   clients: McpClient[]
@@ -24,7 +25,7 @@ export interface McpAccessRuntimeValue {
   patchClient(clientId: string, patch: McpClientPatch): Promise<void>
   deleteClient(clientId: string): Promise<void>
   issueToken(clientId: string): Promise<McpClientToken>
-  decideApproval(approvalId: string, decision: McpApprovalDecision): Promise<void>
+  decideApproval(approvalId: string, decision: McpApprovalDecision, rememberSession?: boolean): Promise<void>
 }
 
 export const McpAccessRuntimeContext = createContext<McpAccessRuntimeValue | null>(null)

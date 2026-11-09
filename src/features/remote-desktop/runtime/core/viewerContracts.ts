@@ -1,12 +1,12 @@
 import type {
   RemoteDesktopAccessProfile,
-  RemoteDesktopDisplayMode,
   RemoteDesktopProtocol,
   RemoteDesktopSession,
   RdpAttachment,
 } from '#entities/remote-desktop'
 import type { DesktopFilesGateway } from '../../api/DesktopFilesClient.ts'
 import type { AutomationPointerFeed } from './automationPointerState.ts'
+import type { DesktopResolutionState, DesktopScaleMode } from './desktopResolution.ts'
 export interface DesktopExecutionConnection {
   connect: (readOnly: boolean) => Promise<{ url: string; ticket: string }>
   reclaim: (readOnly: boolean) => Promise<void>
@@ -45,12 +45,16 @@ export type RemoteDesktopViewerErrorCode =
   | ''
 
 export interface RemoteDesktopViewerState {
+  presentation?: import('@termous/remote-protocol/presentation').PresentationState
+  clipboardError?: DesktopClipboardError | ''
   controlLease?: { id: string; generation: number } | null
   controlOwned?: boolean
   connection: RemoteDesktopViewerConnectionState
   credentialFields: RemoteDesktopCredentialField[]
   verification: { type: string; fingerprint: string } | null
-  displayMode: RemoteDesktopDisplayMode
+  displayMode: DesktopScaleMode
+  followWindow: boolean
+  resolution?: DesktopResolutionState
   viewOnly: boolean
   desktopName: string
   remoteClipboard: string
@@ -93,6 +97,7 @@ export const emptyRemoteDesktopViewerState: RemoteDesktopViewerState = Object.fr
   credentialFields: [],
   verification: null,
   displayMode: 'fit',
+  followWindow: false,
   viewOnly: false,
   desktopName: '',
   remoteClipboard: '',
@@ -102,6 +107,9 @@ export const emptyRemoteDesktopViewerState: RemoteDesktopViewerState = Object.fr
 })
 
 export interface RemoteDesktopViewerEvents {
+  onPresentationChanged?: (state: import('@termous/remote-protocol/presentation').PresentationState) => void
+  onResolutionChanged?: (state: DesktopResolutionState) => void
+  onClipboardError?: (code: DesktopClipboardError | '') => void
   onControlChanged?: (owned: boolean, lease?: { id: string; generation: number } | null) => void
   onConnected: () => void
   onDisconnected: (clean: boolean) => void
@@ -115,19 +123,25 @@ export interface RemoteDesktopViewerEvents {
 }
 
 export interface RemoteDesktopViewerHandle {
+  resizeDesktop?: (width: number, height: number) => void
+  setPresentation?: (settings: import('@termous/remote-protocol/presentation').PresentationSettings) => void
   dispose: () => void
-  setDisplayMode: (mode: RemoteDesktopDisplayMode) => void
+  setDisplayMode: (mode: DesktopScaleMode) => void
+  setFollowWindow: (value: boolean) => void
   setViewOnly: (value: boolean) => void
-  setViewportActive: (active: boolean, mode: RemoteDesktopDisplayMode) => void
+  setViewportActive: (active: boolean, mode: DesktopScaleMode) => void
   focus: () => void
   blur: () => void
   sendCredentials: (credentials: RemoteDesktopCredentials) => void
   approveServer: () => void
   sendCtrlAltDel: () => void
-  sendClipboard: (text: string) => void
+  sendClipboard: (text: string) => void | Promise<void>
 }
 
+export type DesktopClipboardError = 'clipboard_failed' | 'clipboard_too_large' | 'clipboard_unavailable' | 'clipboard_timeout'
+
 export interface RemoteDesktopViewerCreateOptions {
+  presentation?: import('@termous/remote-protocol/presentation').PresentationPreference
   pointer?: AutomationPointerFeed
   desktopFiles?: DesktopFilesGateway
   transport: { kind: 'rfb'; url: string; execution?: DesktopExecutionConnection } | { kind: 'rdp-pixels'; attachment: RdpAttachment }

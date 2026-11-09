@@ -45,12 +45,54 @@ import type {
   AgentSessionUpdateInput,
 } from '#entities/agent'
 import { getTermousBridge } from '#shared/bridge'
+import { decodeAgentLocalDirectory } from '#entities/agent'
 import { AgentSetupClient } from './agentSetupClient.ts'
+import { isHostDesktopTarget } from '#common/contracts'
+import { isDesktopTaskSnapshot } from '#common/desktop-batch'
+import { decodeFileReviewPage } from '#shared/file-review'
 
 const agentPath = '/api/v1/agent'
 type AgentRuntimeBridge = NonNullable<TermousBridge['agentRuntime']>
 
 export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorkspaceGateway {
+  fileReview(sessionId: string, reviewId: string, digest: string, cursor?: string, signal?: AbortSignal) {
+    const params = new URLSearchParams({ digest })
+    if (cursor) params.set('cursor', cursor)
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/file-reviews/${encodeURIComponent(reviewId)}?${params}`, { signal }).then(decodeFileReviewPage)
+  }
+  localDirectory(sessionId: string, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/local-directory`, { signal }).then(decodeAgentLocalDirectory)
+  }
+  setLocalDirectory(sessionId: string, path: string, expectedRevision: number, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/local-directory`, {
+      method: 'PUT', body: { path, expected_revision: expectedRevision }, signal,
+    }).then(decodeAgentLocalDirectory)
+  }
+  // 浏览器没有 Electron IPC；Core 停止接口负责通过控制通道通知实际 Worker。
+  get runtimeOwnedByHost() { return !this.runtimeBridge }
+
+  async desktopTasks(runId: string, generation: number, cursor: string, waitMS: number, signal?: AbortSignal) {
+    const value = await this.request<unknown>(`${agentPath}/runs/${encodeURIComponent(runId)}/desktop-tasks/query`, {
+      method: 'POST', body: { generation, after_cursor: cursor, wait_ms: waitMS }, signal,
+    })
+    if (!isDesktopTaskSnapshot(value, generation)) throw new Error('agent_desktop_task_invalid')
+    return value
+  }
+  async cancelDesktopTask(runId: string, generation: number, clientRequestID: string, signal?: AbortSignal) {
+    await this.request(`${agentPath}/runs/${encodeURIComponent(runId)}/desktop-tasks/cancel`, {
+      method: 'POST', body: { generation, client_request_id: clientRequestID }, signal,
+    })
+  }
+  async hostDesktopSources(signal?: AbortSignal) {
+    const value = await this.request<unknown>(`${agentPath}/host-desktop-sources`, { signal })
+    if (!Array.isArray(value)) throw new Error('agent_resource_invalid')
+    return value.map((source: unknown) => {
+      const target = source && typeof source === 'object' && 'target' in source ? source.target : undefined
+      if (!isHostDesktopTarget(target) || target.host.kind !== 'screen') throw new Error('agent_resource_invalid')
+      return target
+    })
+  }
+  readonly timelineSupported = true
   private readonly runtimeBridge?: AgentRuntimeBridge
 
   constructor(config: Partial<AppConfig> = {}, runtimeBridge = getTermousBridge()?.agentRuntime) {
@@ -186,15 +228,15 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
       .then(decodeAgentAttachment)
   }
 
-  attachmentContent(id: string, signal?: AbortSignal) {
-    return this.requestBlob(`${agentPath}/attachments/${encodeURIComponent(id)}/content`, {
+  attachmentContent(id: string, signal?: AbortSignal, variant?: 'thumbnail') {
+    return this.requestBlob(`${agentPath}/attachments/${encodeURIComponent(id)}/content${variant ? '?variant=thumbnail' : ''}`, {
       signal, timeoutMs: 45_000,
     })
   }
 
-  toolImageContent(source: AgentToolImageSource, signal?: AbortSignal) {
+  toolImageContent(source: AgentToolImageSource, signal?: AbortSignal, variant?: 'thumbnail') {
     const { session_id, message_id, part_id, content_index, revision } = source
-    return this.requestBlob(`${agentPath}/sessions/${encodeURIComponent(session_id)}/messages/${encodeURIComponent(message_id)}/parts/${encodeURIComponent(part_id)}/images/${content_index}?revision=${revision}`, {
+    return this.requestBlob(`${agentPath}/sessions/${encodeURIComponent(session_id)}/messages/${encodeURIComponent(message_id)}/parts/${encodeURIComponent(part_id)}/images/${content_index}?revision=${revision}${variant ? '&variant=thumbnail' : ''}`, {
       signal, timeoutMs: 45_000,
     })
   }
@@ -208,6 +250,9 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
   messages(sessionId: string, options: AgentMessageListOptions = {}) {
     const query = new URLSearchParams({ limit: String(options.limit ?? 200) })
     if (options.afterSequence !== undefined) query.set('after_sequence', String(options.afterSequence))
+    if (options.view) query.set('view', options.view)
+    if (options.cursor) query.set('cursor', options.cursor)
+    if (options.direction) query.set('direction', options.direction)
     return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/messages?${query.toString()}`, {
       signal: options.signal,
     }).then(decodeAgentMessagePage)

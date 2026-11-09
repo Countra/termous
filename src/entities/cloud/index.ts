@@ -1,4 +1,5 @@
 export type { CloudGateway } from './model/gateway.ts'
+export { DevicePlatformIcon } from './ui/DevicePlatformIcon'
 export * from './model/decode.ts'
 export * from './model/mfa.ts'
 export * from './model/security.ts'

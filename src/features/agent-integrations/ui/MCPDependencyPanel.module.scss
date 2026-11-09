@@ -1,0 +1,22 @@
+.panel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+
+  code { overflow-wrap: anywhere; }
+}
+
+.logs {
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

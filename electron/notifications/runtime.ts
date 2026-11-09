@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { notificationTarget, notificationText, type NotificationActivation, type NotificationEvent, type NotificationMessage, type NotificationPreferences } from '#common/contracts'
 
 export interface NativeNotification {
@@ -12,15 +12,18 @@ interface Options {
   supported(): boolean
   preferences(): NotificationPreferences
   language(): string
-  create(title: string, body: string): NativeNotification
+  create(title: string, body: string, id: string): NativeNotification
   activate(): void
   warn(): void
+  deliveryFailed?(): void
   now?: () => number
 }
 
 export class NotificationRuntime {
   private watermark: number | null = null
   private active = new Map<NativeNotification, NotificationMessage[]>()
+  private deliveries = new Map<string, { native: NativeNotification; messages: NotificationMessage[] }>()
+  private consumed = new Set<string>()
   private activations: NotificationActivation[] = []
   private files: NotificationMessage[] = []
   private timer: ReturnType<typeof setTimeout> | null = null
@@ -40,6 +43,9 @@ export class NotificationRuntime {
       for (const [native, delivered] of this.active) {
         if (delivered.some((m) => m.kind === 'approval' && !visible.has(m.id))) this.release(native)
       }
+      for (const [id, delivery] of this.deliveries) {
+        if (delivery.messages.some(m => m.kind === 'approval' && !visible.has(m.id))) this.deliveries.delete(id)
+      }
     }
     if (this.watermark === null) {
       // 首次连接只建立历史水位，Renderer 重载不影响主进程投递记录。
@@ -49,6 +55,10 @@ export class NotificationRuntime {
     if (event.type === 'snapshot' && event.page.watermark < this.watermark) {
       this.watermark = event.page.watermark
       this.clearPending()
+      for (const native of this.active.keys()) this.release(native)
+      this.deliveries.clear()
+      this.activations = []
+      this.consumed.clear()
       return
     }
     for (const message of messages) {
@@ -84,19 +94,37 @@ export class NotificationRuntime {
     }
     try {
       while (this.active.size >= 3) this.release(this.active.keys().next().value!)
-      const native = this.options.create(text.title, text.body)
+      // 同一消息后续修订必须有独立激活标识，不能被上一次点击的去重记录吞掉。
+      const id = createHash('sha256').update(JSON.stringify(messages.map(m => [m.id, m.sequence]))).digest('hex').slice(0, 16)
+      const native = this.options.create(text.title, text.body, id)
+      this.deliveries.set(id, { native, messages })
+      if (this.deliveries.size > 64) this.deliveries.delete(this.deliveries.keys().next().value!)
       this.active.set(native, messages)
-      native.on('click', () => {
-        if (this.closed) return
+      native.on('click', () => this.activateNative(id))
+      native.on('close', () => this.release(native))
+      native.on('failed', () => { (this.options.deliveryFailed ?? this.options.warn)(); this.release(native) })
+      try { native.show() } catch { this.release(native); (this.options.deliveryFailed ?? this.options.warn)() }
+    } catch { (this.options.deliveryFailed ?? this.options.warn)() }
+  }
+  activateNative(id: string) {
+    if (this.closed) return
+    if (!id || id.length > 128) { this.options.activate(); return }
+    if (this.consumed.has(id)) return
+    this.consumed.add(id)
+    if (this.consumed.size > 128) this.consumed.delete(this.consumed.values().next().value!)
+    const delivered = this.deliveries.get(id)
+    this.deliveries.delete(id)
+    if (delivered) {
+      const { native, messages } = delivered
+      const now = this.options.now?.() ?? Date.now()
+      if (!messages.some(message => message.expires_at && Date.parse(message.expires_at) <= now)) {
         this.activations.push({ id: randomUUID(), target: messages.length === 1 ? notificationTarget(messages[0]) : { kind: 'centre', filter: 'file' }, messages })
         if (this.activations.length > 16) this.activations.shift()
-        this.release(native)
-        this.options.activate()
-      })
-      native.on('close', () => this.release(native))
-      native.on('failed', () => { this.options.warn(); this.release(native) })
-      try { native.show() } catch { this.release(native); this.options.warn() }
-    } catch { this.options.warn() }
+      }
+      this.release(native)
+    }
+    // 冷启动或映射已失效时只唤起窗口，不从通知参数构造业务操作。
+    this.options.activate()
   }
   private release(native: NativeNotification) {
     if (!this.active.delete(native)) return
@@ -118,5 +146,7 @@ export class NotificationRuntime {
     this.clearPending()
     for (const native of this.active.keys()) this.release(native)
     this.activations = []
+    this.deliveries.clear()
+    this.consumed.clear()
   }
 }

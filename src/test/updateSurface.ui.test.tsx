@@ -73,7 +73,7 @@ function updateBridge() {
       version: '1.0.0',
       platform: 'win32',
       arch: 'x64',
-      packaged: true,
+      packaged: true, channel: 'production',
     }),
     getBootstrap: async () => bootstrap,
     getState: async () => current,

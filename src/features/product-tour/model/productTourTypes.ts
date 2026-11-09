@@ -29,9 +29,10 @@ export type ProductTourStepId =
   | 'settingsAgent'
   | 'settingsData'
   | 'finish'
-  | 'desktop' | 'desktopConnect' | 'desktopTools' | 'desktopFiles'
-  | 'automationEntry' | 'automationLibrary' | 'automationEditor' | 'automationPreview' | 'automationHistory' | 'automationWindow'
-  | 'settingsModels' | 'agent' | 'agentContext' | 'agentApproval' | 'agentWindow'
+  | 'desktop' | 'desktopConnect' | 'desktopTools' | 'desktopFiles' | 'desktopQuality' | 'settingsDesktop'
+  | 'automationEntry' | 'automationLibrary' | 'automationEditor' | 'automationPreview' | 'automationAnalysis' | 'automationExchange' | 'automationHistory' | 'automationWindow'
+  | 'settingsModels' | 'agent' | 'agentContext' | 'agentApproval' | 'agentWindow' | 'agentHostDesktop' | 'agentWorkspace' | 'agentExtensions'
+  | 'extensionsMcp' | 'extensionsInstallation' | 'extensionsSkills' | 'extensionsSearch' | 'settingsNetwork'
   | 'account' | 'cloudSync' | 'cloudSecurity' | 'remoteDevices' | 'remotePermissions' | 'notifications'
 
 type ProductTourRoute =
@@ -60,15 +61,22 @@ type ProductTourPreparation =
   | 'settingsAgent'
   | 'settingsData'
   | 'settingsModels'
+  | 'settingsConnection'
+  | 'settingsDesktop'
+  | 'extensionsMcp'
+  | 'extensionsSkills'
+  | 'extensionsSearch'
 
 export interface ProductTourStep {
   id: ProductTourStepId
   title: string
   description: string
+  fallbackDescription?: string
   element?: string
   fallbackElement?: string
   route?: ProductTourRoute
   desktopView?: 'desktops' | 'workflow'
+  workflowView?: 'scripts' | 'runs'
   accountTab?: 'sync' | 'devices' | 'security'
   preparation?: ProductTourPreparation
   disableActiveInteraction?: boolean
@@ -90,4 +98,4 @@ export type ProductTourTranslate = (
   options?: Record<string, unknown>,
 ) => string
 
-export type ProductTourStepBlueprint = Omit<ProductTourStep, 'title' | 'description'>
+export type ProductTourStepBlueprint = Omit<ProductTourStep, 'title' | 'description' | 'fallbackDescription'>

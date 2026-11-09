@@ -1,0 +1,16 @@
+// 阴影由内容面板绘制，避免与 Ant Design 外层的多重投影叠加。
+.root:global(.ant-popover),
+.root:global(.ant-tooltip),
+.surface:global(.ant-tooltip-unique-container) {
+  filter: none;
+}
+
+// 保持低优先级，允许业务面板覆盖阴影或使用透明容器。
+.surface {
+  box-shadow: var(--shadow-soft);
+}
+
+// 独立提示模式由旁侧背景容器承载阴影，文字容器不重复绘制。
+.root:global(.ant-tooltip-unique-controlled) :global(.ant-tooltip-container) {
+  box-shadow: none;
+}

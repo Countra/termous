@@ -1,9 +1,22 @@
+import { isHostDesktopTarget, type HostDesktopTarget } from './desktop-target.ts'
+import { isAnalysisMediaRequest, type AnalysisMediaRequest } from './analysis-media.ts'
+import { isWorkflowOCRQuery, type WorkflowOCRQuery } from './workflow-ocr.ts'
+import { isWorkflowEditorPanels } from './workflow-layout.ts'
+import { analysisPanelLimits } from './screen-analysis-records.ts'
+
 export const workflowDetachedActions = [
+  'exchange',
   'create', 'load', 'change', 'selectStep', 'target', 'view', 'showRun', 'save', 'validate',
   'history', 'closeHistory', 'restore', 'remove', 'copy', 'openRun', 'closeRun', 'changeRun',
   'start', 'control', 'refresh', 'refreshReport', 'viewDesktop', 'dismissNotice', 'presentation',
 ] as const
 export type WorkflowDetachedAction = typeof workflowDetachedActions[number]
+const noArgumentActions = new Set<WorkflowDetachedAction>([
+  'save', 'validate', 'history', 'closeHistory', 'remove', 'closeRun', 'start', 'refresh', 'refreshReport',
+])
+export function isWorkflowDetachedNoArgumentAction(name: WorkflowDetachedAction) {
+  return noArgumentActions.has(name)
+}
 export interface WorkflowDetachedCommand {
   name: WorkflowDetachedAction
   args: unknown[]
@@ -13,6 +26,17 @@ export interface WorkflowDetachedCommand {
 export const workflowDetachedInputs = ['change', 'selectStep', 'target', 'view', 'changeRun', 'presentation'] as const
 export const workflowMediaLimit = 32 * 1024 * 1024
 export type WorkflowDetachedMedia =
+  | { kind: 'import-asset'; id: string; hash: string }
+  | { kind: 'ocr-defaults' }
+  | { kind: 'ocr-preview'; id: string; request: string; query: WorkflowOCRQuery }
+  | { kind: 'ocr-cancel'; id: string; request: string }
+  | { kind: 'ocr-report'; id: string; index: number; offset: number; limit: number }
+  | { kind: 'runtime-status' }
+  | { kind: 'runtime-warmup' }
+  | { kind: 'runtime-settings' }
+  | { kind: 'analysis'; request: AnalysisMediaRequest; read_id?: string }
+  | { kind: 'analysis-read-cancel'; id: string }
+  | { kind: 'open-host'; target: HostDesktopTarget }
   | { kind: 'open'; session: string; generation: number }
   | { kind: 'close' | 'capture' | 'asset'; id: string }
   | { kind: 'match'; id: string; target: Record<string, unknown> }
@@ -24,7 +48,7 @@ const strings = (value: unknown) => Array.isArray(value) && value.every(item => 
 const fields = (value: Record<string, unknown>, allowed: string[]) => Object.keys(value).every(key => allowed.includes(key))
 
 function definition(value: unknown): boolean {
-  return record(value) && value.schema_version === 1 && Array.isArray(value.parameters) && Array.isArray(value.steps)
+  return record(value) && (value.schema_version === 1 || value.schema_version === 2) && Array.isArray(value.parameters) && Array.isArray(value.steps)
     && value.parameters.every(item => record(item) && typeof item.id === 'string' && typeof item.name === 'string' && ['string', 'number', 'boolean'].includes(String(item.type)))
     && value.steps.every(step)
 }
@@ -53,6 +77,13 @@ export function isWorkflowDetachedCommand(value: unknown): value is WorkflowDeta
   if (!safeJSON(value.args, { size: 0 })) return false
   const [arg] = value.args
   switch (value.name) {
+    case 'exchange': return record(arg) && (
+      ['import', 'cancel', 'close', 'commit'].includes(String(arg.kind)) && fields(arg, ['kind'])
+      || arg.kind === 'open-directory' && fields(arg, ['kind', 'location_id']) && typeof arg.location_id === 'string' && /^[a-zA-Z0-9_-]{1,80}$/.test(arg.location_id)
+      || arg.kind === 'name' && fields(arg, ['kind', 'name']) && typeof arg.name === 'string' && arg.name.length <= 160
+      || arg.kind === 'target' && fields(arg, ['kind', 'id']) && (arg.id === undefined || id(arg.id))
+      || arg.kind === 'export' && fields(arg, ['kind', 'version', 'layout']) && ['zip', 'json', 'directory'].includes(String(arg.layout))
+        && (arg.version === undefined || Number.isSafeInteger(arg.version) && Number(arg.version) > 0))
     case 'create': case 'copy': return value.args.length === 1 && typeof arg === 'string' && arg.length <= 240
     case 'load': case 'showRun': case 'viewDesktop': case 'dismissNotice': return value.args.length === 1 && id(arg)
     case 'selectStep': return value.args.length === 1 && (arg === undefined || id(arg))
@@ -63,25 +94,52 @@ export function isWorkflowDetachedCommand(value: unknown): value is WorkflowDeta
     case 'change': return record(arg) && fields(arg, ['name', 'description', 'tags', 'definition'])
       && (arg.name === undefined || typeof arg.name === 'string') && (arg.description === undefined || typeof arg.description === 'string')
       && (arg.tags === undefined || strings(arg.tags)) && (arg.definition === undefined || definition(arg.definition))
-    case 'target': return record(arg) && ['session', 'profile'].includes(String(arg.mode)) && (arg.id === undefined || id(arg.id))
+    case 'target': return record(arg) && ['session', 'profile', 'host'].includes(String(arg.mode)) && (arg.id === undefined || id(arg.id))
+      && (arg.mode === 'host' ? arg.host === undefined || isHostDesktopTarget(arg.host) : arg.host === undefined)
       && (arg.connectionGeneration === undefined || Number.isSafeInteger(arg.connectionGeneration) && Number(arg.connectionGeneration) > 0)
     case 'changeRun': return record(arg) && fields(arg, ['takeover', 'keep', 'parameters'])
       && (arg.takeover === undefined || typeof arg.takeover === 'boolean') && (arg.keep === undefined || typeof arg.keep === 'boolean')
       && (arg.parameters === undefined || record(arg.parameters) && Object.values(arg.parameters).every(value => ['string', 'number', 'boolean'].includes(typeof value)))
-    case 'presentation': return record(arg) && fields(arg, ['catalogCollapsed', 'propertiesVisible', 'foldedSteps', 'queries', 'runFilter', 'reportExpansion'])
+    case 'presentation': return record(arg) && fields(arg, ['catalogCollapsed', 'propertiesVisible', 'chainCollapsed', 'editorPanels', 'foldedSteps', 'queries', 'runFilter', 'reportExpansion', 'analysis'])
+      && (arg.chainCollapsed === undefined || typeof arg.chainCollapsed === 'boolean')
+      && (arg.editorPanels === undefined || isWorkflowEditorPanels(arg.editorPanels))
+      && (arg.analysis === undefined || record(arg.analysis) && fields(arg.analysis, ['open', 'id', 'layer', 'filter', 'selected', 'history', 'view', 'panels', 'resultsVisible'])
+        && (arg.analysis.resultsVisible === undefined || typeof arg.analysis.resultsVisible === 'boolean')
+        && (arg.analysis.panels === undefined || record(arg.analysis.panels) && fields(arg.analysis.panels, ['historyWidth', 'resultsWidth'])
+          && (['history', 'results'] as const).every(side => {
+            const value = (arg.analysis as Record<string, unknown>).panels as Record<string, unknown>
+            const width = value[`${side}Width`]
+            return typeof width === 'number' && Number.isFinite(width) && width >= analysisPanelLimits[side].min && width <= analysisPanelLimits[side].max
+          }))
+        && typeof arg.analysis.open === 'boolean' && typeof arg.analysis.history === 'boolean' && ['elements', 'ocr'].includes(String(arg.analysis.layer))
+        && (arg.analysis.id === undefined || id(arg.analysis.id)) && record(arg.analysis.filter)
+        && isAnalysisMediaRequest({ operation: 'elements', id: 'presentation', query: arg.analysis.filter })
+        && (arg.analysis.view === undefined || record(arg.analysis.view) && fields(arg.analysis.view, ['zoom', 'boxes', 'labelMode'])
+          && (arg.analysis.view.labelMode === undefined || typeof arg.analysis.view.labelMode === 'string' && ['auto', 'all', 'none'].includes(arg.analysis.view.labelMode))
+          && typeof arg.analysis.view.boxes === 'boolean' && (arg.analysis.view.zoom === 'fit' || typeof arg.analysis.view.zoom === 'number' && Number.isFinite(arg.analysis.view.zoom) && arg.analysis.view.zoom > 0 && arg.analysis.view.zoom <= 4))
+        && (arg.analysis.selected === undefined || Number.isSafeInteger(arg.analysis.selected) && Number(arg.analysis.selected) >= 0 && Number(arg.analysis.selected) < 1300))
       && (arg.catalogCollapsed === undefined || typeof arg.catalogCollapsed === 'boolean') && (arg.propertiesVisible === undefined || typeof arg.propertiesVisible === 'boolean')
       && (arg.foldedSteps === undefined || strings(arg.foldedSteps)) && (arg.runFilter === undefined || ['all', 'active'].includes(String(arg.runFilter)))
       && (arg.queries === undefined || record(arg.queries) && fields(arg.queries, ['scripts', 'runs']) && typeof arg.queries.scripts === 'string' && typeof arg.queries.runs === 'string')
       && (arg.reportExpansion === undefined || record(arg.reportExpansion) && fields(arg.reportExpansion, ['runID', 'allExpanded', 'exceptions'])
         && id(arg.reportExpansion.runID) && typeof arg.reportExpansion.allExpanded === 'boolean' && strings(arg.reportExpansion.exceptions))
-    default: return value.args.length === 0
+    default: return isWorkflowDetachedNoArgumentAction(value.name as WorkflowDetachedAction) && value.args.length === 0
   }
 }
 
 export function isWorkflowDetachedMedia(value: unknown): value is WorkflowDetachedMedia {
   if (!record(value)) return false
+  if (value.kind === 'import-asset') return fields(value, ['kind', 'id', 'hash']) && id(value.id) && typeof value.hash === 'string' && /^[a-f0-9]{64}$/.test(value.hash)
+  if (value.kind === 'ocr-defaults') return fields(value, ['kind'])
+  if (value.kind === 'ocr-preview') return fields(value, ['kind','id','request','query']) && id(value.id) && id(value.request) && isWorkflowOCRQuery(value.query)
+  if (value.kind === 'ocr-cancel') return fields(value, ['kind','id','request']) && id(value.id) && id(value.request)
+  if (value.kind === 'ocr-report') return fields(value, ['kind','id','index','offset','limit']) && id(value.id) && Number.isSafeInteger(value.index) && Number(value.index) > 0 && Number.isSafeInteger(value.offset) && Number(value.offset) >= 0 && Number.isSafeInteger(value.limit) && Number(value.limit) >= 1 && Number(value.limit) <= 100
+  if (value.kind === 'runtime-status' || value.kind === 'runtime-settings' || value.kind === 'runtime-warmup') return fields(value, ['kind'])
+  if (value.kind === 'analysis-read-cancel') return fields(value, ['kind', 'id']) && id(value.id)
+  if (value.kind === 'analysis') return fields(value, ['kind', 'request', 'read_id']) && isAnalysisMediaRequest(value.request) && (value.read_id === undefined || id(value.read_id))
   if (value.kind === 'upload') return value.bytes instanceof ArrayBuffer && value.bytes.byteLength > 0
     && value.bytes.byteLength <= 8 * 1024 * 1024 && ['image/png', 'image/jpeg'].includes(String(value.type))
+  if (value.kind === 'open-host') return fields(value, ['kind', 'target']) && isHostDesktopTarget(value.target)
   if (value.kind === 'open') return id(value.session) && Number.isSafeInteger(value.generation) && Number(value.generation) > 0
   if (['close', 'capture', 'asset'].includes(String(value.kind))) return id(value.id)
   return value.kind === 'match' && id(value.id) && record(value.target) && safeJSON(value.target, { size: 0 })

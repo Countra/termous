@@ -1,8 +1,16 @@
 import type { JsonValue } from '@bufbuild/protobuf'
 import type { AppLanguage, AppTheme } from './application'
 import type { NotificationTarget } from './notification'
+import type { SettingsSnapshot } from './settings-center'
+import type { HostDesktopTarget } from './desktop-target'
+
+export interface HostDesktopAccess {
+  id: string; device_id: string; target: HostDesktopTarget; title: string
+  controlling: boolean; stopping: boolean
+}
 
 export interface RemoteConnection {
+	capabilities?: string[]
   id: string
   state: string
   scope: { connection_id: string; generation: string; controller_id: string; host_id: string }
@@ -18,11 +26,15 @@ export interface RemoteDevice {
   id: string; name: string; trust: string; online: string
   advertisement: { protocol: string; host_enabled: boolean; platform: string; policy_revision: string }
 }
+export type RemoteAccessMode = 'full' | 'custom'
+
 export interface RemotePolicy {
+  access_mode?: RemoteAccessMode
+	host_desktop?: { observe: boolean; control: boolean; secure_capture?: boolean; secure_control?: boolean }
   revision: number; enabled: boolean
   agent_enabled?: boolean
   // 首次授权或清空授权后，后端的空切片可能序列化为 null。
-  hosts: { id: string; connections?: { id: string; kind: string }[] | null }[] | null
+  hosts: { id: string; terminal_file_access?: boolean; connections?: { id: string; kind: string }[] | null }[] | null
   directories: { id: string; name: string; path: string; read: boolean; write: boolean }[] | null
 }
 export interface RemoteAgentQuote { key: number; text: string; sessionId: string; capturedAt: string }
@@ -45,19 +57,47 @@ export interface RemoteLocalSelection {
   directory?: boolean
 }
 export interface RemoteLauncher {
+  editPolicy?(generation: string, editor: string): Promise<RemoteResult<RemotePolicyEditor>>
+  closePolicyEditor?(editor: string): Promise<RemoteResult<boolean>>
+  changePolicy?(generation: string, editor: string, revision: number, change: RemotePolicyChange): Promise<RemoteResult<RemotePolicyReceipt>>
+  selectPolicyDirectory?(generation: string, editor: string): Promise<RemoteResult<string | null>>
+  hostDesktopAccesses?(generation: string): Promise<RemoteResult<HostDesktopAccess[]>>
+  stopHostDesktopAccess?(generation: string, id: string): Promise<RemoteResult<unknown>>
   openAgent(generation: string, target: Extract<NotificationTarget, { kind: 'remote_agent' }>): Promise<RemoteResult<boolean>>
   open(generation: string, deviceId: string, deviceName: string): Promise<RemoteResult<boolean>>
   devices(generation: string): Promise<RemoteResult<RemoteDevice[]>>
   policy(generation: string): Promise<RemoteResult<RemotePolicy>>
-  configure(generation: string, revision: number, enabled: boolean, hostIds: string[]): Promise<RemoteResult<RemotePolicy>>
+  configure(generation: string, revision: number, enabled: boolean, hostIds: string[] | undefined, accessMode: RemoteAccessMode): Promise<RemoteResult<RemotePolicy>>
   configureAgent(generation: string, revision: number, enabled: boolean): Promise<RemoteResult<RemotePolicy>>
+	configureHostDesktop?(generation: string, revision: number, observe: boolean, control: boolean, secureCapture: boolean, secureControl: boolean): Promise<RemoteResult<RemotePolicy>>
   configureDesktops?(generation: string, revision: number, profiles: string[], exchangeProfiles?: string[]): Promise<RemoteResult<RemotePolicy>>
   desktopProfiles?(): Promise<RemoteResult<{ id: string; host_id: string; name: string; protocol: string }[]>>
   hosts(): Promise<RemoteResult<{ id: string; name: string }[]>>
   addDirectory(generation: string, revision: number, write: boolean): Promise<RemoteResult<RemotePolicy | null>>
   removeDirectory(generation: string, revision: number, id: string): Promise<RemoteResult<RemotePolicy>>
 }
+
+export type RemotePolicyChange =
+  | { kind: 'enabled' | 'agent'; enabled: boolean }
+  | { kind: 'mode'; mode: RemoteAccessMode }
+  | { kind: 'hosts' | 'desktops' | 'exchange'; add?: string[]; remove?: string[]; reauthorize?: string[] }
+  | { kind: 'host_desktop'; host_desktop: Required<NonNullable<RemotePolicy['host_desktop']>> }
+  | { kind: 'directory_add'; selection: string; write: boolean }
+  | { kind: 'directory_remove'; directory_id: string }
+
+export interface RemotePolicyResource {
+  id: string; name: string; host_id?: string; protocol?: string
+  status: 'available' | 'changed' | 'unavailable'
+}
+export interface RemotePolicyEditor {
+  policy: RemotePolicy; hosts: RemotePolicyResource[]; desktops: RemotePolicyResource[]
+}
+export interface RemotePolicyReceipt {
+  policy: RemotePolicy; cleanup_pending: boolean; reconnect_desktop: boolean
+}
 export interface RemoteWindowBridge {
+  desktopReceiverPolicy?: 'native' | 'prefer_level_51'
+  desktopQualityDefaults?(connectionId: string): Promise<RemoteResult<SettingsSnapshot>>
   debugMode?: boolean
   desktopICE?(connectionId: string): Promise<RemoteResult<RTCIceServer[]>>
   windowControls?: {

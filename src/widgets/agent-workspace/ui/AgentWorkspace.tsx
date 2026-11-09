@@ -32,10 +32,15 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     setPreviewAttachment(attachment)
   }, [])
   const onDraftChange = useStableEventHandler(props.onDraftChange)
+  const onLoadOlder = useStableEventHandler(props.onLoadOlder ?? ignoreHistoryLoad)
+  const onLoadNewer = useStableEventHandler(props.onLoadNewer ?? ignoreHistoryLoad)
+  const onLoadLatest = useStableEventHandler(props.onLoadLatest ?? ignoreHistoryLoad)
+  const onLoadMessageText = useStableEventHandler(props.onLoadMessageText ?? unavailableMessageText)
   const onAttachFiles = useStableEventHandler(props.onAttachFiles)
   const onRemoveAttachment = useStableEventHandler(props.onRemoveAttachment)
   const onRetryAttachment = useStableEventHandler(props.onRetryAttachment)
   const onLoadAttachmentContent = useStableEventHandler(props.onLoadAttachmentContent)
+  const onLoadFileReview = useStableEventHandler(props.onLoadFileReview ?? (async () => { throw new Error('FILE_REVIEW_UNAVAILABLE') }))
   const onLoadToolImage = useStableEventHandler(props.onLoadToolImage ?? unavailableToolImage)
   const onSend = useStableEventHandler(props.onSend)
   const onQueueTurn = useStableEventHandler(props.onQueueTurn)
@@ -150,9 +155,13 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           onStop={() => void props.onStop()}
         />
         <AgentConversation
+          onLoadOlder={props.onLoadOlder ? onLoadOlder : undefined}
+          onLoadMessageText={props.onLoadMessageText ? onLoadMessageText : undefined}
+          onLoadNewer={props.onLoadNewer ? onLoadNewer : undefined}
+          onLoadLatest={props.onLoadLatest ? onLoadLatest : undefined}
           active={props.composerActive}
           presentation={props.presentation}
-          onPrompt={props.onDraftChange}
+          onPrompt={onDraftChange}
           messages={props.messages}
           runStatus={runStatus}
           loading={props.loading}
@@ -160,9 +169,11 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           showTurnTokenUsage={props.show_turn_token_usage}
           onPreviewAttachment={onPreviewAttachment}
           onLoadAttachmentContent={onLoadAttachmentContent}
-          onLoadToolImage={onLoadToolImage}
+          onLoadToolImage={onLoadToolImage} onLoadFileReview={onLoadFileReview}
         />
         <AgentComposer
+          onReadIntegrations={props.onReadIntegrations} onChangeIntegration={props.onChangeIntegration}
+          onReadLocalDirectory={props.onReadLocalDirectory} onChangeLocalDirectory={props.onChangeLocalDirectory}
           onLoadLocalAttachment={props.onLoadLocalAttachment}
           presentation={props.presentation}
           focusKey={props.composerFocusKey}
@@ -290,6 +301,9 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     </div>
   )
 }
+
+const ignoreHistoryLoad = async () => undefined
+const unavailableMessageText = async (): Promise<string> => { throw new Error('AGENT_MESSAGE_NOT_FOUND') }
 
 function useStableEventHandler<Arguments extends unknown[], Result>(
   handler: (...args: Arguments) => Result,

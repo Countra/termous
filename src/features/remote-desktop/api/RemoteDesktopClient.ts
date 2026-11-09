@@ -1,4 +1,5 @@
-import type { AppConfig } from '#common/contracts'
+import type { AppConfig, DesktopControlReclaim, DesktopControlSnapshot } from '#common/contracts'
+import { subscribeDesktopControls } from '#entities/desktop-control'
 import type {
   RemoteDesktopAttachTicket,
   RemoteDesktopAccessProfile,
@@ -12,7 +13,8 @@ import { DesktopFilesClient } from './DesktopFilesClient.ts'
 export class RemoteDesktopClient extends TermousApiTransport implements RemoteDesktopGateway {
   readonly automation = {
     show: (id: string, generation: number, host: string) => this.request<void>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/automation/show`, { method: 'POST', body: { expected_connection_generation: generation, host_id: host } }),
-    reclaim: (id: string, generation: number) => this.request<void>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/automation/reclaim`, { method: 'POST', body: { expected_connection_generation: generation } }),
+    reclaim: (request: DesktopControlReclaim) => this.request<void>('/api/v1/desktop-controls/reclaim', { method: 'POST', body: request }),
+    subscribe: (listener: (snapshot: DesktopControlSnapshot | null) => void) => subscribeDesktopControls(() => this.websocketUrl('/api/v1/desktop-controls/events'), listener),
   }
   readonly desktopFiles: DesktopFilesClient
   readonly execution = {

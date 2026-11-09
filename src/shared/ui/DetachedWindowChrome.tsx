@@ -3,10 +3,10 @@ import { AppWindow, ArrowUpRight, CornerDownLeft } from 'lucide-react'
 import type { ReactNode, Ref } from 'react'
 import styles from './DetachedWindow.module.scss'
 
-export function DetachedWindowButton({ label, returning = false, busy = false, onClick }: {
-  label: string; returning?: boolean; busy?: boolean; onClick: () => void
+export function DetachedWindowButton({ label, returning = false, busy = false, onClick, 'data-tour': tour }: {
+  label: string; returning?: boolean; busy?: boolean; onClick: () => void; 'data-tour'?: string
 }) {
-  return <Tooltip title={label}><Button type="text" aria-label={label} loading={busy} disabled={busy}
+  return <Tooltip title={label}><Button type="text" data-tour={tour} aria-label={label} loading={busy} disabled={busy}
     icon={returning ? <CornerDownLeft size={16} /> : <AppWindow size={16} />} onClick={onClick} /></Tooltip>
 }
 

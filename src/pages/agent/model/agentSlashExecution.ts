@@ -1,4 +1,5 @@
 import { agentSlashCatalogCandidates } from '#entities/agent'
+import { hostDesktopTargetKey } from '#common/contracts'
 import type {
   AgentResourceBinding,
   AgentSlashCandidate,
@@ -103,6 +104,8 @@ export function latestSlashMutationCandidate(
 }
 
 export function sameSlashCandidateIdentity(left: AgentSlashCandidate, right: AgentSlashCandidate) {
+  if (left.kind === 'host_desktop' || right.kind === 'host_desktop') return left.kind === 'host_desktop' && right.kind === 'host_desktop'
+    && hostDesktopTargetKey(left.desktop_target) === hostDesktopTargetKey(right.desktop_target) && right.status === 'ready'
   if (left.kind === 'desktop_workflow' || right.kind === 'desktop_workflow') return left.kind === 'desktop_workflow' && right.kind === 'desktop_workflow' && left.id === right.id
     && left.workflow_id === right.workflow_id && left.workflow_version === right.workflow_version
   if (left.id !== right.id || left.kind !== right.kind || left.resource_kind !== right.resource_kind
@@ -131,6 +134,7 @@ export function slashCandidateMatchesBinding(
   binding: AgentResourceBinding | undefined,
 ) {
   if (!binding) return false
+  if (candidate.kind === 'host_desktop') return binding.kind === 'host_desktop' && hostDesktopTargetKey(candidate.desktop_target) === hostDesktopTargetKey(binding.desktop_target)
   if (candidate.kind === 'desktop_workflow') return binding.kind === 'desktop_workflow' && candidate.workflow_id === binding.workflow_id && candidate.workflow_version === binding.workflow_version
   if (candidate.host_id !== binding.host_id) return false
   if (candidate.kind === 'desktop_session') return binding.kind === 'desktop_session' && candidate.session_id === binding.session_id && candidate.profile_id === binding.desktop_profile_id && candidate.connection_generation === binding.connection_generation && candidate.protocol === binding.protocol

@@ -1,4 +1,6 @@
 .overlay {
+  --pointer-color: #ff8300;
+
   position: absolute;
   z-index: 3;
   top: 0;
@@ -14,21 +16,21 @@
   position: absolute;
   top: 0;
   left: 0;
-  color: var(--accent);
+  color: var(--pointer-color);
 
   > svg {
     display: block;
-    transform: translate(-3px, -2.5px);
+    transform: translate(-2px, -2px);
     filter: drop-shadow(0 2px 3px rgb(0 0 0 / 24%));
   }
 
-  &[data-pressed='true'] > svg { color: var(--accent-strong); }
+  &[data-pressed='true'] > svg { color: color-mix(in srgb, var(--pointer-color) 88%, black); }
 }
 
 .label {
   position: absolute;
-  top: 21px;
-  left: 14px;
+  top: 24px;
+  left: 16px;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -54,8 +56,8 @@
   height: 4px;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 14%, transparent);
+  background: var(--pointer-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--pointer-color) 14%, transparent);
 }
 
 .status {
@@ -76,7 +78,7 @@
   height: 26px;
   border: 1.5px solid currentcolor;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  background: color-mix(in srgb, var(--pointer-color) 10%, transparent);
   opacity: 0;
 }
 
@@ -116,7 +118,7 @@
 
   > svg {
     width: 17px;
-    height: 16px;
+    height: auto;
     transform: none;
     filter: none;
   }

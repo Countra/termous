@@ -181,7 +181,7 @@ export function createAgentSlashActions({ slashExecutionSessionIdsRef, setSlashE
             if (accepted) notifyResourceBindingCompleted(latestSession.id, currentCandidate)
           }
         } else {
-          const reference: AgentResourceReference = currentCandidate.kind === 'desktop_session'
+          const reference: AgentResourceReference = currentCandidate.kind === 'host_desktop' ? { kind: 'host_desktop', desktop_target: currentCandidate.desktop_target } : currentCandidate.kind === 'desktop_session'
             ? { kind: 'desktop_session', session_id: currentCandidate.session_id, connection_generation: currentCandidate.connection_generation }
             : currentCandidate.kind === 'desktop_profile' ? { kind: 'desktop_profile', desktop_profile_id: currentCandidate.profile_id }
               : currentCandidate.kind === 'desktop_workflow' ? { kind: 'desktop_workflow', workflow_id: currentCandidate.workflow_id, workflow_version: currentCandidate.workflow_version }

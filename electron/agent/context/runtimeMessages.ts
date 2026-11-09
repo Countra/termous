@@ -1,4 +1,6 @@
 import { isRecord } from '../contracts/validation.ts'
+import { isImageResourceReference } from '#common/contracts'
+import { resourceImage, restoreResourceImages, isRuntimeImage } from '../contracts/runtimeResourceImages.ts'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { AssistantMessage, Message, ToolResultMessage } from '@earendil-works/pi-ai'
 import type { RuntimeModel } from '../provider/runtimeProviderAdapter.ts'
@@ -9,6 +11,8 @@ import { clearRuntimeCompactionUsage } from './compaction/runtimeCompactionPolic
 import { projectRuntimeToolHistory, runtimeToolName } from './runtimeToolHistory.ts'
 import { isRuntimeToolArguments } from '../contracts/runtimeToolArguments.ts'
 import { hydrateRuntimeUserContent } from './runtimeUserContent.ts'
+import { isDesktopTaskReceipt } from '../contracts/desktopTasks.ts'
+import { desktopTaskMessage } from '../contracts/desktopTaskResult.ts'
 
 export function hydrateRuntimeMessages(
   bootstrap: RuntimeBootstrap,
@@ -26,9 +30,9 @@ export function hydrateRuntimeMessages(
       }],
       timestamp: validTimestamp(bootstrap.messages[0]?.created_at ?? new Date(0).toISOString()),
     })
-    for (const message of bootstrap.context.checkpoint.retained_tail ?? []) {
+    for (const message of restoreResourceImages(bootstrap.context.checkpoint.retained_tail ?? [])) {
       if (!model.input.includes('image') && (message.role === 'user' || message.role === 'toolResult')
-        && Array.isArray(message.content) && message.content.some((part) => part.type === 'image')) {
+        && Array.isArray(message.content) && message.content.some(isRuntimeImage)) {
         throw new Error('AGENT_RUNTIME_MODEL_IMAGE_UNSUPPORTED')
       }
       messages.push(projectRuntimeToolHistory(message))
@@ -99,6 +103,14 @@ function hydrateAssistantParts(
   for (const part of parts) {
     if (part.kind !== 'tool_result') lastAssistantPartID = part.id
     switch (part.kind) {
+      case 'task_result': {
+        flushAssistant()
+        const receipt = part.content.task_result
+        if (!isDesktopTaskReceipt(receipt)) throw new Error('AGENT_DESKTOP_TASK_RESPONSE_INVALID')
+        if (receipt.image && !model.input.includes('image')) throw new Error('AGENT_RUNTIME_MODEL_IMAGE_UNSUPPORTED')
+        target.push(desktopTaskMessage(receipt, timestamp))
+        break
+      }
       case 'text':
         assistantContent.push({ type: 'text', text: requiredNestedText(part, 'text') })
         break
@@ -123,6 +135,7 @@ function hydrateAssistantParts(
           id: toolCallID,
           name: toolName,
           arguments: requiredToolArguments(tool.arguments),
+          ...(tool.arguments_error !== undefined ? { argumentsError: requiredString(tool.arguments_error) } : {}),
         })
         break
       }
@@ -185,6 +198,7 @@ function runtimeToolResultContent(value: unknown): ToolResultMessage['content'] 
         mimeType: requiredString(item.mimeType),
       }
     }
+    if (item.type === 'image_ref' && isImageResourceReference(item.resource) && item.mimeType === item.resource.mime_type) return resourceImage(item.resource)
     throw new Error('AGENT_RUNTIME_MESSAGE_INVALID')
   })
 }

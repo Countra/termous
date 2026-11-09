@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import type { FileAccessEngine, FileAccessProfile, FileAccessProfileCreateInput, FileAccessProfilePatchInput } from '#entities/file-access-profile'
 import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 
@@ -86,6 +86,7 @@ export interface FileAccessProfileEditorViewProps {
   sshProfiles: SSHAccessProfile[]
   errors?: FileAccessProfileEditorErrors
   disabled: boolean
+  protocolControl?: ReactNode
   onChange: (draft: FileAccessProfileEditorDraft) => void
 }
 

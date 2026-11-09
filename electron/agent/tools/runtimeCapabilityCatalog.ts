@@ -1,7 +1,9 @@
 import catalogData from '../contracts/capabilities.generated.json' with { type: 'json' }
 import type { CapabilityCatalog, CapabilityStep, ToolCapability } from '../contracts/toolCapabilities.ts'
 import { isRecord } from '../contracts/validation.ts'
+import { localToolNames } from '../contracts/toolNames.ts'
 import { recoveryGuidance, runtimeFailureKind } from './runtimeToolRecovery.ts'
+import { capabilityEntries, mergeEntryQueues } from './discovery/entries.ts'
 
 // 源契约位于 termous-skills/contracts；构建检查生成副本，运行时不读取文档正则或外部路径。
 const catalog = catalogData as CapabilityCatalog
@@ -13,7 +15,7 @@ for (const capability of runtimeCapabilities) for (const step of capability.step
 }
 
 export function capabilityToolName(capability: ToolCapability, name: string) {
-  return name.startsWith('termous.') || name === 'wait_workflow_run' ? name : capability.prefix + name
+  return name.startsWith('termous.') || localToolNames.has(name) ? name : capability.prefix + name
 }
 
 export function runtimeCapability(name: string) { return index.get(name)?.capability }
@@ -30,8 +32,9 @@ export function skillEntryTools(uri: string): string[] {
   if (catalog.skillEntries[uri]) return catalog.skillEntries[uri]
   const exact = runtimeCapabilities.filter((capability) => capability.skill === uri)
   const owner = uri.slice(0, uri.indexOf('/', 'skill://'.length) + 1)
-  const capabilities = exact.length ? exact : runtimeCapabilities.filter((capability) => capability.skill.startsWith(owner))
-  return [...new Set(capabilities.flatMap((capability) => capabilityTools(capability, exact.length || uri.endsWith('/SKILL.md') ? capability.entry : capability.recovery)))]
+  const capabilities = exact.length && !uri.endsWith('/SKILL.md') ? exact : runtimeCapabilities.filter((capability) => capability.skill.startsWith(owner))
+  return mergeEntryQueues(capabilities.map(capability => exact.length || uri.endsWith('/SKILL.md')
+    ? capabilityEntries(capability, capabilityToolName) : capabilityTools(capability, capability.recovery)))
 }
 
 export function capabilityValue(data: unknown, path: string): unknown {
@@ -44,7 +47,7 @@ export function recoveryNavigation(name: string, errorCode?: string) {
   const kind = runtimeFailureKind(errorCode)
   const normal = !errorCode && capability && step
   let names = capability ? capabilityTools(capability, normal ? step.next ?? capability.recovery
-    : kind === 'missing' ? capability.missing ?? [] : capability.recovery) : []
+    : kind === 'missing' ? capability.missing ?? [] : step?.recovery ?? capability.recovery) : []
   if (!normal && ['blocked', 'unknown', 'invalid'].includes(kind)) names = []
   if (!normal && kind === 'missing') names = names.filter((candidate) => candidate !== name)
   const purpose = capability?.purpose ?? ''

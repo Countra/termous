@@ -38,6 +38,31 @@ afterEach(() => {
 })
 
 describe('使用向导引擎 generation 隔离', () => {
+  it('已有业务弹窗或未完成设置时不派发首步准备，解除阻塞后可重新启动', async () => {
+    const records: FakeDriverRecord[] = []
+    const prepare = vi.fn(() => true)
+    const onBlocked = vi.fn()
+    const engine = createEngine(prepare, records, undefined, undefined, undefined, onBlocked)
+    const modal = document.createElement('div')
+    modal.className = 'ant-modal-root'
+    const surface = document.createElement('div')
+    surface.className = 'ant-modal-wrap'
+    makeVisible(surface)
+    modal.append(surface)
+    document.body.append(modal)
+    await expect(engine.start()).resolves.toBe(false)
+    modal.remove()
+    const settings = document.createElement('div')
+    settings.dataset.tourBusy = 'true'
+    makeVisible(settings)
+    document.body.append(settings)
+    await expect(engine.start()).resolves.toBe(false)
+    expect(prepare).not.toHaveBeenCalled()
+    expect(onBlocked).toHaveBeenCalledTimes(2)
+    settings.remove()
+    await expect(engine.start()).resolves.toBe(true)
+  })
+
   it('旧启动迟到后不会清除新启动状态或允许第三次启动越过', async () => {
     const firstPreparation = createDeferred()
     const secondPreparation = createDeferred()

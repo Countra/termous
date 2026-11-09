@@ -1,4 +1,6 @@
 import { NotificationClient } from './gateways/notificationClient'
+import { AIRuntimeClient } from './gateways/aiRuntimeClient'
+import type { AIRuntimeGateway } from '#entities/ai-runtime'
 import { CloudClient } from './gateways/cloudClient'
 import type { CloudGateway } from '#entities/cloud'
 import type { NotificationGateway } from '#entities/notification'
@@ -12,14 +14,16 @@ import type { CommandDispatchGateway } from '#features/command-dispatch'
 import type { FileGateway } from '#features/files'
 import type { McpAccessGateway } from '#features/mcp-access'
 import { RemoteDesktopClient, type RemoteDesktopGateway } from '#features/remote-desktop'
-import { WorkflowClient } from '#features/desktop-workflows'
-import type { WorkflowGateway } from '#entities/desktop-workflow'
+import { WorkflowClient, WorkflowExchangeClient } from '#features/desktop-workflows'
+import type { WorkflowGateway, WorkflowExchangeGateway } from '#entities/desktop-workflow'
 import type { TerminalGateway } from '#features/terminal'
 import type { TermousApiTransport } from '#shared/api'
 import { getTermousBridge } from '#shared/bridge'
 import type { AppDataSnapshotGateway } from './runtimeGatewayContracts'
 import { AliasClient } from './gateways/aliasClient'
 import { AgentSetupClient } from './gateways/agentSetupClient'
+import { AgentIntegrationsClient } from './gateways/agentIntegrationsClient'
+import type { AgentIntegrationsGateway } from '#entities/agent-integrations'
 import { AgentWorkspaceClient } from './gateways/agentWorkspaceClient'
 import { CommandDispatchClient } from './gateways/commandDispatchClient'
 import { CredentialClient } from './gateways/credentialsClient'
@@ -51,6 +55,8 @@ type DomainGateway<Client extends TermousApiTransport> = Omit<
 >
 
 export interface RuntimeGateways {
+  readonly agentIntegrations: AgentIntegrationsGateway
+  readonly aiRuntime: AIRuntimeGateway
   readonly invalidateFileRenamePresets: () => void
   readonly cloud: CloudGateway
   readonly notifications: NotificationGateway
@@ -82,6 +88,7 @@ export interface RuntimeGateways {
   readonly mcpAccess: McpAccessGateway
   readonly remoteDesktop: RemoteDesktopGateway
   readonly desktopWorkflow: WorkflowGateway
+  readonly workflowExchange: WorkflowExchangeGateway
   readonly snapshot: AppDataSnapshotGateway
 }
 
@@ -119,7 +126,10 @@ export function createRuntimeGatewaysFromConfig(
   const remoteDesktop = new RemoteDesktopClient(config)
 
   return {
+    aiRuntime: new AIRuntimeClient(config),
+    agentIntegrations: new AgentIntegrationsClient(config),
     desktopWorkflow: new WorkflowClient(config),
+    workflowExchange: new WorkflowExchangeClient(config),
     cloud: new CloudClient(config),
     invalidateFileRenamePresets: () => fileRename.invalidateFileRenamePresets(),
     notifications,

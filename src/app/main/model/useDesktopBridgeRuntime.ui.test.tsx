@@ -18,7 +18,7 @@ const initialBuildInfo: AppBuildInfo = {
   core_version: null,
   platform: 'win32',
   arch: 'x64',
-  packaged: false,
+  packaged: false, channel: 'development',
   update_supported: false,
   update_support_reason: 'development',
 }

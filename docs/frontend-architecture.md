@@ -2,6 +2,8 @@
 
 ## 目标与边界
 
+远程桌面呈现沿用 FSD：`entities/remote-desktop` 提供公共模型和受控“显示与画质”组件，`features/remote-desktop` 与 `features/remote-control` 接入共享协调器及适配器，工作区负责组合。目标尺寸、本地缩放、视频/RFB 参数独立调用，界面依据能力展示。合同、会话偏好与兼容规则见 [统一呈现设计](../../termous-remote/docs/desktop-presentation.md)。
+
 Termous Web 采用 FSD 启发式模块化单体。目录调整不得改变 API、IPC、WebSocket、存储键、错误语义或交互行为。
 
 当前生产源码目录如下：
@@ -65,6 +67,12 @@ import { HostsPage, type HostLauncherIntent } from '#features/hosts'
 - Workbench 保留 SSH 专用的搜索、分屏和生命周期编排。文件工作区通过 `FileSessionTabs` 组合菜单，`FilesWorkspaceRuntimeProvider` 持有 `useFileSessionTabActions` 的偏好及防重状态，切换页面不会丢失进行中的操作；两个 Widget 不互相依赖。
 - SSH 标签沿用 `termous.ui.workbench.sessionTabPreferences.v1`，文件标签使用独立的 `termous.ui.files.sessionTabPreferences.v1`。偏好按会话 ID 保存，关闭后清理；重命名只改标签显示，不修改主机或连接配置。
 - 文件会话复制使用原文件访问 Profile 和该标签已提交的目录，不携带 SSH 来源 ID，避免服务端复用原文件会话。重启由应用协调器先确认旧会话关闭成功，再按原 Profile、目录及来源关联创建连接，并由工作区运行时继承标签外观；关闭失败不继续创建。后台标签重启以及重启期间显式切换标签后均不抢占当前选择。连接与资源清理仍由现有 Core 接口负责。
+
+## 主机访问配置
+
+- SSH 编辑器按连接信息、身份认证和路由分区，沿用原有草稿、凭据筛选与跳板校验；布局按编辑区域宽度适配，不依赖整个窗口的宽度。
+- 文件配置的 `FileProfileForm`、`FileProfileSection` 和 `FileProfileField` 只在 `manage-file-access` 内共用，统一名称、分区、控件与错误关联。各 Engine 编辑器保留协议专属字段和交互，默认值、校验与秘密提交仍由既有注册表定义负责。
+- 协议选择作为可选 UI 插槽由统一入口提供；新建主机直接使用 SFTP 编辑器时无需该插槽，且固定绑定对应的伴生 SSH 配置，只编辑文件配置名称。已有主机的独立 SFTP 配置仍可改绑同主机 SSH；连接详情不复制认证材料。
 
 ## Docker 管理
 

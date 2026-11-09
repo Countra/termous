@@ -4,6 +4,12 @@ import '#shared/i18n'
 import '#shared/styles'
 import { loadRendererSurface } from './rendererSurface.ts'
 import { installDevelopmentUpdateSimulation } from '#app/update-simulation-slot'
+import { installDevelopmentReactTimingCleanup } from './developmentReactTiming.ts'
+
+if (import.meta.env.DEV) {
+  const dispose = installDevelopmentReactTimingCleanup()
+  import.meta.hot?.dispose(dispose)
+}
 
 const rootElement = document.getElementById('root')
 
@@ -31,6 +37,7 @@ void prepareDevelopmentUpdateSimulation.then(() => loadRendererSurface(window.lo
   update: () => import('#app/update-surface'),
   remote: () => import('#app/remote-surface'),
   'desktop-automation': () => import('#app/desktop-automation-surface'),
+  'desktop-indicator': () => import('#app/desktop-indicator-surface'),
   detached: () => import('#app/detached-surface'),
 })).then(({ default: SurfaceRoot }) => {
   root.render(

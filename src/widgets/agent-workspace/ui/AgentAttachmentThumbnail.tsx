@@ -5,7 +5,7 @@ import { ImageThumbnail } from '#shared/ui'
 export type AgentAttachmentThumbnailSource =
   | { kind: 'local'; blob: Blob }
   | { kind: 'content'; key: string; load: (signal?: AbortSignal) => Promise<Blob> }
-  | { kind: 'remote'; attachment: AgentAttachment; load: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob> }
+  | { kind: 'remote'; attachment: AgentAttachment; load: (attachment: AgentAttachment, signal?: AbortSignal, variant?: 'thumbnail') => Promise<Blob> }
 
 export function AgentAttachmentThumbnail({ source, alt, className }: {
   source: AgentAttachmentThumbnailSource
@@ -18,7 +18,7 @@ export function AgentAttachmentThumbnail({ source, alt, className }: {
   attachmentRef.current = attachment
   const loadImage = useCallback((signal?: AbortSignal) => {
     if (!attachmentRef.current || !load) return Promise.reject(new Error('AGENT_ATTACHMENT_UNAVAILABLE'))
-    return load(attachmentRef.current, signal)
+    return load(attachmentRef.current, signal, 'thumbnail')
   }, [load])
   const contentLoad = useRef(source.kind === 'content' ? source.load : undefined)
   contentLoad.current = source.kind === 'content' ? source.load : undefined

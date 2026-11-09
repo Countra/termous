@@ -60,6 +60,7 @@ export interface UpdateApplicationInfo {
   platform: string
   arch: string
   packaged: boolean
+  channel: 'production' | 'development'
 }
 
 export interface UpdateSnapshot {

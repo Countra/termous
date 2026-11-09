@@ -10,9 +10,9 @@ const failureRules = [
   ['AGENT_MODEL_PROVIDER_FAILED', /\b5\d\d\b|server[_ -]?error|upstream[_ -]error|upstream request failed|internal[_ -]?(?:server[_ -]?)?error|service unavailable|overloaded/iu, '模型服务端处理失败'],
 ] as const
 
-// pi 1.2 的暂态分类未覆盖部分兼容网关用语；只向分类器提供等价名称，诊断与消息始终保留原文。
+// 部分兼容网关的 upstream_error 未被官方分类覆盖；别名只供分类，诊断保留原文。
 export function runtimeProviderRetryDetail(message: string | undefined) {
-  return message?.replace(/\bupstream[_ -]error\b|\bupstream request failed\b/giu, 'server_error')
+  return message?.replace(/\bupstream[_ -]error\b/giu, 'server_error')
 }
 
 export function runtimeProviderFailure(message: string | undefined, secrets: readonly string[] = []) {

@@ -1,4 +1,6 @@
+import type { AnalysisGateway } from '#entities/screen-analysis'
 import { SettingsGatewayContext, type SettingsEditor, type SettingsGateway } from '#entities/settings'
+import { AIRuntimeGatewayContext, type AIRuntimeGateway } from '#entities/ai-runtime'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useLayoutEffect, useState, type ReactNode } from 'react'
 import { ConfirmDialog, SettingsSaveBar } from '#shared/ui'
@@ -21,10 +23,14 @@ import type {
 import { useShortcutRuntime } from '#entities/shortcuts'
 import { AgentSettingsPanel, type AgentSetupGateway } from '#features/agent-setup'
 import { McpSettingsPanel } from '#features/mcp-access'
+import { AssistantExtensions } from '#features/agent-integrations'
+import type { AgentIntegrationsGateway } from '#entities/agent-integrations'
 import {
   DataPortabilitySettings,
   ConnectionSettings as ConnectionSettingsPanel,
+  LocalNetworkSettings, MCPInstallationSettings, WebSearchSettings,
   RemoteDesktopSettings,
+  ScreenAnalysisSettings,
   GeneralSettings,
   NotificationSettings,
   MountSettings,
@@ -43,6 +49,9 @@ import styles from './SettingsWorkspace.module.scss'
 import { settingsPages, type SettingsPageTabKey } from '../model/registry'
 
 export interface SettingsWorkspaceProps {
+  integrationsGateway?: AgentIntegrationsGateway
+  analysisGateway?: AnalysisGateway
+  aiRuntimeGateway?: AIRuntimeGateway
   settingsGateway?: SettingsGateway
   onDirtyChange?: (dirty: boolean) => void
   onBusyChange?: (busy: boolean) => void
@@ -77,6 +86,8 @@ export interface SettingsWorkspaceProps {
 }
 
 export function SettingsWorkspace({
+  integrationsGateway,
+  aiRuntimeGateway, analysisGateway,
   settingsGateway,
   initialTab = 'general',
   onDirtyChange,
@@ -115,6 +126,7 @@ export function SettingsWorkspace({
   const [visited, setVisited] = useState(() => new Set<SettingsPageTabKey>([initialTab]))
   const [editors, setEditors] = useState<Partial<Record<SettingsPageTabKey, SettingsEditor>>>({})
   const [pendingTab, setPendingTab] = useState<SettingsPageTabKey | null>(null)
+  const [extensionsBusy, setExtensionsBusy] = useState(false)
   const registerEditor = useCallback((id: SettingsPageTabKey, editor: SettingsEditor | null) => {
     setEditors(current => {
       if (current[id] === (editor ?? undefined)) return current
@@ -126,7 +138,7 @@ export function SettingsWorkspace({
   }, [])
   const currentEditor = editors[activeTab]
   const dirty = Object.values(editors).some(editor => editor?.dirty)
-  const busy = Object.values(editors).some(editor => editor?.busy)
+  const busy = extensionsBusy || Object.values(editors).some(editor => editor?.busy)
   const navigationBusy = busy || pendingTab !== null
   useLayoutEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
   useLayoutEffect(() => { onBusyChange?.(navigationBusy) }, [navigationBusy, onBusyChange])
@@ -142,6 +154,7 @@ export function SettingsWorkspace({
   const modelStatus = useAgentDefaultModelStatus(defaultModelStatusGateway?.getDefaultModelStatus, activeTab === 'terminal')
 
   const panels: Record<SettingsPageTabKey, ReactNode> = {
+    extensions: <div className={styles['tab-scroll']} data-tour="settings-extensions"><AssistantExtensions gateway={integrationsGateway} active={activeTab==='extensions'} onBusyChange={setExtensionsBusy} installationSettings={<MCPInstallationSettings />} searchSettings={<WebSearchSettings />} /></div>,
     general: (
       <div className={styles['tab-scroll']}>
         <div className={styles['settings-stack']}>
@@ -182,7 +195,8 @@ export function SettingsWorkspace({
       </div>
     ),
     connection: (
-      <div className={styles['tab-scroll']}>
+      <div className={styles['tab-scroll']} data-tour="settings-connection">
+        <LocalNetworkSettings />
         <ConnectionSettingsPanel
           value={connectionSettings}
           disabled={actionBusy}
@@ -191,7 +205,7 @@ export function SettingsWorkspace({
       </div>
     ),
     'remote-desktop': (
-      <div className={styles['tab-scroll']}>
+      <div className={styles['tab-scroll']} data-tour="settings-remote-desktop">
         <RemoteDesktopSettings value={connectionSettings} disabled={actionBusy} onChange={onConnectionSettingsChange} />
       </div>
     ),
@@ -212,6 +226,9 @@ export function SettingsWorkspace({
       </div>
     ),
     models: <div className={styles['tab-scroll']} data-tour="settings-models"><AgentSettingsPanel gateway={agentSetupGateway} view="models" active={activeTab === 'models'} /></div>,
+    'screen-analysis': <div className={styles['tab-scroll']}>
+      <ScreenAnalysisSettings gateway={analysisGateway} disabled={actionBusy} active={activeTab === 'screen-analysis'} />
+    </div>,
     mcp: (
       <div className={styles['tab-scroll']} data-tour="settings-mcp">
         <McpSettingsPanel />
@@ -235,6 +252,7 @@ export function SettingsWorkspace({
 
   return (
     <SettingsGatewayContext.Provider value={settingsGateway ?? null}>
+      <AIRuntimeGatewayContext value={aiRuntimeGateway ?? null}>
       <section className={styles.workspace} data-tour="settings-workspace">
         <SettingsNavigation active={activeTab} disabled={busy} onSelect={selectTab} />
         <div className={styles.canvas}>
@@ -261,6 +279,7 @@ export function SettingsWorkspace({
             setPendingTab(null)
           }} />
       </section>
+      </AIRuntimeGatewayContext>
     </SettingsGatewayContext.Provider>
   )
 }

@@ -48,9 +48,9 @@ export function parseCompletedVersion(value: string | null): number | null {
   return Number.isSafeInteger(version) && version >= 0 ? version : null
 }
 
-export function hasCompletedCurrentProductTour(store: ProductTourCompletionStore) {
+export function hasCompletedCurrentProductTour(store: ProductTourCompletionStore, version = PRODUCT_TOUR_VERSION) {
   const completedVersion = store.readCompletedVersion()
-  return completedVersion !== null && completedVersion >= PRODUCT_TOUR_VERSION
+  return completedVersion !== null && completedVersion >= version
 }
 
 export const browserProductTourCompletionStore = createProductTourCompletionStore()

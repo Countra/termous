@@ -34,6 +34,7 @@ export interface AgentSetupGateway {
   readiness(signal?: AbortSignal): Promise<AgentReadiness>
   setup(signal?: AbortSignal): Promise<AgentReadiness>
   updateMcpPolicy(input: {
+    host_desktop?: { read: boolean; capture: boolean; control: boolean; secure_capture?: boolean; secure_control?: boolean }
     approval_bypass: boolean
     sync_scopes: boolean
     expected_revision: number

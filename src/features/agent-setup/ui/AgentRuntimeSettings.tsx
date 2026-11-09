@@ -1,6 +1,7 @@
 import { useLayoutEffect, useState } from 'react'
 import { Alert, Button } from 'antd'
 import { useTranslation } from 'react-i18next'
+import { AgentHostDesktopSettings } from './AgentHostDesktopSettings'
 import { useSettingsEditor } from '#entities/settings'
 import { ConfirmDialog, SettingsSaveBar } from '#shared/ui'
 import type { AgentSetupController } from '../model/useAgentSetupController'
@@ -35,6 +36,7 @@ export function AgentRuntimeSettings({ runtime, onErrorVisibilityChange }: { run
     <AgentGlobalModelDefaults draft={editor.draft} errors={editor.errors} providers={runtime.providers}
       models={runtime.models} busy={editor.busy} onChange={editor.change} />
     <AgentBehaviorSettings editor={editor} policyAvailable={Boolean(runtime.readiness?.mcp_policy)} />
+    <AgentHostDesktopSettings editor={editor} available={Boolean(runtime.readiness?.mcp_policy?.host_desktop)} />
     <AgentExecutionBudgetSettings editor={editor} />
     {editor.conflict && <Alert type="warning" showIcon title={t('settings.agent.conflict.title')}
       description={<>{t('settings.agent.conflict.defaultsDescription')}

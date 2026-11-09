@@ -5,21 +5,27 @@ const maximumImageBytes = 10 * 1024 * 1024
 
 export type AgentImageCatalog = Pick<ReadonlyMap<string, AgentWorkspaceImage>, 'get' | 'size'>
 
-export async function loadAgentImage(image: AgentWorkspaceImage, loader?: AgentImageLoader, signal?: AbortSignal): Promise<Blob> {
+export async function loadAgentImage(image: AgentWorkspaceImage, loader?: AgentImageLoader, signal?: AbortSignal, variant?: 'thumbnail'): Promise<Blob> {
   signal?.throwIfAborted()
   if (!loader || !isAgentDisplayImageMIMEType(image.mime_type)
     || !Number.isSafeInteger(image.size_bytes) || image.size_bytes <= 0 || image.size_bytes > maximumImageBytes) {
     throw new Error('AGENT_IMAGE_INVALID')
   }
-  const blob = await loader(image, signal)
+  const blob = await loader(image, signal, variant)
   signal?.throwIfAborted()
-  if (blob.type !== image.mime_type || blob.size !== image.size_bytes) throw new Error('AGENT_IMAGE_INVALID')
+  if (variant ? blob.type !== 'image/png' || blob.size > 2 * 1024 * 1024 || blob.size === 0
+    : blob.type !== image.mime_type || blob.size !== image.size_bytes) throw new Error('AGENT_IMAGE_INVALID')
   return blob
 }
 
 export function agentMessageImageCatalogs(messages: AgentWorkspaceMessage[]) {
   const versions = new Map<string, { index: number; image: AgentWorkspaceImage }[]>()
   return messages.map((message, index) => {
+    for (const image of message.image_sources ?? []) {
+      const history = versions.get(image.reference) ?? []
+      history.push({ index, image })
+      versions.set(image.reference, history)
+    }
     for (const part of message.parts) {
       if (part.kind !== 'tool') continue
       for (const image of part.images ?? []) {

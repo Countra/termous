@@ -1,6 +1,11 @@
 import type { Asset, Definition, Diagnostic, ImageTarget, Located, Preview, Run, SaveInput, Script, Snapshot, StartInput, StepResult, Version, WorkflowGateway } from '#entities/desktop-workflow'
 import type { DesktopSnapshotMetadata } from '#entities/remote-desktop'
-import { TermousApiError, TermousApiTransport } from '#shared/api'
+import { TermousApiError } from '#shared/api'
+import { ScreenAnalysisClient } from '#entities/screen-analysis'
+import type { OCRParameters, OCRPreview, OCRQuery, OCRReportPage } from '#entities/desktop-workflow'
+import type { HostDesktopSource, HostDesktopTarget, SettingsSnapshot } from '#common/contracts'
+import { isWorkflowOCRQuery } from '#common/contracts'
+import { decodeOCRPreview } from './ocrResponse'
 
 const scripts = '/api/v1/desktop-workflows'
 const runs = '/api/v1/desktop-workflow-runs'
@@ -8,7 +13,24 @@ const previews = '/api/v1/desktop-workflow-previews'
 const assets = '/api/v1/desktop-workflow-assets'
 const key = encodeURIComponent
 
-export class WorkflowClient extends TermousApiTransport implements WorkflowGateway {
+export class WorkflowClient extends ScreenAnalysisClient implements WorkflowGateway {
+  async ocrDefaults(signal?: AbortSignal): Promise<OCRParameters> {
+    const saved = await this.request<SettingsSnapshot<OCRParameters>>('/api/v1/settings/screen_analysis', { signal })
+    const value = { text_confidence: saved.value.text_confidence, ocr_max_side: saved.value.ocr_max_side }
+    if (!isWorkflowOCRQuery(value)) throw new TermousApiError('文字识别设置无效', 'desktop_workflow_ocr_invalid', 0)
+    return value
+  }
+  async previewOCR(id: string, query: OCRQuery, signal?: AbortSignal): Promise<OCRPreview> {
+    let contentType = ''
+    const blob = await this.requestBlob(`${previews}/${key(id)}/ocr`, {
+      method: 'POST', body: query, signal, timeoutMs: 35_000,
+      onHeaders: headers => { contentType = headers.get('Content-Type') ?? '' },
+    })
+    return decodeOCRPreview(blob, contentType)
+  }
+  ocrReport(id: string, index: number, offset = 0, limit = 20, signal?: AbortSignal) {
+    return this.request<OCRReportPage>(`${runs}/${key(id)}/steps/${index}/ocr?offset=${offset}&limit=${limit}`, { signal })
+  }
   list(signal?: AbortSignal) { return this.request<Script[]>(scripts, { signal }) }
   get(id: string) { return this.request<{ script: Script; version: Version }>(`${scripts}/${key(id)}`) }
   save(id: string | undefined, input: SaveInput) { return this.request<Script>(id ? `${scripts}/${key(id)}` : scripts, { method: id ? 'PUT' : 'POST', body: input }) }
@@ -18,7 +40,8 @@ export class WorkflowClient extends TermousApiTransport implements WorkflowGatew
   validate(definition: Definition) { return this.request<Diagnostic[]>(`${scripts}/validate`, { method: 'POST', body: definition }) }
   upload(file: Blob) { const body = new FormData(); body.append('file', file, 'template.png'); return this.request<Asset>(assets, { method: 'POST', body }) }
   asset(id: string, signal?: AbortSignal) { return this.requestBlob(`${assets}/${key(id)}`, { signal }) }
-  openPreview(session: string, generation: number) { return this.request<Preview>(previews, { method: 'POST', body: { session_id: session, connection_generation: generation }, timeoutMs: 15_000 }) }
+  hostSources(signal?: AbortSignal) { return this.request<HostDesktopSource[]>('/api/v1/desktops/sources?kind=screen', { signal }) }
+  openPreview(session: string, generation: number, target?: HostDesktopTarget) { return this.request<Preview>(previews, { method: 'POST', body: target ? { target } : { session_id: session, connection_generation: generation }, timeoutMs: 15_000 }) }
   closePreview(id: string) { return this.request<void>(`${previews}/${key(id)}`, { method: 'DELETE' }) }
   async capture(id: string, signal?: AbortSignal): Promise<Snapshot> {
     let metadata: DesktopSnapshotMetadata | undefined

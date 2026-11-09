@@ -58,6 +58,7 @@ export function slashCandidateMatchesExpectedBinding(
 }
 
 export function slashBindingLabel(binding: AgentResourceBinding, catalog: AgentSlashCandidateCatalog) {
+  if (binding.kind === 'host_desktop') return binding.desktop_target.host.title
   if (binding.kind === 'desktop_workflow') return `${binding.workflow_name} · v${binding.workflow_version}`
   if (binding.kind === 'desktop_session' || binding.kind === 'desktop_profile') return `${binding.host_name} / ${binding.desktop_profile_name}`
   const profileName = binding.kind === 'file_profile'
@@ -72,6 +73,7 @@ export function slashBindingLabel(binding: AgentResourceBinding, catalog: AgentS
 }
 
 export function slashCandidateLabel(candidate: AgentSlashCandidate) {
+  if (candidate.kind === 'host_desktop') return candidate.desktop_target.host.title
   if (candidate.kind === 'desktop_workflow') return `${candidate.workflow_name} · v${candidate.workflow_version}`
   return `${candidate.host_name} / ${candidate.profile_name}`
 }
