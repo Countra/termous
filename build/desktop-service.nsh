@@ -42,7 +42,7 @@
   !if "${APP_ID}" == "com.termous.app"
     ReadRegStr $0 HKCU "${INSTALL_REGISTRY_KEY}" "InstallLocation"
     ${If} $0 != ""
-      MessageBox MB_ICONSTOP "此版本使用机器级桌面管理服务。请先卸载原按用户安装的 Termous，保留用户数据，然后重新安装。" /SD IDOK
+      MessageBox MB_ICONSTOP "新旧版本的安装方式不同，请先卸载旧版 Termous，再运行此安装包。$\r$\n$\r$\n卸载时请保留用户数据。" /SD IDOK
       Quit
     ${EndIf}
   !endif
