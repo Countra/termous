@@ -60,7 +60,8 @@ test('目录响应类型异常提供重试，重试成功后恢复文件列表',
   request.mockResolvedValue(directory('恢复.txt'))
   expect(await screen.findByRole('alert')).toHaveTextContent(copy.error)
   fireEvent.click(screen.getByRole('button', { name: copy.retry }))
-  expect(await screen.findByText('恢复.txt')).toBeVisible()
+  // 即使禁用动效，弹窗仍有异步准备帧；需等待文件真正可见，而非仅进入 DOM。
+  await waitFor(() => expect(screen.getByText('恢复.txt')).toBeVisible())
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   expect(request).toHaveBeenCalledTimes(2)
 })
@@ -78,7 +79,7 @@ test('目录授权变更后切换到可用目录，全部撤销时清空选择�
   expect(within(dialog).getByRole('button', { name: copy.startTransfer })).toBeDisabled()
   fireEvent.click(within(row).getByRole('checkbox'))
   rerenderRoots([])
-  expect(within(dialog).getByText(copy.noRoots)).toBeVisible()
+  await waitFor(() => expect(within(dialog).getByText(copy.noRoots)).toBeVisible())
   expect(within(dialog).queryByRole('table')).not.toBeInTheDocument()
   expect(within(dialog).getByRole('button', { name: copy.startTransfer })).toBeDisabled()
   expect(request).toHaveBeenCalledTimes(2)
