@@ -5,7 +5,7 @@ import path from 'node:path'
 import { createRequire } from 'node:module'
 import test from 'node:test'
 import { buildOutputPaths, requireManagedPath } from '../build/output-paths.mjs'
-import { preparedAppFiles } from '../build/package-prepared.mjs'
+import { preparedAppFiles, validateLayout } from '../build/package-prepared.mjs'
 import { createCanonicalTempDirectory, createCanonicalTempDirectorySync } from '../test-support/temp-directory.ts'
 
 test('构建器退出清理不能覆盖打包失败状态', () => {
@@ -76,6 +76,29 @@ test('普通开发输出保留原有目录', () => {
   const paths = buildOutputPaths(path.resolve('web-fixture'), {})
   assert.equal(paths.managed, false)
   assert.equal(paths.renderer, path.resolve('web-fixture/dist'))
+})
+
+test('打包清单要求 Windows 独立服务载荷，拒绝旧格式和外部路径', async t => {
+  const root = await createCanonicalTempDirectory('termous layout ')
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await writeFile(path.join(root, '.termous-build-root.json'), JSON.stringify({ schema_version: 1, root }))
+  const layout = {
+    schema_version: 2, target: 'windows-x64', root, version: '1.2.3', web_directory: path.resolve('.'),
+    renderer: path.join(root, 'bin/dist'), electron: path.join(root, 'bin/dist-electron'),
+    skills: path.join(root, 'bin/skills'), output: path.join(root, 'install'),
+    app_files: [{ from: path.join(root, 'bin'), filter: ['**/*'] }],
+    service_payload: path.join(root, 'work/service-payload'), installer_include: path.join(root, 'work/include.nsh'),
+  }
+  assert.equal(validateLayout(layout), layout)
+  assert.throws(() => validateLayout({ ...layout, schema_version: 1 }), /格式版本/)
+  assert.throws(() => validateLayout({ ...layout, service_payload: null }), /缺少服务载荷/)
+  assert.throws(() => validateLayout({ ...layout, service_payload: path.resolve(root, '../foreign') }), /超出/)
+  for (const target of ['linux-x64', 'macos-arm64']) {
+    const unix = { ...layout, target, service_payload: null, installer_include: null }
+    assert.equal(validateLayout(unix).target, target)
+    assert.throws(() => validateLayout({ ...unix, service_payload: layout.service_payload }), /非 Windows/)
+    assert.throws(() => validateLayout({ ...unix, installer_include: layout.installer_include }), /非 Windows/)
+  }
 })
 
 test('真实 builder 文件匹配包含应用元数据，并排除源码目录中的旧产物', () => {

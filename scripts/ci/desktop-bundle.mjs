@@ -12,7 +12,7 @@ function exactKeys(value, keys) {
 }
 
 // 与安装端校验同一配套合同，在生成发布结果前拒绝缺失或混合版本。
-export async function validateDesktopBundle(directory, version) {
+export async function validateDesktopBundle(directory, version, applicationDirectory = directory) {
   const manifestPath = path.join(directory, 'desktop-bundle.json')
   const info = await lstat(manifestPath)
   if (!info.isFile() || info.isSymbolicLink() || info.size === 0 || info.size > 65536) {
@@ -24,8 +24,8 @@ export async function validateDesktopBundle(directory, version) {
   } catch (cause) {
     throw new Error('桌面组件配套清单不是有效 JSON', { cause })
   }
-  if (!exactKeys(bundle, ['protocol_version', 'build_version', 'sha256'])
-    || bundle.protocol_version !== 2 || bundle.build_version !== version
+  if (!exactKeys(bundle, ['protocol_version', 'auth_key_id', 'build_version', 'sha256'])
+    || bundle.protocol_version !== 3 || bundle.auth_key_id !== 'termous-desktop-v1' || bundle.build_version !== version
     || typeof bundle.build_version !== 'string' || bundle.build_version.length > 128
     || !exactKeys(bundle.sha256, binaries)) {
     throw new Error('桌面组件配套清单格式、协议或构建版本不匹配')
@@ -36,7 +36,7 @@ export async function validateDesktopBundle(directory, version) {
       throw new Error(`桌面组件摘要格式不正确：${name}`)
     }
     // 复用既有流式摘要实现，不把大型可执行文件整体读入内存。
-    const actual = await hashRegularFile(path.join(directory, name))
+    const actual = await hashRegularFile(path.join(name === 'termous-core.exe' ? applicationDirectory : directory, name))
     if (actual.sha256 !== expected) {
       throw new Error(`桌面组件摘要不匹配，可能混入其他构建产物：${name}`)
     }

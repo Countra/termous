@@ -19,7 +19,7 @@ export async function buildDevelopmentCore({ workspace, env, run, platform = pro
     for (const name of ['termous-core.exe', 'termous-desktop.exe', 'termous-desktopd.exe']) {
       sha256[name] = createHash('sha256').update(await readFile(path.join(directory, name))).digest('hex')
     }
-    await writeFile(path.join(directory, 'desktop-bundle.json'), JSON.stringify({ protocol_version: 2, build_version: 'development', sha256 }, null, 2) + '\n')
+    await writeFile(path.join(directory, 'desktop-bundle.json'), JSON.stringify({ protocol_version: 3, auth_key_id: 'termous-desktop-v1', build_version: 'development', sha256 }, null, 2) + '\n')
   }
   return path.join(directory, `termous-core${suffix}`)
 }

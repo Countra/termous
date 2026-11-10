@@ -115,10 +115,7 @@
       "filter": [
         "termous-core.exe",
         "termous-core",
-        "termous-desktop.exe",
         "termous-desktop",
-        "termous-desktopd.exe",
-        "desktop-bundle.json",
         "termous-rdp.exe",
         "termous-rdp"
       ]

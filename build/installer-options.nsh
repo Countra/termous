@@ -23,7 +23,7 @@
   nsExec::ExecToLog `powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "$$entry = '$INSTDIR'; $$path = [Environment]::GetEnvironmentVariable('Path', 'User'); $$items = @($$path -split ';' | Where-Object { $$_ }); if ($$items -notcontains $$entry) { [Environment]::SetEnvironmentVariable('Path', (($$items + $$entry) -join ';'), 'User') }"`
   Pop $0
   ${If} $0 != 0
-    MessageBox MB_ICONEXCLAMATION "Termous 已安装，但未能写入当前用户 PATH。你可以稍后手动添加：$INSTDIR"
+    MessageBox MB_ICONEXCLAMATION "Termous 已安装，但未能添加到 PATH。可稍后手动添加安装目录：$\r$\n$INSTDIR"
   ${EndIf}
   !endif
   !insertmacro termousBroadcastEnvironmentChange
@@ -61,7 +61,6 @@
 
 !ifndef BUILD_UNINSTALLER
   !macro customInit
-    !insertmacro termousDesktopMigrationCheck
     StrCpy $TermousDesktopShortcut ${BST_CHECKED}
     StrCpy $TermousPathEntry ${BST_UNCHECKED}
 
@@ -78,10 +77,12 @@
     ${ElseIf} $0 == "0"
       StrCpy $TermousPathEntry ${BST_UNCHECKED}
     ${EndIf}
+    !insertmacro termousDesktopMigrationCheck
   !macroend
 
   !macro customPageAfterChangeDir
     Page custom TermousOptionsPageCreate TermousOptionsPageLeave
+    !insertmacro termousInstallerProgressPage
   !macroend
 
   Function TermousOptionsPageCreate
@@ -98,7 +99,7 @@
     Pop $TermousDesktopShortcutCheckbox
     ${NSD_SetState} $TermousDesktopShortcutCheckbox $TermousDesktopShortcut
 
-    ${NSD_CreateCheckbox} 0 48u 100% 12u "将 Termous 安装目录添加到 PATH（机器级安装对所有用户生效）"
+    ${NSD_CreateCheckbox} 0 48u 100% 12u "添加到 PATH（支持命令行启动）"
     Pop $TermousPathEntryCheckbox
     ${NSD_SetState} $TermousPathEntryCheckbox $TermousPathEntry
 
@@ -115,6 +116,7 @@
       !insertmacro termousRuntimeInstall
     !endif
     !insertmacro termousDesktopCommand "install"
+    !insertmacro termousInstallerStage "正在完成安装…"
     !insertmacro termousWriteInstallDiscovery
     ${If} $TermousDesktopShortcut == ${BST_CHECKED}
       !insertmacro termousCreateDesktopShortcut
@@ -134,6 +136,9 @@
       !insertmacro termousRemoveInstallDirFromUserPath
       WriteRegStr SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" "TermousAddToPath" "0"
     ${EndIf}
+    !insertmacro termousDesktopCommand "finalize"
+    StrCpy $TermousDesktopPrepared ""
+    !insertmacro termousInstallerStage "安装完成"
   !macroend
 !endif
 
@@ -172,11 +177,15 @@
   !ifdef MENU_FILENAME
     RMDir "$SMPROGRAMS\${MENU_FILENAME}"
   !endif
-  !insertmacro termousRemoveInstallDirFromUserPath
+  ${IfNot} ${isUpdated}
+    !insertmacro termousRemoveInstallDirFromUserPath
+  ${EndIf}
 !macroend
 
 ; 成功回调不新增卸载 Section，避免安装器自动显示组件选择页。
 !macro customHeader
+  ShowInstDetails hide
+  ShowUninstDetails hide
   !ifmacrodef termousRuntimeHeader
     !insertmacro termousRuntimeHeader
   !endif

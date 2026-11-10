@@ -69,7 +69,7 @@ test('Windows 成组构建为三个真实输出生成摘要清单，管理服务
   assert.equal(calls.length, 3)
   assert.equal(calls[2].includes('-tags=desktopcapture_native'), false)
   const manifest = JSON.parse(await readFile(path.join(path.dirname(core), 'desktop-bundle.json'), 'utf8'))
-  assert.equal(manifest.protocol_version, 2)
+  assert.equal(manifest.protocol_version, 3)
   assert.equal(Object.keys(manifest.sha256).length, 3)
   for (const [name, hash] of Object.entries(manifest.sha256)) {
     assert.equal(hash, createHash('sha256').update(await readFile(path.join(path.dirname(core), name))).digest('hex'))

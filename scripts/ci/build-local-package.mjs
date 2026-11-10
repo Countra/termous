@@ -114,6 +114,10 @@ export function parseLocalPackageArguments(argv) {
       options.webDirectory = requireArgumentValue(argv, ++index, argument)
       continue
     }
+    if (argument === '--service-payload') {
+      options.servicePayloadDirectory = requireArgumentValue(argv, ++index, argument)
+      continue
+    }
     throw new Error(`未知参数: ${argument}`)
   }
 
@@ -134,6 +138,7 @@ export async function validatePackageArtifacts({
   platform,
   arch,
   version,
+  servicePayloadDirectory,
 }) {
   const normalizedPlatform = normalizePlatform(platform)
   const normalizedArch = normalizeArch(arch)
@@ -191,11 +196,9 @@ export async function validatePackageArtifacts({
   for (const [binaryPath, label] of [
     [corePaths[0], `包内 Core ${coreName}`],
     [path.join(packagedApplication, workerName), '包内 RDP worker'],
-    [path.join(packagedApplication, desktopName), '包内桌面进程'],
     ...(normalizedPlatform === 'win32' ? [
-      [path.join(packagedApplication, 'termous-desktopd.exe'), '包内桌面管理服务'],
-      [path.join(packagedApplication, 'desktop-bundle.json'), '桌面组件配套清单'],
-    ] : []),
+      [path.join(packagedApplication, 'termous-maintenance.exe'), '包内运行时维护助手'],
+    ] : [[path.join(packagedApplication, desktopName), '包内桌面进程']]),
   ]) {
     await assertFile(binaryPath, label)
     if (normalizedPlatform !== 'win32' && process.platform !== 'win32'
@@ -204,7 +207,18 @@ export async function validatePackageArtifacts({
     }
   }
   if (normalizedPlatform === 'win32') {
-    await validateDesktopBundle(packagedApplication, normalizedVersion)
+    const payload = servicePayloadDirectory ?? path.join(root, 'service-payload')
+    for (const name of ['termous-desktopd.exe', 'termous-desktop.exe', 'desktop-bundle.json']) {
+      await assertFile(path.join(payload, name), '安装器服务载荷')
+      try {
+        await lstat(path.join(packagedApplication, name))
+      } catch (error) {
+        if (error?.code === 'ENOENT') continue
+        throw error
+      }
+      throw new Error(`服务文件不得混入应用目录：${name}`)
+    }
+    await validateDesktopBundle(payload, normalizedVersion, packagedApplication)
   }
   const skillsDirectory = path.join(packagedResources, 'agent', 'skills')
   const skillsManifestPath = path.join(skillsDirectory, 'manifest.json')
@@ -251,6 +265,7 @@ export async function runLocalPackage(options) {
     platform,
     arch,
     version,
+    servicePayloadDirectory: options.servicePayloadDirectory ?? path.join(webDirectory, 'build/core'),
   })
 }
 

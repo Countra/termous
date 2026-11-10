@@ -17,6 +17,7 @@ import { createCanonicalTempDirectory } from '../test-support/temp-directory.ts'
 import { hashRegularFile } from './release-manifest-contract.mjs'
 import {
   packagedThirdPartyFiles,
+  parseLocalPackageArguments,
   runLocalPackage,
   sanitizePublishEnvironment,
   validatePackageArtifacts,
@@ -47,7 +48,7 @@ test('electron-builder 固定更新源、平台资产名称与 macOS 双格式',
     from: 'public/termous-icon.png', to: 'icon.png',
   })
   assert.deepEqual(config.extraFiles.find(({ from }) => from === 'build/core').filter,
-    ['termous-core.exe', 'termous-core', 'termous-desktop.exe', 'termous-desktop', 'termous-desktopd.exe', 'desktop-bundle.json', 'termous-rdp.exe', 'termous-rdp'])
+    ['termous-core.exe', 'termous-core', 'termous-desktop', 'termous-rdp.exe', 'termous-rdp'])
   assert.equal(config.nsis.perMachine, true)
   assert.deepEqual(config.extraFiles.find(({ to }) => to === 'licenses/rdp'), {
     from: '../termous-rdp/licenses', to: 'licenses/rdp', filter: ['*-LICENSE.txt'],
@@ -130,6 +131,29 @@ test('本地打包入口固定禁用发布与代码签名', () => {
 
 })
 
+test('独立校验入口接受显式服务载荷，并检查应用与服务配套', async () => {
+  const root = await createCanonicalTempDirectory('termous-package-service-cli-')
+  try {
+    const webDirectory = path.join(root, 'web')
+    const outputDirectory = path.join(webDirectory, 'release', '1.2.3')
+    await mkdir(webDirectory)
+    await writeFile(path.join(webDirectory, 'package.json'), JSON.stringify({ version: '1.2.3' }))
+    await writeCompleteFixture({ outputDirectory, platform: 'win32', arch: 'x64', version: '1.2.3' })
+    const payload = path.join(root, '独立 服务载荷')
+    await rename(path.join(outputDirectory, 'service-payload'), payload)
+    const options = parseLocalPackageArguments([
+      '--verify-only', '--platform', 'windows', '--arch', 'x64',
+      '--web-dir', webDirectory, '--output', outputDirectory, '--service-payload', payload,
+    ])
+    assert.equal((await runLocalPackage(options)).corePaths.length, 1)
+    await rm(path.join(payload, 'termous-desktop.exe'))
+    await assert.rejects(runLocalPackage(options), /安装器服务载荷不存在/)
+    assert.throws(() => parseLocalPackageArguments(['--service-payload']), /缺少参数值/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('三平台产物门禁接受完整 manifest、载荷与 blockmap', async () => {
   const root = await createCanonicalTempDirectory('termous-package-contract-')
   try {
@@ -154,6 +178,14 @@ test('三平台产物门禁接受完整 manifest、载荷与 blockmap', async ()
       })
       assert.equal(result.appUpdatePaths.length, 1)
       assert.equal(result.corePaths.length, 1)
+      if (target.platform === 'win32') {
+        for (const name of ['termous-desktopd.exe', 'termous-desktop.exe', 'desktop-bundle.json']) {
+          const misplaced = path.join(path.dirname(result.corePaths[0]), name)
+          await writeFile(misplaced, 'misplaced service payload')
+          await assert.rejects(validatePackageArtifacts({ outputDirectory, version: '1.2.3', ...target }), /服务文件不得混入应用目录/)
+          await rm(misplaced)
+        }
+      }
       assert.equal(result.skillsManifestPaths.length, 1)
       assert.equal(
         result.thirdPartyNoticePaths.length,
@@ -171,13 +203,13 @@ test('三平台产物门禁接受完整 manifest、载荷与 blockmap', async ()
       }
       const decoy = path.join(outputDirectory, 'decoy')
       await mkdir(decoy)
-      const desktopPath = path.join(path.dirname(result.corePaths[0]),
+      const desktopPath = path.join(target.platform === 'win32' ? path.join(outputDirectory, 'service-payload') : path.dirname(result.corePaths[0]),
         target.platform === 'win32' ? 'termous-desktop.exe' : 'termous-desktop')
       const movedDesktop = path.join(decoy, path.basename(desktopPath))
       await rename(desktopPath, movedDesktop)
       await assert.rejects(validatePackageArtifacts({
         outputDirectory, version: '1.2.3', ...target,
-      }), /包内桌面进程不存在/u)
+      }), /包内桌面进程不存在|安装器服务载荷不存在/u)
       await rename(movedDesktop, desktopPath)
       await rename(workerPath, path.join(decoy, path.basename(workerPath)))
       await assert.rejects(validatePackageArtifacts({
@@ -557,14 +589,19 @@ async function writeCompleteFixture({
     { mode: 0o755 },
   )
   await writeFile(path.join(applicationDirectory, platform === 'win32' ? 'termous-rdp.exe' : 'termous-rdp'), 'fixture-rdp', { mode: 0o755 })
-  await writeFile(path.join(applicationDirectory, platform === 'win32' ? 'termous-desktop.exe' : 'termous-desktop'), 'fixture-desktop', { mode: 0o755 })
   if (platform === 'win32') {
-    await writeFile(path.join(applicationDirectory, 'termous-desktopd.exe'), 'fixture-desktopd')
+    const payload = path.join(outputDirectory, 'service-payload')
+    await mkdir(payload)
+    await writeFile(path.join(applicationDirectory, 'termous-maintenance.exe'), 'fixture-maintenance')
+    await writeFile(path.join(payload, 'termous-desktop.exe'), 'fixture-desktop')
+    await writeFile(path.join(payload, 'termous-desktopd.exe'), 'fixture-desktopd')
     const sha256 = {}
     for (const name of ['termous-core.exe', 'termous-desktop.exe', 'termous-desktopd.exe']) {
-      sha256[name] = (await hashRegularFile(path.join(applicationDirectory, name))).sha256
+      sha256[name] = (await hashRegularFile(path.join(name === 'termous-core.exe' ? applicationDirectory : payload, name))).sha256
     }
-    await writeFile(path.join(applicationDirectory, 'desktop-bundle.json'), JSON.stringify({ protocol_version: 2, build_version: version, sha256 }))
+    await writeFile(path.join(payload, 'desktop-bundle.json'), JSON.stringify({ protocol_version: 3, auth_key_id: 'termous-desktop-v1', build_version: version, sha256 }))
+  } else {
+    await writeFile(path.join(applicationDirectory, 'termous-desktop'), 'fixture-desktop', { mode: 0o755 })
   }
   const rdpLicenses = path.join(applicationDirectory, 'licenses', 'rdp')
   await mkdir(rdpLicenses, { recursive: true })

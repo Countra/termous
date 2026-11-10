@@ -14,15 +14,17 @@ test('服务维护先取得现有机器级锁，静默卸载也不能跳过', as
   const header = macro(installer, 'customHeader')
   assert.ok(header.indexOf('termousRuntimeHeader') < header.indexOf('termousDesktopHeader'))
   const command = macro(service, 'termousDesktopCommand')
-  assert.ok(command.indexOf('termousDesktopMaintenanceGate') < command.indexOf('nsExec::'))
+  assert.ok(command.indexOf('termousDesktopMaintenanceGate') < command.indexOf('termousInstallerExec'))
   assert.match(macro(service, 'termousDesktopMaintenanceGate'), /!insertmacro termousRuntimeGate/)
   assert.match(macro(service, 'termousDesktopBeforeUninstall'), /termousDesktopCommand "uninstall"/)
 })
 
-test('只有成功进入维护的安装器才恢复服务', async () => {
+test('首个有副作用的维护命令失败时也检查当前安装的恢复记录', async () => {
   const service = await readFile(new URL('../../build/desktop-service.nsh', import.meta.url), 'utf8')
   const header = macro(service, 'termousDesktopHeader')
-  assert.ok(header.indexOf('termousDesktopCommand "prepare-update"') < header.indexOf('StrCpy $TermousDesktopPrepared "1"'))
-  const failure = header.slice(header.indexOf('Function .onInstFailed'))
-  assert.ok(failure.indexOf('${If} $TermousDesktopPrepared == "1"') < failure.indexOf(' resume --wait'))
+  const preparation = macro(service, 'termousDesktopPrepareUpdate')
+  assert.ok(preparation.indexOf('StrCpy $TermousDesktopPrepared "1"') < preparation.indexOf('termousDesktopCommand "prepare-update"'))
+  assert.doesNotMatch(header.slice(0, header.indexOf('SectionEnd')), /prepare-update/)
+  const failure = header.slice(header.indexOf('Function TermousRestoreService'))
+  assert.ok(failure.indexOf('${If} $TermousDesktopPrepared == "1"') < failure.indexOf("'resume --directory"))
 })

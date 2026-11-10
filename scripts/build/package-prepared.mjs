@@ -1,8 +1,10 @@
 import { readFile } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { build, Platform, Arch } from 'electron-builder'
 import { requireManagedPath } from './output-paths.mjs'
+import { verifyNsisRuntime, withNsisCompatibility } from './nsis-runtime.mjs'
 import { sanitizePublishEnvironment, validatePackageArtifacts } from '../ci/build-local-package.mjs'
 import { requireReleaseVersion } from '../ci/release-manifest-contract.mjs'
 
@@ -18,7 +20,7 @@ export function preparedAppFiles(layout) {
 }
 
 export function validateLayout(layout) {
-  if (layout.schema_version !== 1 || !['windows-x64', 'linux-x64', 'macos-arm64'].includes(layout.target)) throw new Error('不支持打包文件清单中的格式版本或目标平台')
+  if (layout.schema_version !== 2 || !['windows-x64', 'linux-x64', 'macos-arm64'].includes(layout.target)) throw new Error('不支持打包文件清单中的格式版本或目标平台')
   requireReleaseVersion(layout.version, '打包文件清单中的应用版本')
   if (path.resolve(layout.web_directory) !== path.resolve(webDirectory)) throw new Error('打包文件清单中的 Web 源码目录与当前仓库不匹配')
   if (!Array.isArray(layout.app_files) || layout.app_files.length === 0) throw new Error('打包文件清单缺少应用文件配置')
@@ -32,6 +34,12 @@ export function validateLayout(layout) {
     requireManagedPath(layout.root, value)
   }
   if (layout.installer_include) requireManagedPath(layout.root, layout.installer_include)
+  if (layout.target === 'windows-x64') {
+    if (!layout.service_payload || !layout.installer_include) throw new Error('Windows 打包缺少服务载荷或安装接入')
+    requireManagedPath(layout.root, layout.service_payload)
+  } else if (layout.service_payload != null || layout.installer_include != null) {
+    throw new Error('非 Windows 打包不使用服务载荷或 NSIS 安装接入')
+  }
   return layout
 }
 
@@ -50,10 +58,19 @@ export async function packagePrepared(file, verifyOnly = false) {
     for (const key of Object.keys(process.env)) if (!(key in clean)) delete process.env[key]
     Object.assign(process.env, clean)
     // 适配器只消费通用产物目录，不负责外部服务或语言运行时的准备。
-    await build({
+    await withNsisCompatibility(layout.target, () => build({
       projectDir: webDirectory,
       targets: target.targets,
       publish: 'never',
+      ...(layout.target === 'windows-x64' ? {
+        effectiveOptionComputed: async ([defines]) => {
+          if (!defines.APP_64) throw new Error('Windows 安装器未生成 x64 应用载荷')
+          // 项目目录中的解释器可能被 IDE 自动探测并重写字节码；验收使用独立临时目录。
+          await verifyNsisRuntime({ archive: defines.APP_64, unpacked: path.join(layout.output, 'win-unpacked'),
+            work: path.join(os.tmpdir(), 'termous-build-verify'), config: base })
+          return false
+        },
+      } : {}),
       config: {
         ...base,
         extends: path.join(webDirectory, 'scripts/desktop-development/production-builder.mjs'),
@@ -70,10 +87,11 @@ export async function packagePrepared(file, verifyOnly = false) {
           { from: layout.skills, to: 'agent/skills', filter: ['**/*'] },
         ],
       },
-    })
+    }))
   }
   return validatePackageArtifacts({ outputDirectory: layout.output,
-    platform: target.platform, arch: target.arch, version: layout.version })
+    platform: target.platform, arch: target.arch, version: layout.version,
+    servicePayloadDirectory: layout.service_payload })
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
