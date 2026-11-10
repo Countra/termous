@@ -53,13 +53,33 @@ test('后台刷新及冲突保留草稿，主动载入后才采用新版本', as
   expect(updateDeviceName).toHaveBeenCalledWith('account', '我的草稿', '0')
   expect(input).toHaveValue('我的草稿')
   devices.mockResolvedValue([{ ...device, name: '另一个窗口', name_revision: '1' }])
-  fireEvent.click(screen.getByRole('button', { name: '载入最新名称' }))
-  await waitFor(() => expect(input).toHaveValue('另一个窗口'))
-  expect(screen.getByRole('button', { name: '保存名称' })).toBeDisabled()
+  let completeReload!: () => void
+  const reloadFinished = new Promise<void>(resolve => { completeReload = resolve })
+  const finishReload = async <T,>(action: () => Promise<T>) => {
+    const value = await run(action)
+    await reloadFinished
+    return value
+  }
+  view.rerender(<AccountDeviceName {...props} device={{ ...device, name: '另一个窗口', name_revision: '1' }} run={finishReload} />)
+  const reloadButton = screen.getByRole('button', { name: '载入最新名称' })
+  await waitFor(() => expect(reloadButton).toBeEnabled())
+  fireEvent.click(reloadButton)
+  try {
+    // 名称写入表单后，外层操作仍可能尚未完成；明确保留这个异步窗口。
+    await waitFor(() => expect(input).toHaveValue('另一个窗口'))
+    expect(input).toBeDisabled()
+  } finally {
+    await act(async () => { completeReload() })
+  }
+  await waitFor(() => {
+    expect(input).toBeEnabled()
+    expect(screen.getByRole('button', { name: '保存名称' })).toBeDisabled()
+  })
   fireEvent.change(input, { target: { value: '更新后的草稿' } })
   await waitFor(() => expect(screen.getByRole('button', { name: '保存名称' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: '保存名称' }))
   await waitFor(() => expect(updateDeviceName).toHaveBeenLastCalledWith('account', '更新后的草稿', '1'))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
 test('切换账号丢弃迟到结果，重复提交只发送一次', async () => {
@@ -71,9 +91,10 @@ test('切换账号丢弃迟到结果，重复提交只发送一次', async () =>
   fireEvent.click(screen.getByRole('button', { name: '编辑名称' }))
   const input = await screen.findByLabelText('设备名称')
   fireEvent.change(input, { target: { value: '工作电脑' } })
-  await waitFor(() => expect(screen.getByRole('button', { name: '保存名称' })).toBeEnabled())
-  fireEvent.click(screen.getByRole('button', { name: '保存名称' }))
-  fireEvent.click(screen.getByRole('button', { name: '保存名称' }))
+  const saveButton = screen.getByRole('button', { name: '保存名称' })
+  await waitFor(() => expect(saveButton).toBeEnabled())
+  fireEvent.click(saveButton)
+  fireEvent.click(saveButton)
   await waitFor(() => expect(updateDeviceName).toHaveBeenCalledTimes(1))
   act(() => { state.accept({ ...status, generation: 'next', revision: 2 }) })
   view.rerender(<AccountDeviceName {...props} generation="next" />)
@@ -104,10 +125,11 @@ test('账号失效后迟到的名称补读不能重新打开面板', async () =>
   fireEvent.change(await screen.findByLabelText('设备名称'), { target: { value: '保留草稿' } })
   await waitFor(() => expect(screen.getByRole('button', { name: '保存名称' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: '保存名称' }))
-  await screen.findByRole('button', { name: '载入最新名称' })
+  const reloadButton = await screen.findByRole('button', { name: '载入最新名称' })
+  await waitFor(() => expect(reloadButton).toBeEnabled())
   let resolve!: (value: CloudDevice[]) => void
   devices.mockImplementation(() => new Promise(done => { resolve = done }))
-  fireEvent.click(screen.getByRole('button', { name: '载入最新名称' }))
+  fireEvent.click(reloadButton)
   await waitFor(() => expect(devices).toHaveBeenCalledTimes(1))
   act(() => { state.accept({ ...status, revision: 2, authenticated: false }) })
   view.rerender(<AccountDeviceName {...props} />)
