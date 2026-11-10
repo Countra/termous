@@ -70,8 +70,8 @@
   "network": {
     "title": "Network proxy",
     "enabled": "Enable proxy",
-    "summary": "For MCP and local commands. Applies to new tasks and connections.",
-    "scope": "Includes MCP downloads, connections and OAuth. Web search, model APIs, cloud sync and updates are not affected.",
+    "summary": "For MCP, local commands and GPU component downloads. Applies to new tasks and connections.",
+    "scope": "Includes MCP downloads, connections, OAuth and GPU component downloads. Web search, model APIs, cloud sync and updates are not affected. GPU components download directly when the proxy is disabled.",
     "url": "Proxy URL",
     "urlHint": "HTTP / HTTPS, authentication not supported",
     "urlRequired": "Enter a proxy URL first.",

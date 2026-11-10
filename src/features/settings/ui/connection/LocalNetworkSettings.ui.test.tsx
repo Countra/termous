@@ -171,7 +171,7 @@ it('没有设置网关时禁用编辑，显示准确的适用范围且不渲染�
   expect(screen.getByRole('switch', { name: 'Enable proxy' })).toBeDisabled()
   expect(screen.getByLabelText('Proxy URL')).toBeDisabled()
   expect(screen.getByLabelText('Bypass proxy')).toBeDisabled()
-  expect(screen.getByText('For MCP and local commands. Applies to new tasks and connections.')).toBeVisible()
+  expect(screen.getByText('For MCP, local commands and GPU component downloads. Applies to new tasks and connections.')).toBeVisible()
   fireEvent.focus(screen.getByRole('button', { name: 'Proxy details' }))
   expect(await screen.findByRole('tooltip')).toHaveTextContent('Web search, model APIs, cloud sync and updates are not affected.')
   expect(screen.queryByText(/Saving|Saved|Auto-save/u)).not.toBeInTheDocument()

@@ -4,12 +4,110 @@ import { describe, expect, it, vi } from 'vitest'
 import { AIRuntimeGatewayContext, type AIRuntimeGateway, type AIRuntimeStatus, type AIRuntimeTask } from '#entities/ai-runtime'
 import { AIRuntimeSetting } from './AIRuntimeSetting'
 
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string, values?: Record<string, string | number>) =>
+  key === 'settings.aiRuntime.downloadProgress' ? `${key}: ${values?.downloaded} / ${values?.total}`
+    : key === 'settings.aiRuntime.downloadSpeed' ? `${key}: ${values?.speed}/s`
+      : key.startsWith('settings.aiRuntime.downloadRemaining') && values ? `${key}: ${JSON.stringify(values)}` : key }) }))
 
 const state: AIRuntimeStatus = { capabilities: { gpu_install: true, gpu_check: true }, managed: true, state: 'complete', profile: 'cpu', download_size: 2762774229,
   device: { name: 'NVIDIA', driver: 12080, eligible: true } }
 
 describe('画面分析运行环境设置', () => {
+  it('等待首字节时提示连接状态，小量下载也展示实际大小', async () => {
+    vi.useFakeTimers()
+    const task: AIRuntimeTask = { id: 'download', phase: 'downloading', downloaded: 0, total: state.download_size, bytes_per_second: 0, cancellable: true }
+    const gateway: AIRuntimeGateway = { status: vi.fn().mockResolvedValue({ ...state, task }),
+      download: vi.fn(), cancel: vi.fn(), check: vi.fn(), warmup: vi.fn(), serviceStatus: vi.fn() }
+    const { unmount } = render(<AIRuntimeGatewayContext value={gateway}><AIRuntimeSetting disabled={false} /></AIRuntimeGatewayContext>)
+    try {
+      await act(async () => {})
+      expect(screen.getByText('settings.aiRuntime.downloadConnecting')).toBeInTheDocument()
+      expect(screen.getByText('settings.aiRuntime.downloadProgress: 0 B / 2.6 GB')).toBeInTheDocument()
+      expect(screen.getByText('settings.aiRuntime.downloadSpeed: 0 B/s')).toBeInTheDocument()
+      expect(screen.getByText('settings.aiRuntime.downloadEstimating')).toBeInTheDocument()
+      vi.mocked(gateway.status).mockResolvedValue({ ...state, task: { ...task, downloaded: 65536, bytes_per_second: 65536 } })
+      await act(() => vi.advanceTimersByTimeAsync(1500))
+      expect(screen.queryByText('settings.aiRuntime.downloadConnecting')).not.toBeInTheDocument()
+      expect(screen.getByText('settings.aiRuntime.downloadProgress: 64 KB / 2.6 GB')).toBeInTheDocument()
+      expect(screen.getByText('settings.aiRuntime.downloadSpeed: 64 KB/s')).toBeInTheDocument()
+      expect(screen.queryByText('settings.aiRuntime.downloadEstimating')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'app.cancel' })).toBeEnabled()
+      vi.mocked(gateway.status).mockResolvedValue({ ...state, task: { ...task, downloaded: 65536, bytes_per_second: 0 } })
+      await act(() => vi.advanceTimersByTimeAsync(1500))
+      expect(screen.getByText('settings.aiRuntime.downloadSpeed: 0 B/s')).toBeInTheDocument()
+      expect(screen.getByText('settings.aiRuntime.downloadEstimating')).toBeInTheDocument()
+    } finally { unmount(); vi.useRealTimers() }
+  })
+
+  it.each<[number, string]>([
+    [1, 'downloadRemainingShort'],
+    [59, 'downloadRemainingShort'],
+    [60, 'downloadRemainingMinutes: {"count":1}'],
+    [61, 'downloadRemainingMinutes: {"count":2}'],
+    [3599, 'downloadRemainingHours: {"count":1}'],
+    [3660, 'downloadRemainingHoursMinutes: {"hours":1,"minutes":1}'],
+    [7200, 'downloadRemainingHours: {"count":2}'],
+    [86400, 'downloadRemainingDays: {"count":1}'],
+    [90000, 'downloadRemainingDaysHours: {"days":1,"hours":1}'],
+  ])('用平滑速度估算剩余 %s 秒并向上取整展示', async (seconds, text) => {
+    const task: AIRuntimeTask = { id: 'download', phase: 'downloading', downloaded: 1024,
+      total: 1024 + seconds * 1024, bytes_per_second: 1024, cancellable: true }
+    const gateway: AIRuntimeGateway = { status: vi.fn().mockResolvedValue({ ...state, task }),
+      download: vi.fn(), cancel: vi.fn(), check: vi.fn(), warmup: vi.fn(), serviceStatus: vi.fn() }
+    render(<AIRuntimeGatewayContext value={gateway}><AIRuntimeSetting disabled={false} /></AIRuntimeGatewayContext>)
+    expect(await screen.findByText(`settings.aiRuntime.${text}`)).toBeInTheDocument()
+  })
+
+  it.each<[number, number, string]>([
+    [0, 0, 'downloadEstimating'],
+    [1024, 1024, 'downloadFinishing'],
+  ])('总量与收尾边界不展示误导性的剩余时间：%s/%s', async (downloaded, total, text) => {
+    const task: AIRuntimeTask = { id: 'download', phase: 'downloading', downloaded,
+      total, bytes_per_second: 0, cancellable: true }
+    const gateway: AIRuntimeGateway = { status: vi.fn().mockResolvedValue({ ...state, task }),
+      download: vi.fn(), cancel: vi.fn(), check: vi.fn(), warmup: vi.fn(), serviceStatus: vi.fn() }
+    render(<AIRuntimeGatewayContext value={gateway}><AIRuntimeSetting disabled={false} /></AIRuntimeGatewayContext>)
+    expect(await screen.findByText(`settings.aiRuntime.${text}`)).toBeInTheDocument()
+    expect(screen.queryByText(/settings\.aiRuntime\.downloadRemaining/)).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['runtime_download_timeout', 'downloadTimeout'],
+    ['runtime_download_network', 'downloadNetwork'],
+    ['runtime_download_settings', 'downloadSettings'],
+    ['runtime_download_redirect', 'downloadRedirect'],
+  ])('展示下载失败原因：%s', async (error, message) => {
+    const gateway: AIRuntimeGateway = { status: vi.fn().mockResolvedValue({ ...state,
+      task: { id: 'download', phase: 'failed', error, downloaded: 0, total: state.download_size, bytes_per_second: 0, cancellable: false } }),
+      download: vi.fn(), cancel: vi.fn(), check: vi.fn(), warmup: vi.fn(), serviceStatus: vi.fn() }
+    render(<AIRuntimeGatewayContext value={gateway}><AIRuntimeSetting disabled={false} /></AIRuntimeGatewayContext>)
+    expect(await screen.findByText(`settings.aiRuntime.${message}`)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.aiRuntime.download' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'app.cancel' })).not.toBeInTheDocument()
+  })
+
+  it('状态读取失败时隐藏旧速度，安装阶段不再显示下载速度', async () => {
+    vi.useFakeTimers()
+    const task: AIRuntimeTask = { id: 'download', phase: 'downloading', downloaded: 10485760, total: state.download_size, bytes_per_second: 2097152, cancellable: true }
+    const gateway: AIRuntimeGateway = { status: vi.fn().mockResolvedValue({ ...state, task }),
+      download: vi.fn(), cancel: vi.fn(), check: vi.fn(), warmup: vi.fn(), serviceStatus: vi.fn() }
+    const { unmount } = render(<AIRuntimeGatewayContext value={gateway}><AIRuntimeSetting disabled={false} /></AIRuntimeGatewayContext>)
+    try {
+      await act(async () => {})
+      expect(screen.getByText('settings.aiRuntime.downloadSpeed: 2.0 MB/s')).toBeInTheDocument()
+      expect(screen.getByText('settings.aiRuntime.downloadRemainingMinutes: {"count":22}')).toBeInTheDocument()
+      vi.mocked(gateway.status).mockRejectedValue(new Error('status unavailable'))
+      await act(() => vi.advanceTimersByTimeAsync(1500))
+      expect(screen.queryByText(/settings\.aiRuntime\.downloadSpeed:/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/settings\.aiRuntime\.downloadRemaining/)).not.toBeInTheDocument()
+      vi.mocked(gateway.status).mockResolvedValue({ ...state, task: { ...task, phase: 'installing', bytes_per_second: 0, cancellable: false } })
+      await act(() => vi.advanceTimersByTimeAsync(1500))
+      expect(screen.getByText('settings.aiRuntime.phases.installing')).toBeInTheDocument()
+      expect(screen.queryByText(/settings\.aiRuntime\.downloadSpeed:/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/settings\.aiRuntime\.downloadRemaining/)).not.toBeInTheDocument()
+    } finally { unmount(); vi.useRealTimers() }
+  })
+
   it('未激活时不读取，切换页面取消在途观察并忽略迟到响应', async () => {
     let resolve: (value: AIRuntimeStatus) => void = () => {}
     const gateway: AIRuntimeGateway = { status: vi.fn().mockImplementationOnce(() => new Promise<AIRuntimeStatus>(done => { resolve = done }))
@@ -67,7 +165,7 @@ describe('画面分析运行环境设置', () => {
     fireEvent.click(download)
     expect(gateway.download).toHaveBeenCalledTimes(1)
     rerender(view(false))
-    await act(async () => complete({ id: 'one', phase: 'complete', downloaded: 100, total: 100, cancellable: false }))
+    await act(async () => complete({ id: 'one', phase: 'complete', downloaded: 100, total: 100, bytes_per_second: 0, cancellable: false }))
     expect(gateway.status).toHaveBeenCalledTimes(1)
     expect(gateway.cancel).not.toHaveBeenCalled()
     rerender(view(true))
@@ -78,7 +176,7 @@ describe('画面分析运行环境设置', () => {
   it('维护后的刷新取代旧轮询，迟到的旧状态不能覆盖新任务', async () => {
     vi.useFakeTimers()
     let complete: (value: AIRuntimeStatus) => void = () => {}
-    const installing: AIRuntimeTask = { id: 'install', phase: 'installing', downloaded: 100, total: 100, cancellable: false }
+    const installing: AIRuntimeTask = { id: 'install', phase: 'installing', downloaded: 100, total: 100, bytes_per_second: 0, cancellable: false }
     const gateway: AIRuntimeGateway = { status: vi.fn().mockResolvedValueOnce(state)
       .mockImplementationOnce(() => new Promise<AIRuntimeStatus>(done => { complete = done }))
       .mockResolvedValue({ ...state, task: installing }),
@@ -181,7 +279,7 @@ describe('画面分析运行环境设置', () => {
   })
 
   it('下载由后端创建任务，写入阶段禁用取消', async () => {
-    const installing = { id: 'one', phase: 'installing' as const, downloaded: 100, total: 100, cancellable: false }
+    const installing = { id: 'one', phase: 'installing' as const, downloaded: 100, total: 100, bytes_per_second: 0, cancellable: false }
     const gateway: AIRuntimeGateway = { status: vi.fn().mockResolvedValue(state),
       download: vi.fn(async () => { vi.mocked(gateway.status).mockResolvedValue({ ...state, task: installing }); return installing }),
       cancel: vi.fn(), check: vi.fn(), warmup: vi.fn(), serviceStatus: vi.fn() }

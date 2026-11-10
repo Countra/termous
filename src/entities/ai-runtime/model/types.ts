@@ -3,6 +3,7 @@ export interface AIRuntimeTask {
   phase: 'preflight' | 'downloading' | 'waiting' | 'preparing' | 'installing' | 'checking' | 'complete' | 'failed' | 'cancelled'
   downloaded: number
   total: number
+  bytes_per_second: number
   cancellable: boolean
   error?: string
 }

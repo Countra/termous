@@ -70,8 +70,8 @@
   "network": {
     "title": "网络代理",
     "enabled": "启用代理",
-    "summary": "用于 MCP 与本地命令，对新任务和连接生效。",
-    "scope": "包含 MCP 下载、连接与登录授权；不影响联网搜索、模型 API、云同步和更新。",
+    "summary": "用于 MCP、本地命令与 GPU 组件下载，对新任务和连接生效。",
+    "scope": "包含 MCP 下载、连接、登录授权与 GPU 组件下载；不影响联网搜索、模型 API、云同步和更新。关闭代理时，GPU 组件直接下载。",
     "url": "代理地址",
     "urlHint": "HTTP / HTTPS，不支持认证",
     "urlRequired": "请先填写代理地址。",
