@@ -7,6 +7,7 @@ const bridge: RemoteWindowBridge = {
   debugMode: process.argv.includes(appDebugModeArgument),
   desktopQualityDefaults: id => ipcRenderer.invoke('remote:desktop-quality-defaults', id),
   desktopICE: id => ipcRenderer.invoke('remote:desktop-ice', id),
+  desktopDiagnostic: (id, value) => ipcRenderer.send('remote:desktop-diagnostic', id, value),
   windowControls: {
     minimize: () => ipcRenderer.invoke('remote:window-minimize'),
     toggleMaximize: () => ipcRenderer.invoke('remote:window-toggle-maximize'),

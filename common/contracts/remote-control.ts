@@ -1,4 +1,5 @@
 import type { JsonValue } from '@bufbuild/protobuf'
+import type { DesktopConnectionDiagnostic } from '@termous/remote-protocol/desktop-diagnostics'
 import type { AppLanguage, AppTheme } from './application'
 import type { NotificationTarget } from './notification'
 import type { SettingsSnapshot } from './settings-center'
@@ -100,6 +101,7 @@ export interface RemoteWindowBridge {
   desktopQualityDefaults?(connectionId: string): Promise<RemoteResult<SettingsSnapshot>>
   debugMode?: boolean
   desktopICE?(connectionId: string): Promise<RemoteResult<RTCIceServer[]>>
+  desktopDiagnostic?(connectionId: string, value: DesktopConnectionDiagnostic): void
   windowControls?: {
     minimize(): Promise<RemoteResult<boolean>>
     toggleMaximize(): Promise<RemoteResult<boolean>>

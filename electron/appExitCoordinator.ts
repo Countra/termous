@@ -28,6 +28,7 @@ export interface AppBeforeQuitEvent {
 export interface AppExitCoordinatorDependencies {
   shutdownCore(reason: CoreShutdownReason): Promise<boolean>
   prepareForExit(): void
+  flushLogs?(): Promise<unknown>
   recoverAfterFailedUpdateInstall?(): Promise<boolean>
   showRecoveryFailure?(): boolean
   closeAllWindows(): void
@@ -47,6 +48,7 @@ export class AppExitCoordinator {
   private preparedForExit = false
   private windowsClosed = false
   private quitRequested = false
+  private logFlushPromise: Promise<void> | null = null
 
   constructor(dependencies: AppExitCoordinatorDependencies) {
     this.dependencies = dependencies
@@ -87,6 +89,11 @@ export class AppExitCoordinator {
   }
 
   handleBeforeQuit(event: AppBeforeQuitEvent) {
+    if (this.logFlushPromise) {
+      event.preventDefault()
+      void this.requestApplicationExit('before_quit')
+      return false
+    }
     if (this.nativeQuitAllowed) {
       this.windowTeardownStarted = true
       this.prepareForExitOnce()
@@ -184,6 +191,7 @@ export class AppExitCoordinator {
     this.windowTeardownStarted = true
     this.prepareForExitOnce()
     this.closeAllWindowsOnce()
+    await this.flushLogs()
     this.quitApplicationOnce()
   }
 
@@ -208,6 +216,7 @@ export class AppExitCoordinator {
     this.windowTeardownStarted = true
     this.prepareForExitOnce()
     this.closeAllWindowsOnce()
+    await this.flushLogs()
     this.quitApplicationOnce()
     return { mode: 'application_exit', source, coreStopped }
   }
@@ -220,7 +229,22 @@ export class AppExitCoordinator {
 
     this.nativeQuitAllowed = true
     this.prepareForExitOnce()
+    await this.flushLogs()
     return { status: 'ready_to_install' }
+  }
+
+  private flushLogs(): Promise<void> {
+    if (!this.dependencies.flushLogs) return Promise.resolve()
+    if (this.logFlushPromise) return this.logFlushPromise
+    let timer: ReturnType<typeof setTimeout>
+    const deadline = new Promise<void>(resolve => { timer = setTimeout(resolve, 2000) })
+    // 日志失败或输出端永久阻塞都不能改变退出、更新及失败恢复的决定。
+    const flushing = Promise.resolve().then(() => this.dependencies.flushLogs!()).then(() => undefined, () => undefined)
+    this.logFlushPromise = Promise.race([flushing, deadline]).finally(() => {
+      clearTimeout(timer)
+      this.logFlushPromise = null
+    })
+    return this.logFlushPromise
   }
 
   private async stopCore(reason: CoreShutdownReason) {

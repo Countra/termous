@@ -2,6 +2,65 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { AppExitCoordinator } from './appExitCoordinator.ts'
 
+test('更新准备排空期间收到退出请求，必须保留退出意图并最终退出', async () => {
+  let release!: () => void, started!: () => void
+  let flushes = 0, quits = 0
+  const flushing = new Promise<void>(resolve => { started = resolve })
+  const coordinator = new AppExitCoordinator({
+    shutdownCore: async () => true, prepareForExit() {}, closeAllWindows() {},
+    quitApplication() { quits++ },
+    flushLogs() { if (++flushes > 1) return Promise.resolve(); started(); return new Promise<void>(resolve => { release = resolve }) },
+  })
+  const installing = coordinator.prepareUpdateInstall()
+  await flushing
+  let prevented = false
+  assert.equal(coordinator.handleBeforeQuit({ preventDefault() { prevented = true } }), false)
+  assert.equal(prevented, true)
+  assert.equal(coordinator.isApplicationExiting(), true)
+  release(); await installing
+  await coordinator.requestApplicationExit('before_quit')
+  assert.equal(quits, 1)
+})
+
+test('退出排空日志期间合并退出请求，并阻止原生退出绕过排空', async () => {
+  let release!: () => void, flushing!: () => void
+  const started = new Promise<void>(resolve => { flushing = resolve })
+  let quits = 0, flushes = 0
+  const coordinator = new AppExitCoordinator({
+    shutdownCore: async () => true, prepareForExit() {}, closeAllWindows() {},
+    quitApplication() { quits++ },
+    flushLogs() { flushes++; flushing(); return new Promise<void>(resolve => { release = resolve }) },
+  })
+  const exiting = coordinator.requestApplicationExit('tray')
+  await started
+  assert.equal(coordinator.requestApplicationExit('main_window'), exiting)
+  let prevented = false
+  assert.equal(coordinator.handleBeforeQuit({ preventDefault() { prevented = true } }), false)
+  assert.equal(prevented, true)
+  assert.equal(quits, 0)
+  release(); await exiting
+  assert.equal(flushes, 1)
+  assert.equal(quits, 1)
+})
+
+test('日志永久阻塞只允许等待两秒，不阻止更新失败恢复及再次退出', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  let flushes = 0, quits = 0
+  const coordinator = new AppExitCoordinator({
+    shutdownCore: async () => true, prepareForExit() {}, closeAllWindows() {},
+    quitApplication() { quits++ }, recoverAfterFailedUpdateInstall: async () => true,
+    flushLogs() { flushes++; return flushes === 1 ? new Promise<void>(() => {}) : Promise.reject(new Error('log unavailable')) },
+  })
+  const installing = coordinator.prepareUpdateInstall()
+  await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+  t.mock.timers.tick(2000)
+  assert.deepEqual(await installing, { status: 'ready_to_install' })
+  assert.equal(await coordinator.handleUpdateInstallerFailure(new Error('installer failed')), true)
+  assert.equal((await coordinator.requestApplicationExit('tray')).coreStopped, true)
+  assert.equal(flushes, 2)
+  assert.equal(quits, 1)
+})
+
 test('安装器启动失败后恢复应用并允许重新准备安装', async () => {
   let shutdownCalls = 0
   let prepareCalls = 0

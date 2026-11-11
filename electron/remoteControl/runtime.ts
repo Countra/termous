@@ -9,6 +9,8 @@ import { RemoteTerminalStream } from './stream'
 import { RemoteLocalTransfers } from './files'
 import { RemoteAgentContent } from './agentContent'
 import { RemotePolicyEditorSession } from './policyEditor'
+import { DesktopDiagnosticLog } from './desktopDiagnostics'
+import { desktopDiagnosticLevel } from '@termous/remote-protocol/desktop-diagnostics'
 
 interface Options {
   core: RemoteCore
@@ -16,6 +18,7 @@ interface Options {
   preload: string; renderer: string; devURL?: string; icon?: string; debugMode?: boolean
   appearance(): { language: AppLanguage; theme: AppTheme }
   warn(code: string): void
+  diagnostic(fields: Record<string, unknown>, level: 'debug' | 'info' | 'warn'): void
 }
 interface Entry {
   window: BrowserWindow; bootstrap: RemoteBootstrap
@@ -25,6 +28,7 @@ interface Entry {
   reconnecting?: Promise<RemoteConnection>
   files: RemoteLocalTransfers
   allowClose?: boolean; closing?: boolean
+  desktopDiagnostics?: DesktopDiagnosticLog
 }
 
 export class RemoteControlRuntime {
@@ -50,7 +54,7 @@ export class RemoteControlRuntime {
     } catch { this.options.warn('remote_account_check_failed') } finally { this.checking = false }
   }
 
-  private own(event: IpcMainInvokeEvent): Entry {
+  private own(event: Pick<IpcMainInvokeEvent, 'sender' | 'senderFrame'>): Entry {
     for (const entry of this.entries.values()) {
       if (!entry.window.isDestroyed() && entry.window.webContents === event.sender && event.senderFrame === event.sender.mainFrame) return entry
     }
@@ -80,6 +84,17 @@ export class RemoteControlRuntime {
   }
 
   private register() {
+    ipcMain.on('remote:desktop-diagnostic', (event, id: unknown, input: unknown) => {
+      let entry: Entry
+      try { entry = this.own(event) } catch { return }
+      if (!validId(id) || entry.connection?.id !== id) return
+      entry.desktopDiagnostics ??= new DesktopDiagnosticLog()
+      const value = entry.desktopDiagnostics.accept(input, this.options.debugMode)
+      if (value) {
+        const { event: phase, ...fields } = value
+        this.options.diagnostic({ ...fields, phase, connection_id: id, role: 'controller' }, desktopDiagnosticLevel(phase))
+      }
+    })
     const editor = new RemotePolicyEditorSession(this.options.core)
     ipcMain.handle('remote:edit-policy', (event, generation: string, id: string) => result(() => {
       this.main(event, generation)

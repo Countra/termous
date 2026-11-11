@@ -12,6 +12,7 @@ import { DesktopIndicatorRuntime } from './desktopIndicator/runtime'
 import { reportDesktopReclaimFailure } from './desktopIndicator/feedback'
 import { registerDesktopFilesIPC } from './desktopFilesIPC'
 import { RemoteCore } from './remoteControl/core'
+import { createProcessLogger, type LogLevel } from './platform/logging/runtime'
 import { notificationSettingsAdapter, updateSettingsAdapter, loginItemSettingsAdapter } from './settings/adapters'
 import { appDebugModeArgument, settingsIPCChannels } from '#common/contracts'
 import { notificationIPCChannels } from '#common/contracts'
@@ -35,7 +36,7 @@ import {
   type IpcMainInvokeEvent,
   type WebContents,
 } from 'electron'
-import { appendFileSync, createReadStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { chmod, lstat, open, rename, rm, stat } from 'node:fs/promises'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
@@ -92,8 +93,7 @@ const APP_ICON = path.join(process.resourcesPath, 'icon.png')
 const TRAY_ICON = desktopChannel === 'development' ? APP_ICON : path.join(process.env.VITE_PUBLIC, process.platform === 'win32' ? 'favicon.ico' : 'termous-icon.png')
 const WEB_DEBUG_FILE = 'webDebug'
 const DEVTOOLS_CHORD_WINDOW_MS = 900
-const ELECTRON_PROCESS_LOG_FILE = 'electron-process.log'
-const ELECTRON_PROCESS_LOG_MAX_BYTES = 512 * 1024
+const processLogger = createProcessLogger(() => app.getPath('logs'))
 const APPEARANCE_CACHE_FILE = 'appearance.json'
 const BACKUP_EXTENSION = '.tobp'
 const BACKUP_MAX_BYTES = 1 << 30
@@ -114,8 +114,8 @@ if (hasSingleInstanceLock) {
 }
 const coreProcess = new CoreProcessManager({ channel: desktopChannel, logger: {
   info: (event, fields = {}) => reportElectronProcessEvent(event, fields),
-  warn: (event, fields = {}) => reportElectronProcessEvent(event, fields),
-  error: (event, fields = {}) => reportElectronProcessEvent(event, fields),
+  warn: (event, fields = {}) => reportElectronProcessEvent(event, fields, 'warn'),
+  error: (event, fields = {}) => reportElectronProcessEvent(event, fields, 'error'),
 } })
 let notificationDisposeIPC: (() => void) | null = null
 let notificationPreferences: NotificationPreferencesStore | null = null
@@ -126,7 +126,7 @@ let notificationWarningAt = 0
 function warnNotification() {
   if (Date.now() - notificationWarningAt < 60_000) return
   notificationWarningAt = Date.now()
-  reportElectronProcessEvent('notification-unavailable', { component: 'notifications' })
+  reportElectronProcessEvent('notification-unavailable', { component: 'notifications' }, 'warn')
 }
 
 async function initializeNotifications() {
@@ -147,7 +147,7 @@ async function initializeNotifications() {
     warn: warnNotification,
     deliveryFailed: () => {
       nativeNotificationsSupported = false
-      reportElectronProcessEvent('native-notification-registration-failed', { channel: desktopChannel, stage: 'delivery' })
+      reportElectronProcessEvent('native-notification-registration-failed', { channel: desktopChannel, stage: 'delivery' }, 'warn')
     },
   })
   nativeNotificationsSupported = await prepareNativeNotifications(reportElectronProcessEvent)
@@ -158,7 +158,7 @@ async function initializeNotifications() {
       })
     } catch {
       nativeNotificationsSupported = false
-      reportElectronProcessEvent('native-notification-registration-failed', { channel: desktopChannel, stage: 'activation_handler' })
+      reportElectronProcessEvent('native-notification-registration-failed', { channel: desktopChannel, stage: 'activation_handler' }, 'warn')
     }
   }
   notificationDisposeIPC = registerNotificationIPC({ ipcMain, runtime: notificationRuntime, trusted: isTrustedMainIPCEvent })
@@ -183,7 +183,7 @@ const integrationHost: IntegrationHostSupervisor = new IntegrationHostSupervisor
     const config = await coreProcess.initialize()
     return { baseURL: config.apiBaseUrl, token: config.apiToken ?? '', supervisor: agentSupervisor.completionLease().supervisor_instance_id }
   },
-  report: code => reportElectronProcessEvent('agent-integrations-host', { error_code: code }),
+  report: code => reportElectronProcessEvent('agent-integrations-host', { error_code: code }, 'warn'),
 })
 const agentSupervisor = new AgentSupervisor({
   integrations: integrationHost,
@@ -197,7 +197,7 @@ const agentSupervisor = new AgentSupervisor({
   skills: skillsSource,
   logger: {
     info: (event, details = {}) => reportElectronProcessEvent(event, details),
-    error: (event, details = {}) => reportElectronProcessEvent(event, details),
+    error: (event, details = {}) => reportElectronProcessEvent(event, details, 'error'),
   },
 })
 const terminalCompletionCore = new TerminalCompletionCoreClient({
@@ -244,6 +244,7 @@ const startupPresentation = new StartupPresentation({ onChange: onStartupPresent
 const exitCoordinator = new AppExitCoordinator({
   shutdownCore: shutdownAgentRuntimeAndCore,
   prepareForExit: prepareApplicationExit,
+  flushLogs: () => processLogger.flush(),
   recoverAfterFailedUpdateInstall: recoverApplicationAfterFailedUpdateInstall,
   showRecoveryFailure: showStartupFailure,
   closeAllWindows: closeAllApplicationWindows,
@@ -251,7 +252,7 @@ const exitCoordinator = new AppExitCoordinator({
   reportError: (event, error) => {
     reportElectronProcessEvent(event, {
       message: error instanceof Error ? error.name : 'UnknownError',
-    })
+    }, 'error')
   },
 })
 
@@ -280,26 +281,8 @@ class SSHKeyFileOperationError extends Error {}
 const pendingBackupSelections = new Map<string, PendingBackupSelection>()
 const rendererRecoveryCooldownMs = 30_000
 
-function reportElectronProcessEvent(event: string, details: Record<string, unknown>) {
-  const line = `[termous:electron] ${JSON.stringify({
-    timestamp: new Date().toISOString(),
-    event,
-    ...details,
-  })}`
-  console.error(line)
-  try {
-    const logDirectory = app.getPath('logs')
-    const logPath = path.join(logDirectory, ELECTRON_PROCESS_LOG_FILE)
-    mkdirSync(logDirectory, { recursive: true })
-    if (existsSync(logPath) && statSync(logPath).size >= ELECTRON_PROCESS_LOG_MAX_BYTES) {
-      const previousLogPath = `${logPath}.1`
-      rmSync(previousLogPath, { force: true })
-      renameSync(logPath, previousLogPath)
-    }
-    appendFileSync(logPath, `${line}\n`, 'utf8')
-  } catch (error) {
-    console.error(`[termous:electron] 无法写入进程诊断日志: ${error instanceof Error ? error.message : String(error)}`)
-  }
+function reportElectronProcessEvent(event: string, details: Record<string, unknown>, level: LogLevel = 'info') {
+  processLogger.report(event, details, level)
 }
 
 function startLocalCrashReporter() {
@@ -314,7 +297,7 @@ function startLocalCrashReporter() {
   } catch (error) {
     reportElectronProcessEvent('crash-reporter-start-failed', {
       message: error instanceof Error ? error.message : String(error),
-    })
+    }, 'warn')
   }
 }
 
@@ -380,7 +363,7 @@ function registerRendererHealth(target: BrowserWindow) {
         reportElectronProcessEvent('renderer-recovery-failed', {
           reason: recoveryReason,
           message: error instanceof Error ? error.message : String(error),
-        })
+        }, 'error')
       }
     }, delay)
     reportElectronProcessEvent('renderer-recovery-scheduled', {
@@ -393,14 +376,14 @@ function registerRendererHealth(target: BrowserWindow) {
     reportElectronProcessEvent('render-process-gone', {
       reason: details.reason,
       exit_code: details.exitCode,
-    })
+    }, 'error')
     if (!isRecoverableRendererFailure(details.reason)) {
       return
     }
     scheduleRecovery(details.reason)
   })
   contents.on('unresponsive', () => {
-    reportElectronProcessEvent('renderer-unresponsive', {})
+    reportElectronProcessEvent('renderer-unresponsive', {}, 'warn')
   })
   contents.on('responsive', () => {
     reportElectronProcessEvent('renderer-responsive', {})
@@ -422,7 +405,7 @@ app.on('child-process-gone', (_event, details) => {
     exit_code: details.exitCode,
     service_name: details.serviceName,
     name: details.name,
-  })
+  }, 'error')
 })
 
 function emitPortabilityProgress(sender: WebContents, progress: DataPortabilityProgress) {
@@ -794,7 +777,7 @@ function startupWindowState() {
 
 function markSplashUnavailable(target: BrowserWindow, reason: string) {
   if (splashWin !== target) return
-  reportElectronProcessEvent('startup-window-unavailable', { reason })
+  reportElectronProcessEvent('startup-window-unavailable', { reason }, 'error')
   splashUnavailable = true
   closeSplashWindow()
   startupPresentation.skipPresentation()
@@ -938,7 +921,7 @@ async function performAgentRuntimeAndCoreShutdown(reason: CoreShutdownReason) {
     agentRuntimeStopped = false
     reportElectronProcessEvent('agent-runtime-shutdown-failed', {
       error_name: error instanceof Error ? error.name : 'UnknownError',
-    })
+    }, 'error')
   }
   if (!agentRuntimeStopped && reason === 'application_update') {
     return false
@@ -972,7 +955,7 @@ async function recoverAgentRuntimeAfterFailedShutdown(exitWasBlocked = false) {
   if (status.state === 'offline') {
     reportElectronProcessEvent('agent-runtime-recovery-failed', {
       error_code: status.error_code ?? 'AGENT_RUNTIME_UNAVAILABLE',
-    })
+    }, 'error')
   }
 }
 
@@ -986,7 +969,7 @@ async function restartCoreAfterRestore() {
   } catch (error) {
     reportElectronProcessEvent('agent-runtime-restore-shutdown-failed', {
       error_name: error instanceof Error ? error.name : 'UnknownError',
-    })
+    }, 'error')
     await recoverAgentRuntimeAfterFailedShutdown()
     throw error
   }
@@ -1398,7 +1381,7 @@ async function readApplicationBuildInfo() {
   } catch (error) {
     reportElectronProcessEvent('app-build-info-core-version-failed', {
       message: error instanceof Error ? error.name : 'UnknownError',
-    })
+    }, 'warn')
   }
   return {
     product_name: APP_NAME,
@@ -1431,7 +1414,7 @@ function createApplicationUpdateEngine(): UpdateEngine {
   } catch (error) {
     reportElectronProcessEvent('update-engine-initialize-failed', {
       message: error instanceof Error ? error.name : 'UnknownError',
-    })
+    }, 'error')
   }
   const unavailable = () => Promise.reject(new UpdateOperationError(
     'UPDATE_UNSUPPORTED',
@@ -1826,7 +1809,7 @@ async function initializeApplication() {
     preload: path.join(__dirname, 'desktop-automation-preload.cjs'),
     renderer: path.join(RENDERER_DIST, 'index.html'),
     devURL: VITE_DEV_SERVER_URL,
-    warn: code => reportElectronProcessEvent(code, {}),
+    warn: code => reportElectronProcessEvent(code, {}, 'warn'),
   })
   const desktopIndicator = new DesktopIndicatorRuntime({
     config: () => coreProcess.initialize(),
@@ -1835,7 +1818,7 @@ async function initializeApplication() {
     preload: path.join(__dirname, 'desktop-indicator-preload.cjs'),
     renderer: path.join(RENDERER_DIST, 'index.html'),
     devURL: VITE_DEV_SERVER_URL,
-    warn: code => reportElectronProcessEvent(code, {}),
+    warn: code => reportElectronProcessEvent(code, {}, 'warn'),
     reclaimFailed: () => reportDesktopReclaimFailure(appLanguage, APP_ICON, code => reportElectronProcessEvent(code, {})),
   })
   desktopIndicator.start()
@@ -1847,9 +1830,9 @@ async function initializeApplication() {
     core: new RemoteCore(() => coreProcess.initialize()),
     trusted: isTrustedMainIPCEvent,
     focused: event => !!BrowserWindow.fromWebContents(event.sender)?.isFocused(),
-    warn: code => reportElectronProcessEvent(code, {}),
+    warn: code => reportElectronProcessEvent(code, {}, 'warn'),
   })
-  registerDesktopFilesIPC({ ipc: ipcMain, core: new RemoteCore(() => coreProcess.initialize()), trusted: isTrustedMainIPCEvent, focused: event => !!BrowserWindow.fromWebContents(event.sender)?.isFocused(), warn: code => reportElectronProcessEvent(code, {}) })
+  registerDesktopFilesIPC({ ipc: ipcMain, core: new RemoteCore(() => coreProcess.initialize()), trusted: isTrustedMainIPCEvent, focused: event => !!BrowserWindow.fromWebContents(event.sender)?.isFocused(), warn: code => reportElectronProcessEvent(code, {}, 'warn') })
   remoteControlRuntime = new RemoteControlRuntime({
     core: new RemoteCore(() => coreProcess.initialize()),
     trusted: isTrustedMainIPCEvent,
@@ -1859,7 +1842,8 @@ async function initializeApplication() {
     debugMode: isAppDebugMode(),
     icon: APP_ICON,
     appearance: () => ({ theme: appTheme, language: appLanguage }),
-    warn: code => reportElectronProcessEvent(code, {}),
+    warn: code => reportElectronProcessEvent(code, {}, 'warn'),
+    diagnostic: (fields, level) => reportElectronProcessEvent('desktop.remote.connection', fields, level),
   })
   app.once('before-quit', () => remoteControlRuntime?.close())
   registerAgentRuntimeControls()
@@ -1898,12 +1882,12 @@ async function initializeApplication() {
         if (!result.ok) {
           reportElectronProcessEvent('update-release-page-open-failed', {
             error_code: result.error,
-          })
+          }, 'warn')
         }
       },
       logger: {
         info: (event, details = {}) => reportElectronProcessEvent(event, details),
-        error: (event, details = {}) => reportElectronProcessEvent(event, details),
+        error: (event, details = {}) => reportElectronProcessEvent(event, details, 'error'),
       },
     })
     trayController.updateUpdateStatus(updateRuntime.getSnapshot())
@@ -1913,7 +1897,7 @@ async function initializeApplication() {
   } catch (error) {
     reportElectronProcessEvent('update-runtime-initialize-failed', {
       message: error instanceof Error ? error.name : 'UnknownError',
-    })
+    }, 'error')
   }
   createSplashWindow()
   await initializeNotifications()
@@ -1935,7 +1919,7 @@ async function initializeApplication() {
   }).catch((error) => {
     reportElectronProcessEvent('agent-runtime-initialize-failed', {
       error_name: error instanceof Error ? error.name : 'UnknownError',
-    })
+    }, 'error')
   })
 }
 
