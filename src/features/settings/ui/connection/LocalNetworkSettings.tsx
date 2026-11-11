@@ -42,7 +42,6 @@ export function LocalNetworkSettings() {
             <Tooltip trigger={['hover', 'focus']} title={<div className={styles.help}>
               <p>{t('mcpPreparation.network.scope')}</p>
               <p>{t('mcpPreparation.network.override')}</p>
-              <p>{t('mcpPreparation.network.limit')}</p>
             </div>}>
               <Button type="text" size="small" aria-label={t('mcpPreparation.network.details')} icon={<Info size={14} aria-hidden="true" />} />
             </Tooltip>
