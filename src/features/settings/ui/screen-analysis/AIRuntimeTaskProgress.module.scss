@@ -1,0 +1,111 @@
+.progress {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px 16px;
+  background: color-mix(in srgb, var(--surface-subtle) 45%, transparent);
+}
+
+.header,
+.status {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.header {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.status {
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.6;
+}
+
+.status > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.percent {
+  flex-shrink: 0;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.bar {
+  display: block;
+  margin: 10px 0;
+  line-height: 1;
+}
+
+.metrics {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.metrics dd {
+  margin: 0;
+}
+
+.amount {
+  margin-inline-end: auto;
+}
+
+.remaining {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.remaining > svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.notice {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.spinner {
+  animation: runtime-spin 1.2s linear infinite;
+}
+
+@keyframes runtime-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}

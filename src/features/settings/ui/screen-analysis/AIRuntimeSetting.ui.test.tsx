@@ -22,17 +22,20 @@ describe('画面分析运行环境设置', () => {
     try {
       await act(async () => {})
       expect(screen.getByText('settings.aiRuntime.downloadConnecting')).toBeInTheDocument()
+      expect(screen.getByRole('progressbar', { name: 'settings.aiRuntime.downloadConnecting' })).toHaveAttribute('aria-valuenow', '0')
       expect(screen.getByText('settings.aiRuntime.downloadProgress: 0 B / 2.6 GB')).toBeInTheDocument()
       expect(screen.getByText('settings.aiRuntime.downloadSpeed: 0 B/s')).toBeInTheDocument()
       expect(screen.getByText('settings.aiRuntime.downloadEstimating')).toBeInTheDocument()
-      vi.mocked(gateway.status).mockResolvedValue({ ...state, task: { ...task, downloaded: 65536, bytes_per_second: 65536 } })
+      vi.mocked(gateway.status).mockResolvedValue({ ...state, task: { ...task, downloaded: 4823449, bytes_per_second: 313344 } })
       await act(() => vi.advanceTimersByTimeAsync(1500))
       expect(screen.queryByText('settings.aiRuntime.downloadConnecting')).not.toBeInTheDocument()
-      expect(screen.getByText('settings.aiRuntime.downloadProgress: 64 KB / 2.6 GB')).toBeInTheDocument()
-      expect(screen.getByText('settings.aiRuntime.downloadSpeed: 64 KB/s')).toBeInTheDocument()
+      expect(screen.getByText('0.1%')).toBeInTheDocument()
+      expect(screen.getByRole('progressbar', { name: 'settings.aiRuntime.phases.downloading' })).toHaveAttribute('aria-valuenow', '0.1')
+      expect(screen.getByText('settings.aiRuntime.downloadProgress: 4.6 MB / 2.6 GB')).toBeInTheDocument()
+      expect(screen.getByText('settings.aiRuntime.downloadSpeed: 306 KB/s')).toBeInTheDocument()
       expect(screen.queryByText('settings.aiRuntime.downloadEstimating')).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'app.cancel' })).toBeEnabled()
-      vi.mocked(gateway.status).mockResolvedValue({ ...state, task: { ...task, downloaded: 65536, bytes_per_second: 0 } })
+      vi.mocked(gateway.status).mockResolvedValue({ ...state, task: { ...task, downloaded: 4823449, bytes_per_second: 0 } })
       await act(() => vi.advanceTimersByTimeAsync(1500))
       expect(screen.getByText('settings.aiRuntime.downloadSpeed: 0 B/s')).toBeInTheDocument()
       expect(screen.getByText('settings.aiRuntime.downloadEstimating')).toBeInTheDocument()
@@ -68,7 +71,7 @@ describe('画面分析运行环境设置', () => {
       download: vi.fn(), cancel: vi.fn(), check: vi.fn(), warmup: vi.fn(), serviceStatus: vi.fn() }
     render(<AIRuntimeGatewayContext value={gateway}><AIRuntimeSetting disabled={false} /></AIRuntimeGatewayContext>)
     expect(await screen.findByText(`settings.aiRuntime.${text}`)).toBeInTheDocument()
-    expect(screen.queryByText(/settings\.aiRuntime\.downloadRemaining/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/settings\.aiRuntime\.downloadRemaining(?:Short|Minutes|Hours|Days)/)).not.toBeInTheDocument()
   })
 
   it.each([
@@ -98,6 +101,7 @@ describe('画面分析运行环境设置', () => {
       expect(screen.getByText('settings.aiRuntime.downloadRemainingMinutes: {"count":22}')).toBeInTheDocument()
       vi.mocked(gateway.status).mockRejectedValue(new Error('status unavailable'))
       await act(() => vi.advanceTimersByTimeAsync(1500))
+      expect(screen.getByText('settings.aiRuntime.downloadStatusUnavailable')).toBeInTheDocument()
       expect(screen.queryByText(/settings\.aiRuntime\.downloadSpeed:/)).not.toBeInTheDocument()
       expect(screen.queryByText(/settings\.aiRuntime\.downloadRemaining/)).not.toBeInTheDocument()
       vi.mocked(gateway.status).mockResolvedValue({ ...state, task: { ...task, phase: 'installing', bytes_per_second: 0, cancellable: false } })
@@ -105,6 +109,33 @@ describe('画面分析运行环境设置', () => {
       expect(screen.getByText('settings.aiRuntime.phases.installing')).toBeInTheDocument()
       expect(screen.queryByText(/settings\.aiRuntime\.downloadSpeed:/)).not.toBeInTheDocument()
       expect(screen.queryByText(/settings\.aiRuntime\.downloadRemaining/)).not.toBeInTheDocument()
+    } finally { unmount(); vi.useRealTimers() }
+  })
+
+  it('取消失败不误报进度不可用，状态读取失败后等待新快照恢复统计', async () => {
+    vi.useFakeTimers()
+    const task: AIRuntimeTask = { id: 'download', phase: 'downloading', downloaded: 10485760, total: state.download_size, bytes_per_second: 2097152, cancellable: true }
+    const gateway: AIRuntimeGateway = { status: vi.fn().mockResolvedValue({ ...state, task }),
+      download: vi.fn(), cancel: vi.fn().mockRejectedValue(new Error('cancel failed')), check: vi.fn(), warmup: vi.fn(), serviceStatus: vi.fn() }
+    const { unmount } = render(<AIRuntimeGatewayContext value={gateway}><AIRuntimeSetting disabled={false} /></AIRuntimeGatewayContext>)
+    try {
+      await act(async () => {})
+      await act(async () => fireEvent.click(screen.getByRole('button', { name: 'app.cancel' })))
+      expect(gateway.cancel).toHaveBeenCalledWith(task.id)
+      expect(screen.getByText('settings.aiRuntime.failed')).toBeInTheDocument()
+      expect(screen.queryByText('settings.aiRuntime.downloadStatusUnavailable')).not.toBeInTheDocument()
+      expect(screen.getByText('settings.aiRuntime.downloadSpeed: 2.0 MB/s')).toBeInTheDocument()
+      expect(screen.getByText('settings.aiRuntime.downloadRemainingMinutes: {"count":22}')).toBeInTheDocument()
+      vi.mocked(gateway.status).mockRejectedValue(new Error('status unavailable'))
+      await act(() => vi.advanceTimersByTimeAsync(1500))
+      await act(async () => fireEvent.click(screen.getByRole('button', { name: 'app.cancel' })))
+      expect(screen.getByText('settings.aiRuntime.downloadStatusUnavailable')).toBeInTheDocument()
+      expect(screen.queryByText(/settings\.aiRuntime\.downloadSpeed:/)).not.toBeInTheDocument()
+      vi.mocked(gateway.status).mockResolvedValue({ ...state, task })
+      await act(() => vi.advanceTimersByTimeAsync(1500))
+      expect(screen.queryByText('settings.aiRuntime.downloadStatusUnavailable')).not.toBeInTheDocument()
+      expect(screen.queryByText('settings.aiRuntime.failed')).not.toBeInTheDocument()
+      expect(screen.getByText('settings.aiRuntime.downloadSpeed: 2.0 MB/s')).toBeInTheDocument()
     } finally { unmount(); vi.useRealTimers() }
   })
 

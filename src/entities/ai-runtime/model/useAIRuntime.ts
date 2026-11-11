@@ -7,6 +7,7 @@ export function useAIRuntime(enabled = true) {
   const gateway = useContext(AIRuntimeGatewayContext)
   const [status, setStatus] = useState<AIRuntimeStatus>()
   const [error, setError] = useState<unknown>()
+  const [statusUnavailable, setStatusUnavailable] = useState(false)
   const [pending, setPending] = useState(false)
   const lifetime = useRef<{ signal: AbortSignal; refresh: () => Promise<void> } | null>(null)
   const acting = useRef(false)
@@ -22,8 +23,8 @@ export function useAIRuntime(enabled = true) {
       const current = new AbortController(); reading = current
       try {
         const next = await gateway.status(current.signal)
-        if (!current.signal.aborted) { setStatus(next); setError(undefined) }
-      } catch (reason) { if (!current.signal.aborted) setError(reason) }
+        if (!current.signal.aborted) { setStatus(next); setError(undefined); setStatusUnavailable(false) }
+      } catch (reason) { if (!current.signal.aborted) { setError(reason); setStatusUnavailable(true) } }
       if (!current.signal.aborted) timer = setTimeout(() => void poll(), 1500)
     }
     // 维护后的刷新与轮询共用读取槽，旧响应和旧定时器不能覆盖较新的观察。
@@ -50,5 +51,5 @@ export function useAIRuntime(enabled = true) {
     finally { acting.current = false; setPending(false) }
   }, [enabled, gateway, status?.task])
   const active = !!status?.task && !['complete', 'failed', 'cancelled'].includes(status.task.phase)
-  return { available: !!gateway, status, error, pending, active, act }
+  return { available: !!gateway, status, error, statusUnavailable, pending, active, act }
 }
