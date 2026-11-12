@@ -6,7 +6,7 @@ import { createAgentPreview } from './agentPreview'
 
 export function createPreview(query: URLSearchParams): { bridge: RemoteWindowBridge; bootstrap: RemoteBootstrap } {
   const bootstrap: RemoteBootstrap = { generation: '1', deviceId: 'host', deviceName: 'Termous Workstation', language: query.has('en') ? 'en-US' : 'zh-CN', theme: query.has('light') ? 'light' : 'dark' }
-  const connection: RemoteConnection = { id: 'preview', state: 'connected', scope: { connection_id: 'preview', generation: '1', controller_id: 'controller', host_id: 'host' }, lease_expires_at: new Date(Date.now() + 300000).toISOString(), stats: { state: 'connected', path: 'direct', protocol: 'udp', encryption: 'TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256', ip_version: 'ipv4', local_candidate: 'host', remote_candidate: 'host', rtt_ms: 12, bytes_sent: 0, bytes_received: 0 } }
+  const connection: RemoteConnection = { transport_policy: 'auto', id: 'preview', state: 'connected', scope: { connection_id: 'preview', generation: '1', controller_id: 'controller', host_id: 'host' }, lease_expires_at: new Date(Date.now() + 300000).toISOString(), stats: { state: 'connected', path: 'direct', protocol: 'udp', encryption: 'TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256', ip_version: 'ipv4', local_candidate: 'host', remote_candidate: 'host', rtt_ms: 12, bytes_sent: 0, bytes_received: 0 } }
   const capabilities = ['browse', 'entry_create', 'entry_mutate', 'planned_delete', 'transfer', 'transfer_receive']
   const hosts = [{ id: 'host', name: 'Development', connections: [
     { id: 'profile', name: 'deploy', kind: 'ssh', engine: '', available: true },

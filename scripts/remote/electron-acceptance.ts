@@ -84,6 +84,7 @@ const runtime = new RemoteControlRuntime({
   trusted: event => event.sender === launcher.webContents && event.senderFrame === launcher.webContents.mainFrame,
   preload: path.join(output, 'remote-preload.cjs'), renderer: '', devURL: 'http://127.0.0.1:5183/',
   appearance: () => ({ language: 'zh-CN', theme: 'dark' }), warn: code => console.log(code),
+  diagnostic: (fields, level) => console.log('desktop', level, fields),
 })
 const until = async (check: () => boolean | Promise<boolean>) => {
   const deadline = Date.now() + 15000

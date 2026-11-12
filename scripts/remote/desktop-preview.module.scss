@@ -1,0 +1,55 @@
+.desktop { flex: 1; }
+
+.workspace {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.split { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.pane {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  container-type: inline-size;
+}
+
+.adjacent {
+  display: grid;
+  border-left: 1px solid var(--border);
+  place-items: center;
+  color: var(--text-muted);
+}
+
+.surface {
+  display: grid;
+  place-items: center;
+  background: #0b1119;
+}
+
+.poster {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  color: #7b8b9f;
+
+  strong {
+    font-size: 20px;
+    font-weight: 400;
+  }
+
+  span { font-size: 12px; }
+}
+
+.notice {
+  position: absolute;
+  top: 20px;
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 16px;
+  color: var(--text-primary);
+
+  button { margin-left: 16px; }
+}

@@ -4,40 +4,72 @@
   width: 100%;
   height: 100%;
   min-height: 0;
+  min-width: 0;
+  container-name: desktop-source;
+  container-type: inline-size;
 }
 
 .toolbar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 12px 16px;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .title {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-right: 8px;
-}
-
-.sources {
-  min-width: 200px;
-  max-width: 380px;
-  flex: 1;
-}
-
-.hint {
-  margin: 0;
-  padding: 8px 16px;
   color: var(--text-secondary);
   font-size: 12px;
+
+  strong {
+    color: var(--text-primary);
+    font-weight: 550;
+  }
+}
+
+.help {
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 3px;
+  color: var(--text-muted);
+  cursor: help;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.controls {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.kind { width: 138px; }
+.sources { width: 200px; }
+
+.controls > :global(.ant-btn) {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
 }
 
 .content {
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 .empty {
@@ -46,6 +78,55 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  gap: 12px;
+  gap: 10px;
+  padding: 24px;
   color: var(--text-secondary);
+  text-align: center;
+
+  strong {
+    margin-top: 10px;
+    color: var(--text-primary);
+    font-size: 18px;
+    font-weight: 550;
+  }
+
+  p {
+    margin: 0;
+    font-size: 13px;
+  }
+
+  small {
+    max-width: 360px;
+    margin-top: 6px;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.8;
+  }
+}
+
+.empty-icon {
+  display: grid;
+  width: 60px;
+  height: 60px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
+@container desktop-source (width <= 680px) {
+  .toolbar { align-items: stretch; }
+  .title { width: 100%; }
+  .controls { width: 100%; }
+
+  .sources {
+    min-width: 0;
+    flex: 1;
+  }
+}
+
+@container desktop-source (width <= 380px) {
+  .toolbar { padding-inline: 8px; }
+  .kind { width: 118px; }
 }

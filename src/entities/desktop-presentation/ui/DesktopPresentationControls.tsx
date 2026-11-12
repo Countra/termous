@@ -23,7 +23,7 @@ function qualityStatus(state: PresentationState | undefined, text: (cn: string, 
   }
 }
 
-export function DesktopPresentationControls({ state, sessionKey = '', onChange, resizeAvailable = false, resizeSupported = resizeAvailable, onResize, resolutionStatus, scale, onScale, disabled = false }: {
+export function DesktopPresentationControls({ state, sessionKey = '', onChange, resizeAvailable = false, resizeSupported = resizeAvailable, onResize, resolutionStatus, scale, onScale, disabled = false, getContainer }: {
   state?: PresentationState
   sessionKey?: string
   onChange(settings: PresentationSettings, retryTarget?: boolean): void
@@ -34,6 +34,7 @@ export function DesktopPresentationControls({ state, sessionKey = '', onChange, 
   scale?: 'fit' | 'actual'
   onScale?(value: 'fit' | 'actual'): void
   disabled?: boolean
+  getContainer?(): HTMLElement
 }) {
   const [open, setOpen] = useState(false)
   // 忽略状态保留在弹窗之外，不同会话和新建议不能继承旧的选择。
@@ -48,7 +49,7 @@ export function DesktopPresentationControls({ state, sessionKey = '', onChange, 
   const status = qualityStatus(state, text)
   return <>
     <Button size="small" type="text" icon={<Settings2 size={16} />} aria-label={title} title={title} onClick={() => setOpen(true)}>{showAdvice && (caps?.videoQualityVersion !== 1 || state?.stability?.phase === 'attention') ? text('画质需确认', 'Quality needs attention') : null}</Button>
-    <Modal open={open} title={title} width={580} centered onCancel={() => setOpen(false)} footer={null} destroyOnHidden>
+    <Modal getContainer={getContainer} open={open} title={title} width={580} centered onCancel={() => setOpen(false)} footer={null} destroyOnHidden>
       <div className={`${styles.controls} ${styles.dialog}`}>
         <p className={styles.intro}>{text('仅用于当前会话，不修改默认设置。', 'Applies to this session only. Your defaults stay unchanged.')}</p>
         {(onScale || onResize && resizeSupported) && <div className={styles.panel}>

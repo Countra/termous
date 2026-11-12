@@ -101,47 +101,6 @@
 }
 .disconnect { font-size: 12px; }
 
-.details {
-  max-width: min(480px, calc(100vw - 56px));
-  max-height: min(680px, calc(100vh - 120px));
-  overflow-y: auto;
-  overflow-wrap: anywhere;
-}
-
-.connection-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--surface-subtle);
-  color: var(--text-secondary);
-  padding: 7px 10px;
-  cursor: pointer;
-  font-size: 12px;
-
-  &:hover {
-    border-color: var(--border-strong);
-    color: var(--text-primary);
-  }
-}
-
-.dot {
-  width: 6px;
-  height: 6px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: currentcolor;
-}
-
-.latency {
-  border-left: 1px solid var(--border);
-  padding-left: 8px;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
 .body {
   position: relative;
   display: flex;
@@ -155,7 +114,6 @@
 }
 
 .offline { color: var(--text-muted); }
-.recovering { color: var(--warning); }
 
 .main {
   display: grid;
@@ -326,10 +284,8 @@
 @media (width <= 760px) {
   .body[data-resources-visible="true"] .main { display: none; }
 
-  .latency,
   .device-icon,
   .divider { display: none; }
-  .connection-status { padding: 7px 8px; }
   .header-actions { gap: 4px; }
 
   .disconnect {

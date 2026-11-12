@@ -43,3 +43,5 @@ export type { DesktopDirectoryMapping, DesktopExchange, DesktopFileEntry, Deskto
 export type { PresentationSettings, PresentationState } from '@termous/remote-protocol/presentation'
 
 export type { RemoteDesktopMediaDetails, RemoteDesktopMediaChanged } from './model/mediaDetails'
+export { DesktopMediaDetails } from './ui/DesktopMediaDetails'
+export { desktopMediaMetrics } from './model/mediaMetrics'

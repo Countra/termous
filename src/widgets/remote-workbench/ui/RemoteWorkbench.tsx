@@ -1,13 +1,13 @@
 import type { RemoteDesktopMediaDetails } from '#entities/remote-desktop'
-import { RemoteMediaDetails } from './RemoteMediaDetails'
+import { RemoteConnectionStatus } from './RemoteConnectionStatus'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Button, ConfigProvider, Descriptions, Input, Popconfirm, Spin, Tooltip } from 'antd'
+import { Button, ConfigProvider, Input, Popconfirm, Spin, Tooltip } from 'antd'
 import { ArrowDown, ArrowUp, Bot, Circle, CircleAlert, Folder, LayoutDashboard, Monitor, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, ShieldCheck, Terminal, Unplug, X } from 'lucide-react'
 import type { RemoteAgentQuote, RemoteBootstrap, RemoteConnection, RemoteWindowBridge, RemoteLocalTask } from '#common/contracts'
 import { RemoteClient, RemoteError, unwrap, retryRemoteRead, isTransientRemoteReadError, type Inventory, type Session } from '#entities/remote-control'
 import { RemoteFeedback, RemoteFeedbackStack, RemoteTransfers, RemoteRetainedFiles, RemoteHostDesktop, remoteCopy, remoteErrorText } from '#features/remote-control'
 import { formatBytes } from '#shared/format'
-import { customSelectStyles, FilterPopover, uiStyles } from '#shared/ui'
+import { customSelectStyles, uiStyles } from '#shared/ui'
 import styles from './RemoteWorkbench.module.scss'
 import resourceStyles from './RemoteResources.module.scss'
 import { RemoteSessionPanels } from './RemoteSessionPanels'
@@ -177,21 +177,12 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
   const path = closed ? copy.disconnected : connection?.state === 'recovering' ? copy.recovering : stats?.path === 'relay' ? copy.relay : stats?.path === 'direct' ? copy.direct : connecting ? copy.connecting : copy.connected
   const ready = !closed && !connecting && connection?.state === 'connected'
   const readMessage = remoteErrorText(copy, readError)
-  const statusClass = ready ? styles.online : closed ? styles.offline : styles.recovering
   const showOverview = () => { setDesktopSelected(false); setOverview(true); setAgentSelected(false); if (window.matchMedia('(max-width: 760px)').matches) setSidebarCollapsed(true) }
   // 分屏可能选中终端，旁边的唯一可见桌面仍应出现在连接详情中。
   const visibleMedia = Object.entries(mediaDetails).filter(([key, value]) => key !== 'host' && value.connectionId === connection?.id)
   const currentMedia = ready && !agentSelected && (desktopSelected || !overview)
     ? desktopSelected ? mediaDetails.host : mediaDetails[selected] ?? (visibleMedia.length === 1 ? visibleMedia[0][1] : undefined)
     : undefined
-  const details = <Descriptions size="small" column={1} items={[
-    { key: 'path', label: copy.connectionPath, children: path },
-    { key: 'rtt', label: copy.latency, children: ready && stats?.path ? `${Math.round(stats.rtt_ms)} ms` : '—' },
-    { key: 'transport', label: copy.transport, children: stats?.path ? stats.protocol.toUpperCase() : '—' },
-    { key: 'encryption', label: copy.security, children: ready ? copy.encrypted : '—' },
-    { key: 'ip', label: copy.addressFamily, children: stats?.ip_version === 'ipv4' ? 'IPv4' : stats?.ip_version === 'ipv6' ? 'IPv6' : '—' },
-    ...(stats?.relay_protocol ? [{ key: 'turn', label: copy.relayTransport, children: stats.relay_protocol.toUpperCase() }] : []),
-  ]} />
 
   return <ConfigProvider tooltip={tooltipConfig} select={selectConfig}><div className={styles.workbench}>
     <header className={styles.header} data-window-chrome={bridge.windowControls ? bootstrap.platform === 'darwin' ? 'macos' : 'custom' : undefined}>
@@ -201,9 +192,7 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
       <div className={styles.identity}><span className={styles['device-icon']}><Monitor size={19} /></span><div><strong title={bootstrap.deviceName}>{bootstrap.deviceName}</strong><small>{copy.title}</small></div></div>
       <div className={styles['header-actions']}>
         {client && ready ? <RemoteRetainedFiles client={client} copy={copy} localTasks={localTasks} changed={() => void refresh()} getContainer={() => content.current ?? document.body} /> : null}
-        <FilterPopover title={copy.details} content={<div className={styles.details}><strong>{bootstrap.language.startsWith('zh') ? '控制连接' : 'Control connection'}</strong>{details}{currentMedia?.connectionId === connection?.id && currentMedia ? <RemoteMediaDetails value={currentMedia} zh={bootstrap.language.startsWith('zh')} /> : null}</div>}>
-          <button className={styles['connection-status']} aria-label={copy.details}><span className={`${styles.dot} ${statusClass}`} /><span role="status">{path}</span>{ready && stats?.path ? <span className={styles.latency}>{Math.round(stats.rtt_ms)} ms</span> : null}</button>
-        </FilterPopover>
+        <RemoteConnectionStatus connection={connection} media={currentMedia} ready={ready} closed={closed} path={path} copy={copy} zh={bootstrap.language.startsWith('zh')} />
         <span className={styles.divider} />
         <Tooltip title={copy.reconnect}><Button type="text" icon={<RefreshCw size={16} />} aria-label={copy.reconnect} loading={connecting} disabled={!closed && connection?.state !== 'recovering'} onClick={reconnect} /></Tooltip>
         <Tooltip title={copy.disconnectHint}><Button className={styles.disconnect} aria-label={copy.disconnect} icon={<Unplug size={15} />} disabled={closed || connecting} onClick={() => void disconnect()}><span className={styles['disconnect-label']}>{copy.disconnect}</span></Button></Tooltip>
@@ -263,8 +252,8 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
     <footer className={styles.footer}>
       <span><ShieldCheck size={12} />{ready ? copy.encrypted : path}</span>
       <div className={styles['footer-metrics']}>
-        <span title={copy.sendRate}><ArrowUp size={12} />{ready ? `${formatBytes(stats?.send_bytes_per_second ?? 0)}/s` : '—'}</span>
-        <span title={copy.receiveRate}><ArrowDown size={12} />{ready ? `${formatBytes(stats?.receive_bytes_per_second ?? 0)}/s` : '—'}</span>
+        <span title={copy.sendRate}><ArrowUp size={12} />{ready && stats?.send_bytes_per_second !== undefined ? `${formatBytes(stats.send_bytes_per_second)}/s` : '—'}</span>
+        <span title={copy.receiveRate}><ArrowDown size={12} />{ready && stats?.receive_bytes_per_second !== undefined ? `${formatBytes(stats.receive_bytes_per_second)}/s` : '—'}</span>
         <span>{copy.sessions}<strong>{inventory?.sessions.length ?? 0}</strong></span>
       </div>
     </footer>

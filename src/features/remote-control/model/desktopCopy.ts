@@ -1,4 +1,9 @@
 const en = {
+  desktopControls: 'Desktop controls', inputTools: 'Input tools', displayTools: 'Display tools', displayMode: 'Display mode',
+  hostDesktop: 'Device desktop', viewOnlyWindow: 'View-only window', media: 'Desktop media', mediaDetails: 'Desktop connection details',
+  picture: 'Picture size', latency: 'Round-trip latency', bitrate: 'Receive bitrate', framerate: 'Decoded frame rate', exitFullscreen: 'Exit full screen',
+  connectingHint: 'Establishing a secure channel to the desktop.',
+  keyboardHint: 'Send text to the focused app on the remote desktop.', clipboardContent: 'Clipboard content',
   relayDisabled: 'Relay is not configured. Contact the service administrator.',
   firstFrameTimeout: 'The desktop connected but no picture arrived. Check the host and rejoin.',
 	videoConfirmationFailed: 'The desktop picture could not be confirmed. Rejoin to try again.',
@@ -12,6 +17,11 @@ const en = {
   resize: 'Target resolution', receiveClipboard: 'Receive clipboard', local: 'Controlled locally', desktop: 'Remote desktop', watching: 'Viewing', control: 'You have control', other: 'Controlled on another device', connecting: 'Connecting desktop', failed: 'Desktop disconnected', join: 'Join desktop', replace: 'Replace remote viewer', replaceHint: 'This ends the current remote view. The target session stays open.', take: 'Take control', release: 'Release control', fit: 'Fit window', actual: 'Actual size', fullscreen: 'Full screen', keyboard: 'Keyboard', clipboard: 'Clipboard', send: 'Send', cancel: 'Cancel', retry: 'Rejoin', vncJoin: 'Switch to this device', vncHint: 'VNC supports one active viewer. Joining reconnects the target and pauses the local view. Closing this view returns it to the original window if it is still open.', challenge: 'Verify server identity', fingerprint: 'SHA-256 fingerprint', once: 'Trust once', reject: 'Reject connection', credentials: 'Connection credentials', password: 'Password', username: 'Username', text: 'Text input', clipboardHint: 'Clipboard transfer is manual. Content is not synchronized automatically.', target: 'Target desktop', video: 'Desktop connection', uncertain: 'Input result is uncertain. The connection was closed to release pressed keys; the input will not be replayed.', unavailable: 'Desktop access is unavailable. Check authorization and update both devices.', conflict: 'Another remote viewer is active.', paused: 'Desktop viewing paused', controlConflict: 'Control is in use. Use Take control to take over.',
 }
 const zh: typeof en = {
+  desktopControls: '桌面控制', inputTools: '输入工具', displayTools: '显示工具', displayMode: '显示方式',
+  hostDesktop: '设备桌面', viewOnlyWindow: '只读窗口', media: '桌面媒体', mediaDetails: '桌面连接详情',
+  picture: '画面尺寸', latency: '往返延迟', bitrate: '接收码率', framerate: '解码帧率', exitFullscreen: '退出全屏',
+  connectingHint: '正在与远端桌面建立安全通道。',
+  keyboardHint: '将文本输入到远端当前焦点应用。', clipboardContent: '剪贴板内容',
   relayDisabled: '中继未配置，请联系服务管理员。',
   firstFrameTimeout: '桌面已连接，但未收到画面，请检查被控端后重新加入。',
 	videoConfirmationFailed: '桌面画面未能确认，请重新加入。',
@@ -25,6 +35,7 @@ const zh: typeof en = {
   resize: '目标分辨率', receiveClipboard: '接收远端剪贴板', local: '由本机控制', desktop: '远程桌面', watching: '正在观看', control: '当前由你控制', other: '由其他设备控制', connecting: '正在连接桌面', failed: '桌面连接已断开', join: '加入桌面', replace: '接替远端连接', replaceHint: '将结束当前远端观看，目标会话继续保留。', take: '接管控制', release: '释放控制', fit: '适应窗口', actual: '原始比例', fullscreen: '全屏', keyboard: '键盘', clipboard: '剪贴板', send: '发送', cancel: '取消', retry: '重新加入', vncJoin: '切换至此设备', vncHint: 'VNC 同时仅支持一个观看端。加入将重连目标并暂停本机画面；退出后，原本机窗口仍存在时恢复观看。', challenge: '确认服务器身份', fingerprint: 'SHA-256 指纹', once: '本次信任', reject: '拒绝连接', credentials: '连接凭据', password: '密码', username: '用户名', text: '输入文本', clipboardHint: '手动发送或接收剪贴板内容，不自动同步系统剪贴板。', target: '目标桌面', video: '桌面连接', uncertain: '输入结果尚未确认，连接已关闭以释放按键；不会自动重放操作。', unavailable: '桌面访问不可用，请检查授权并确认双方版本支持此功能。', conflict: '当前已有远端观看连接。', paused: '桌面观看已暂停', controlConflict: '控制权已被占用，可显式接管。',
 }
 export function desktopCopy(chinese: boolean) { return chinese ? zh : en }
+export type DesktopCopy = typeof en
 
 export function desktopErrorText(code: string, copy: typeof en): string {
   if (code === 'desktop_first_frame_timeout') return copy.firstFrameTimeout

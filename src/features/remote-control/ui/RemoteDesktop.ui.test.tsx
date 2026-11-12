@@ -13,8 +13,8 @@ import { RemoteDesktop } from './RemoteDesktop'
 function WithoutMotion({ children }: PropsWithChildren) { return <ConfigProvider theme={{ token: { motion: false } }}>{children}</ConfigProvider> }
 function desktopClient(request = vi.fn()) { return { request, bridge: {}, connection: { id: 'parent' }, presentations: new DesktopPresentationPreferences() } as unknown as RemoteClient }
 
-const fixture = vi.hoisted(() => ({ events: undefined as DesktopSessionEvents | undefined, gateways: [] as DesktopGateway[], controlAvailable: true, cleanupConfirmed: true, start: vi.fn(), close: vi.fn(), input: vi.fn(), display: vi.fn(), openFileExchange: vi.fn() }))
-beforeEach(() => { fixture.gateways = []; fixture.controlAvailable = true; fixture.cleanupConfirmed = true; fixture.start.mockReset(); fixture.close.mockReset().mockResolvedValue(undefined); fixture.input.mockReset(); fixture.display.mockReset(); fixture.openFileExchange.mockReset() })
+const fixture = vi.hoisted(() => ({ events: undefined as DesktopSessionEvents | undefined, gateways: [] as DesktopGateway[], controlAvailable: true, cleanupConfirmed: true, start: vi.fn(), close: vi.fn(), input: vi.fn(), display: vi.fn(), openFileExchange: vi.fn(), readClipboard: vi.fn() }))
+beforeEach(() => { fixture.gateways = []; fixture.controlAvailable = true; fixture.cleanupConfirmed = true; fixture.start.mockReset(); fixture.close.mockReset().mockResolvedValue(undefined); fixture.input.mockReset(); fixture.display.mockReset(); fixture.openFileExchange.mockReset(); fixture.readClipboard.mockReset() })
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ i18n: { language: 'zh-CN' } }) }))
 vi.mock('@termous/remote-protocol/desktop', () => ({
   RemoteDesktopSession: class {
@@ -36,6 +36,7 @@ vi.mock('@termous/remote-protocol/desktop', () => ({
     input = fixture.input
     display = fixture.display
     openFileExchange = fixture.openFileExchange
+    readClipboard = fixture.readClipboard
   },
 }))
 
@@ -212,12 +213,81 @@ test('父连接失效后立即禁用桌面操作，不等待旧控制租约过�
   expect(screen.getByRole('button', { name: '重新加入' })).toBeEnabled()
 })
 
+test('全屏状态切换不重建观看，显示设置浮层保持在桌面容器内', async () => {
+  const session = create(SessionSchema, { id: 'desktop', kind: 'desktop', engine: 'rdp', generation: 1n, state: 'streaming' })
+  const view = render(<RemoteDesktop client={desktopClient()} session={session} active />, { wrapper: WithoutMotion })
+  await waitFor(() => expect(fixture.start).toHaveBeenCalledTimes(1))
+  const descriptor = Object.getOwnPropertyDescriptor(document, 'fullscreenElement')
+  try {
+    fireEvent.click(screen.getByRole('button', { name: '显示与画质' }))
+    expect(view.container).not.toContainElement(await screen.findByRole('dialog'))
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: view.container.querySelector('video')!.closest('[class*="desktop_"]') })
+    fireEvent(document, new Event('fullscreenchange'))
+    expect(screen.getByRole('button', { name: '退出全屏' })).toBeInTheDocument()
+    await waitFor(() => expect(view.container).toContainElement(screen.getByRole('dialog')))
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: null })
+    fireEvent(document, new Event('fullscreenchange'))
+    expect(screen.getByRole('button', { name: '全屏' })).toBeInTheDocument()
+    await waitFor(() => expect(view.container).not.toContainElement(screen.getByRole('dialog')))
+    expect(fixture.start).toHaveBeenCalledTimes(1)
+    expect(fixture.close).not.toHaveBeenCalled()
+  } finally {
+    if (descriptor) Object.defineProperty(document, 'fullscreenElement', descriptor)
+    else Reflect.deleteProperty(document, 'fullscreenElement')
+  }
+})
+
+test('窗口模式浮层使用页面容器，避免分屏面板裁剪详情和下拉菜单', async () => {
+  const session = create(SessionSchema, { id: 'desktop', kind: 'desktop', engine: 'rdp', generation: 1n, state: 'streaming' })
+  const view = render(<RemoteDesktop client={desktopClient()} session={session} active />, { wrapper: WithoutMotion })
+  await waitFor(() => expect(fixture.start).toHaveBeenCalledTimes(1))
+  fireEvent.click(screen.getByRole('button', { name: '桌面连接详情' }))
+  const details = await screen.findByRole('region', { name: '桌面媒体' })
+  expect(document.body).toContainElement(details)
+  expect(view.container).not.toContainElement(details)
+})
+
+test('VNC 隐藏页签关闭输入弹窗，恢复观看时不会重新弹出旧草稿', async () => {
+  const session = create(SessionSchema, { id: 'desktop', kind: 'desktop', engine: 'vnc', generation: 1n, state: 'streaming' })
+  const client = desktopClient()
+  const view = render(<RemoteDesktop client={client} session={session} active />, { wrapper: WithoutMotion })
+  fireEvent.click(screen.getByRole('button', { name: '切换至此设备' }))
+  await waitFor(() => expect(fixture.start).toHaveBeenCalledTimes(1))
+  fireEvent.click(screen.getByRole('button', { name: '键盘' }))
+  fireEvent.change(screen.getByRole('textbox', { name: '输入文本' }), { target: { value: '旧草稿' } })
+  view.rerender(<RemoteDesktop client={client} session={session} active={false} />)
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  view.rerender(<RemoteDesktop client={client} session={session} active />)
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(fixture.close).not.toHaveBeenCalled()
+  expect(fixture.start).toHaveBeenCalledTimes(1)
+})
+
+test('旧观看代次的剪贴板结果不能覆盖新连接的输入', async () => {
+  const session = create(SessionSchema, { id: 'desktop', kind: 'desktop', engine: 'rdp', generation: 1n, state: 'streaming' })
+  let finish!: (value: string) => void
+  fixture.readClipboard.mockReturnValue(new Promise<string>(resolve => { finish = resolve }))
+  const client = desktopClient()
+  const view = render(<RemoteDesktop client={client} session={session} active />, { wrapper: WithoutMotion })
+  await waitFor(() => expect(fixture.start).toHaveBeenCalledTimes(1))
+  fireEvent.click(screen.getByRole('button', { name: '剪贴板' }))
+  fireEvent.click(screen.getByRole('button', { name: '接收远端剪贴板' }))
+  expect(screen.getByRole('button', { name: '键盘' })).toBeDisabled()
+  view.rerender(<RemoteDesktop client={client} session={{ ...session, generation: 2n }} active />)
+  await waitFor(() => expect(fixture.start).toHaveBeenCalledTimes(2))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  fireEvent.click(screen.getByRole('button', { name: '键盘' }))
+  fireEvent.change(screen.getByRole('textbox', { name: '输入文本' }), { target: { value: '新连接输入' } })
+  await act(async () => finish('旧剪贴板'))
+  expect(screen.getByRole('textbox', { name: '输入文本' })).toHaveValue('新连接输入')
+})
+
 test('重附着恢复实际尺寸，新的目标连接代次恢复默认缩放', async () => {
   const session = create(SessionSchema, { id: 'desktop', kind: 'desktop', engine: 'rdp', generation: 1n, state: 'streaming' })
   const client = desktopClient()
   const view = render(<RemoteDesktop client={client} session={session} active />, { wrapper: WithoutMotion })
   await waitFor(() => expect(fixture.start).toHaveBeenCalledTimes(1))
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '适应窗口' }))
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: '显示方式' }))
   fireEvent.click(await screen.findByText('原始比例'))
   await waitFor(() => expect(fixture.display).toHaveBeenLastCalledWith(false))
   fixture.display.mockClear()
