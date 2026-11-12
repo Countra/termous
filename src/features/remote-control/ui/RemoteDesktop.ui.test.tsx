@@ -2,8 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { create } from '@bufbuild/protobuf'
 import { ConfigProvider } from 'antd'
 import type { PropsWithChildren } from 'react'
-import { ResponseSchema, SessionSchema } from '@termous/remote-protocol'
-import type { DesktopSessionEvents } from '@termous/remote-protocol/desktop'
+import { EventSchema, ResponseSchema, SessionSchema } from '@termous/remote-protocol'
+import type { DesktopGateway, DesktopSessionEvents } from '@termous/remote-protocol/desktop'
 import { DesktopPresentationPreferences } from '@termous/remote-protocol/presentation'
 import { DesktopExchangeSchema, DesktopStateSchema } from '@termous/remote-protocol/desktop-protocol'
 import { beforeEach, expect, test, vi } from 'vitest'
@@ -11,9 +11,9 @@ import { RemoteError, type RemoteClient } from '#entities/remote-control'
 import { RemoteDesktop } from './RemoteDesktop'
 
 function WithoutMotion({ children }: PropsWithChildren) { return <ConfigProvider theme={{ token: { motion: false } }}>{children}</ConfigProvider> }
-function desktopClient(request = vi.fn()) { return { request, connection: { id: 'parent' }, presentations: new DesktopPresentationPreferences() } as unknown as RemoteClient }
+function desktopClient(request = vi.fn()) { return { request, bridge: {}, connection: { id: 'parent' }, presentations: new DesktopPresentationPreferences() } as unknown as RemoteClient }
 
-const fixture = vi.hoisted(() => ({ events: undefined as DesktopSessionEvents | undefined, gateways: [] as { receiverPolicy?: string }[], controlAvailable: true, cleanupConfirmed: true, start: vi.fn(), close: vi.fn(), input: vi.fn(), display: vi.fn(), openFileExchange: vi.fn() }))
+const fixture = vi.hoisted(() => ({ events: undefined as DesktopSessionEvents | undefined, gateways: [] as DesktopGateway[], controlAvailable: true, cleanupConfirmed: true, start: vi.fn(), close: vi.fn(), input: vi.fn(), display: vi.fn(), openFileExchange: vi.fn() }))
 beforeEach(() => { fixture.gateways = []; fixture.controlAvailable = true; fixture.cleanupConfirmed = true; fixture.start.mockReset(); fixture.close.mockReset().mockResolvedValue(undefined); fixture.input.mockReset(); fixture.display.mockReset(); fixture.openFileExchange.mockReset() })
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ i18n: { language: 'zh-CN' } }) }))
 vi.mock('@termous/remote-protocol/desktop', () => ({
@@ -25,7 +25,7 @@ vi.mock('@termous/remote-protocol/desktop', () => ({
     controlGeneration = 1n
     get cleanupConfirmed() { return fixture.cleanupConfirmed }
     dimensions = { width: 1920, height: 1080 }
-    constructor(gateway: { receiverPolicy?: string }, _id: string, _generation: bigint, events: DesktopSessionEvents) { fixture.events = events; fixture.gateways.push(gateway) }
+    constructor(gateway: DesktopGateway, _id: string, _generation: bigint, events: DesktopSessionEvents) { fixture.events = events; fixture.gateways.push(gateway) }
     start(_target: unknown, _video: unknown, replace: boolean) {
       fixture.start(replace)
       fixture.events?.state(create(DesktopStateSchema, { width: 1920, height: 1080, capabilities: ['resize', 'pointer', 'keyboard', 'text', 'clipboard', 'ctrl_alt_del', 'files'] }))
@@ -258,6 +258,22 @@ test('连接结束立即撤销尚未回答的证书挑战', async () => {
   act(() => fixture.events?.status('closed', 'desktop_disconnected'))
   await expect(reply).resolves.toEqual({ accept: false })
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
+test('桌面候选网关只转交 ICE 事件并保留解除订阅能力', async () => {
+  const session = create(SessionSchema, { id: 'desktop', kind: 'desktop', engine: 'rdp', generation: 1n, state: 'streaming' })
+  const client = desktopClient()
+  const listeners = new Set<Parameters<RemoteClient['onEvent']>[0]>()
+  client.onEvent = listener => { listeners.add(listener); return () => { listeners.delete(listener) } }
+  render(<RemoteDesktop client={client} session={session} active />, { wrapper: WithoutMotion })
+  await waitFor(() => expect(fixture.start).toHaveBeenCalled())
+  const received = vi.fn(), unsubscribe = fixture.gateways[0].onICE(received)
+  const ice = create(EventSchema, { type: 'desktop_ice', value: { case: 'desktopIce', value: { attachmentId: 'view', negotiationId: 'negotiation' } } })
+  const stream = create(EventSchema, { type: 'desktop_stream_state', value: { case: 'desktopStreamState', value: { streamId: 'view' } } })
+  for (const listener of listeners) { listener(stream); listener(ice) }
+  expect(received).toHaveBeenCalledExactlyOnceWith(ice.value.value)
+  unsubscribe()
+  expect(listeners.size).toBe(0)
 })
 
 test('桌面网络配置错误展示具体原因和错误码，且不回显任意异常正文', async () => {

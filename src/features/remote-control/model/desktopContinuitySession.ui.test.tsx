@@ -7,6 +7,7 @@ import type { DesktopPeerEvents } from '../../../../../termous-remote/browser/de
 const mocks = vi.hoisted(() => ({ peers: [] as { events: DesktopPeerEvents; presented: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> }[] }))
 vi.mock('../../../../../termous-remote/browser/desktop/peer.js', () => ({
   DesktopPeer: class {
+    ice = { id: 'fixture-negotiation', start() {} }
     ready = vi.fn(); presented = vi.fn(); close = vi.fn(); resetInputSequence = vi.fn(); setPresentation = vi.fn()
     constructor(_a: unknown, _ice: unknown, public events: DesktopPeerEvents) { mocks.peers.push(this) }
     async offer() { return 'offer' }
@@ -27,14 +28,14 @@ test('连续切换保持同一个 Peer、Track、附着与播放器，实际呈�
   video.cancelVideoFrameCallback = vi.fn()
   const drawing = vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
   const capability = 'desktop-continuous-stream-v1'
-  const attachment = { id: 'view', transport: 'h264', attachmentGeneration: 1n, mediaGeneration: 1n, participantId: 'viewer', capabilities: [capability] }
+  const attachment = { id: 'view', transport: 'h264', attachmentGeneration: 1n, mediaGeneration: 1n, participantId: 'viewer', capabilities: ['desktop-trickle-ice-v1', capability] }
   const target = create(DesktopTargetSchema, { kind: 'host_desktop', instanceId: 'core', sourceId: 'display', sourceGeneration: 1n, sourceKind: 'screen' })
   let state = create(DesktopStreamStateSchema, { attachment, streamId: 'view', revision: 1n, status: 'recovering' })
   let notify!: (value: DesktopStreamState) => void
   const request = vi.fn(async (input: { action?: string }) => create(DesktopResponseSchema,
-    input.action === 'attach' ? { attachment } : input.action === 'stream_status' ? { streamState: state } : input.action === 'offer' ? { sdp: 'answer' } : {}))
+    input.action === 'attach' ? { attachment } : input.action === 'stream_status' ? { streamState: state } : input.action === 'offer' ? { sdp: 'answer', negotiationId: 'fixture-negotiation' } : {}))
   const status = vi.fn(), reset = vi.fn(), updated = vi.fn()
-  const session = new RemoteDesktopSession({ request, ice: async () => [], capabilities: [capability], onStreamState: cb => { notify = cb; return () => {} } }, '', 0n, {
+  const session = new RemoteDesktopSession({ onICE: () => () => {}, request, ice: async () => [], capabilities: ['desktop-trickle-ice-v1', capability], onStreamState: cb => { notify = cb; return () => {} } }, '', 0n, {
     state: updated, status, inputReset: reset, clipboard: vi.fn(), challenge: vi.fn(),
   }, {}, target)
   try {

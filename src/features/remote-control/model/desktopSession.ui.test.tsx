@@ -18,7 +18,7 @@ test.each([
   [['desktop-presentation-v1', 'desktop-video-limits-v2', 'desktop-video-limits-v3'], 3],
 ])('实际附着仅在连接支持时声明 v3：%j', async (capabilities, expected) => {
   const request = vi.fn().mockRejectedValue(new Error('desktop_unavailable'))
-  const runtime = new RemoteDesktopSession({ request, ice: vi.fn(), capabilities }, 'desktop', 1n, {
+  const runtime = new RemoteDesktopSession({ onICE: () => () => {}, request, ice: vi.fn(), capabilities: ['desktop-trickle-ice-v1', ...capabilities ?? []] }, 'desktop', 1n, {
     state: vi.fn(), status: vi.fn(), clipboard: vi.fn(), challenge: vi.fn(),
   })
   await runtime.start(document.createElement('div'), document.createElement('video'))
@@ -34,7 +34,7 @@ test('关闭等待迟到的附着及撤销完成，且不会继续协商媒体',
   const request = vi.fn().mockReturnValueOnce(attached.promise).mockReturnValueOnce(detached.promise)
   const ice = vi.fn()
   const events: DesktopSessionEvents = { state: vi.fn(), status: vi.fn(), clipboard: vi.fn(), challenge: vi.fn() }
-  const runtime = new RemoteDesktopSession({ request, ice }, 'desktop', 1n, events)
+  const runtime = new RemoteDesktopSession({ onICE: () => () => {}, capabilities: ['desktop-trickle-ice-v1'], request, ice }, 'desktop', 1n, events)
   const starting = runtime.start(document.createElement('div'), document.createElement('video'))
   let closed = false
   const closing = runtime.close().then(() => { closed = true })
@@ -54,7 +54,7 @@ test('关闭等待迟到的附着及撤销完成，且不会继续协商媒体',
 test('关闭期间附着失败也能完成回收，已关闭实例不会再次申请席位', async () => {
   const attached = deferred<DesktopResponse>()
   const request = vi.fn().mockReturnValue(attached.promise)
-  const runtime = new RemoteDesktopSession({ request, ice: vi.fn() }, 'desktop', 1n, { state: vi.fn(), status: vi.fn(), clipboard: vi.fn(), challenge: vi.fn() })
+  const runtime = new RemoteDesktopSession({ onICE: () => () => {}, capabilities: ['desktop-trickle-ice-v1'], request, ice: vi.fn() }, 'desktop', 1n, { state: vi.fn(), status: vi.fn(), clipboard: vi.fn(), challenge: vi.fn() })
   const target = document.createElement('div'), video = document.createElement('video')
   const starting = runtime.start(target, video)
   const closing = runtime.close()
@@ -73,7 +73,7 @@ test.each([
     .mockResolvedValueOnce(create(DesktopResponseSchema, { state: { available: true } }))
     .mockResolvedValue(create(DesktopResponseSchema))
   const events: DesktopSessionEvents = { state: vi.fn(), status: vi.fn(), clipboard: vi.fn(), challenge: vi.fn() }
-  const runtime = new RemoteDesktopSession({ request, ice: vi.fn().mockRejectedValue(new Error(message)) }, 'desktop', 1n, events)
+  const runtime = new RemoteDesktopSession({ onICE: () => () => {}, capabilities: ['desktop-trickle-ice-v1'], request, ice: vi.fn().mockRejectedValue(new Error(message)) }, 'desktop', 1n, events)
   await runtime.start(document.createElement('div'), document.createElement('video'))
   await runtime.close()
   expect(events.status).toHaveBeenLastCalledWith('closed', expected)
@@ -98,7 +98,7 @@ test.each([
   })
   const challenge = vi.fn().mockResolvedValue({ accept: true })
   const ice = vi.fn().mockRejectedValue(new Error('desktop_ice_unavailable'))
-  const runtime = new RemoteDesktopSession({ request, ice }, 'session', 1n, { state: vi.fn(), status: vi.fn(), clipboard: vi.fn(), challenge })
+  const runtime = new RemoteDesktopSession({ onICE: () => () => {}, capabilities: ['desktop-trickle-ice-v1'], request, ice }, 'session', 1n, { state: vi.fn(), status: vi.fn(), clipboard: vi.fn(), challenge })
   try {
     const starting = runtime.start(document.createElement('div'), document.createElement('video'))
     await vi.advanceTimersByTimeAsync(1_000)

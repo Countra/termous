@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 const fixture = vi.hoisted(() => ({ events: undefined as DesktopPeerEvents | undefined, close: vi.fn(), input: vi.fn(), resets: vi.fn(), resize: vi.fn(async () => {}) }))
 vi.mock('../../../../../termous-remote/browser/desktop/peer.ts', () => ({
   DesktopPeer: class {
+    ice = { id: 'fixture-negotiation', start() {} }
     constructor(_attachment: unknown, _ice: unknown, events: DesktopPeerEvents) { fixture.events = events }
     async offer() { return 'synthetic-offer' }
     async answer() {
@@ -32,10 +33,11 @@ async function startRecoveryFixture(owned: boolean) {
     // 故意持续返回释放前的快照，验证在途查询不能复活旧租约。
     if (input.action === 'describe') return create(DesktopResponseSchema, { state: { available: true, phase: 'viewing', displayEpoch: 1n, width: 1920, height: 1080, capabilities: ['resize'], control: owned ? control : undefined } })
     if (input.action === 'release') return released
+    if (input.action === 'offer') return create(DesktopResponseSchema, {sdp:'synthetic-answer', negotiationId: input.negotiationId})
     return create(DesktopResponseSchema)
   })
   const status = vi.fn()
-  const runtime = new RemoteDesktopSession({ request, ice: async () => [] }, 'session', 1n, { state: vi.fn(), status, clipboard: vi.fn(), challenge: vi.fn() })
+  const runtime = new RemoteDesktopSession({ onICE: () => () => {}, capabilities: ['desktop-trickle-ice-v1'], request, ice: async () => [] }, 'session', 1n, { state: vi.fn(), status, clipboard: vi.fn(), challenge: vi.fn() })
   const video = document.createElement('video')
   video.play = vi.fn().mockResolvedValue(undefined)
   video.pause = vi.fn()

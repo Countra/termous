@@ -3,19 +3,21 @@ import { DesktopAttachmentSchema, DesktopPeer } from '@termous/remote-protocol/d
 import { DesktopPacketSchema } from '@termous/remote-protocol/desktop-protocol'
 import { afterEach, expect, test, vi } from 'vitest'
 
+const iceTransport = { subscribe: () => () => {}, send: async () => {}, acknowledge: async () => {} }
+
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 test.each(['rfb', 'h264'])('%s 兼容旧 Core 的 null ICE，且释放创建的连接', transport => {
   const close = vi.fn()
   const construct = vi.fn()
-  vi.stubGlobal('RTCPeerConnection', class {
-    constructor(configuration: RTCConfiguration) { construct(configuration) }
+  vi.stubGlobal('RTCPeerConnection', class extends EventTarget {
+    constructor(configuration: RTCConfiguration) { super(); construct(configuration) }
     createDataChannel() { return { readyState: 'connecting', close: vi.fn() } }
     addTransceiver() { return { setCodecPreferences: vi.fn() } }
     close = close
   })
   vi.stubGlobal('RTCRtpReceiver', { getCapabilities: () => ({ codecs: [{ mimeType: 'video/H264', sdpFmtpLine: 'packetization-mode=1;profile-level-id=42e01f' }] }) })
-  const peer = new DesktopPeer(create(DesktopAttachmentSchema, { transport }), null, { packet: vi.fn(), track: vi.fn(), closed: vi.fn() })
+  const peer = new DesktopPeer(create(DesktopAttachmentSchema, { transport }), null, { packet: vi.fn(), track: vi.fn(), closed: vi.fn() }, 'native', iceTransport)
   try { expect(construct).toHaveBeenCalledWith({ iceServers: [], bundlePolicy: 'max-bundle' }) }
   finally { peer.close() }
   expect(close).toHaveBeenCalledTimes(1)
@@ -23,24 +25,24 @@ test.each(['rfb', 'h264'])('%s 兼容旧 Core 的 null ICE，且释放创建的�
 
 test('无效 ICE 配置保留失败语义，不降级为直连也不泄露底层异常', () => {
   const construct = vi.fn()
-  vi.stubGlobal('RTCPeerConnection', class {
-    constructor(configuration: RTCConfiguration) { construct(configuration); throw new TypeError('invalid turn:private.invalid credential=synthetic') }
+  vi.stubGlobal('RTCPeerConnection', class extends EventTarget {
+    constructor(configuration: RTCConfiguration) { super(); construct(configuration); throw new TypeError('invalid turn:private.invalid credential=synthetic') }
   })
   const servers = [{ urls: 'turn:fixture.invalid' }]
-  expect(() => new DesktopPeer(create(DesktopAttachmentSchema, { transport: 'rfb' }), servers, { packet: vi.fn(), track: vi.fn(), closed: vi.fn() })).toThrow('desktop_ice_invalid')
+  expect(() => new DesktopPeer(create(DesktopAttachmentSchema, { transport: 'rfb' }), servers, { packet: vi.fn(), track: vi.fn(), closed: vi.fn() }, 'native', iceTransport)).toThrow('desktop_ice_invalid')
   expect(construct).toHaveBeenCalledExactlyOnceWith({ iceServers: servers, bundlePolicy: 'max-bundle' })
 })
 
 test('浏览器无法创建连接时不误报中继配置错误', () => {
-  vi.stubGlobal('RTCPeerConnection', class {
-    constructor() { throw new DOMException('synthetic resource failure', 'UnknownError') }
+  vi.stubGlobal('RTCPeerConnection', class extends EventTarget {
+    constructor() { super(); throw new DOMException('synthetic resource failure', 'UnknownError') }
   })
-  expect(() => new DesktopPeer(create(DesktopAttachmentSchema, { transport: 'rfb' }), [], { packet: vi.fn(), track: vi.fn(), closed: vi.fn() })).toThrow('desktop_peer_failed')
+  expect(() => new DesktopPeer(create(DesktopAttachmentSchema, { transport: 'rfb' }), [], { packet: vi.fn(), track: vi.fn(), closed: vi.fn() }, 'native', iceTransport)).toThrow('desktop_peer_failed')
 })
 
 test('编码能力不支持时，构造清理不会用连接关闭事件覆盖原始错误', () => {
   const closed = vi.fn(), close = vi.fn()
-  vi.stubGlobal('RTCPeerConnection', class {
+  vi.stubGlobal('RTCPeerConnection', class extends EventTarget {
     connectionState = 'closed'
     onconnectionstatechange?: () => void
     createDataChannel() { return { readyState: 'connecting' } }
@@ -48,7 +50,7 @@ test('编码能力不支持时，构造清理不会用连接关闭事件覆盖�
     close() { close(); this.onconnectionstatechange?.() }
   })
   vi.stubGlobal('RTCRtpReceiver', { getCapabilities: () => ({ codecs: [] }) })
-  expect(() => new DesktopPeer(create(DesktopAttachmentSchema, { transport: 'h264' }), [], { packet: vi.fn(), track: vi.fn(), closed })).toThrow('desktop_h264_unsupported')
+  expect(() => new DesktopPeer(create(DesktopAttachmentSchema, { transport: 'h264' }), [], { packet: vi.fn(), track: vi.fn(), closed }, 'native', iceTransport)).toThrow('desktop_h264_unsupported')
   expect(close).toHaveBeenCalledTimes(1)
   expect(closed).not.toHaveBeenCalled()
 })
@@ -56,7 +58,7 @@ test('编码能力不支持时，构造清理不会用连接关闭事件覆盖�
 function recoveryPeer(transport = 'h264') {
   vi.useFakeTimers()
   const channel = { readyState: 'open', bufferedAmount: 0, send: vi.fn(), close: vi.fn() }
-  vi.stubGlobal('RTCPeerConnection', class {
+  vi.stubGlobal('RTCPeerConnection', class extends EventTarget {
     connectionState: RTCPeerConnectionState = 'connected'
     onconnectionstatechange?: () => void
     createDataChannel() { return channel }
@@ -66,11 +68,12 @@ function recoveryPeer(transport = 'h264') {
   })
   vi.stubGlobal('RTCRtpReceiver', { getCapabilities: () => ({ codecs: [{ mimeType: 'video/H264', sdpFmtpLine: 'packetization-mode=1;profile-level-id=42e01f' }] }) })
   const events = { packet: vi.fn(), track: vi.fn(), closed: vi.fn(), recovering: vi.fn() }
-  const peer = new DesktopPeer(create(DesktopAttachmentSchema, { transport }), [], events)
+  const peer = new DesktopPeer(create(DesktopAttachmentSchema, { transport }), [], events, 'native', iceTransport)
   const change = (state: RTCPeerConnectionState) => {
     Object.defineProperty(peer.pc, 'connectionState', { configurable: true, value: state })
     peer.pc.onconnectionstatechange?.call(peer.pc, new Event('connectionstatechange'))
   }
+  change('connected')
   return { peer, change, events, channel }
 }
 

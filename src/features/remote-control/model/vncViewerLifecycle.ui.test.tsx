@@ -20,6 +20,7 @@ vi.mock('../../../../../termous-remote/node_modules/@novnc/novnc/core/rfb.js', (
 
 vi.mock('../../../../../termous-remote/browser/desktop/peer.ts', () => ({
   DesktopPeer: class {
+    ice = { id: 'fixture-negotiation', start() {} }
     rfb = { start: fixture.start, resume: fixture.resume }
     constructor(readonly attachment: unknown) {}
     async offer() { return 'fixture-offer' }
@@ -40,13 +41,14 @@ beforeEach(() => {
 afterEach(async () => { await Promise.all(sessions.splice(0).map(session => session.close())) })
 
 async function setup(control = false) {
-  const request = vi.fn(async (input: { action?: string }) => {
+  const request = vi.fn(async (input: { action?: string; negotiationId?: string }) => {
     if (input.action === 'attach') return create(DesktopResponseSchema, { attachment: { id: 'attachment', participantId: 'viewer', transport: 'rfb', connectionGeneration: 1n, mediaGeneration: 1n } })
     if (input.action === 'describe') return create(DesktopResponseSchema, { state: { available: true, phase: 'viewing', control: control ? { id: 'lease', owner: 'viewer', generation: 1n, remainingMs: 30000n } : undefined } })
+    if (input.action === 'offer') return create(DesktopResponseSchema, {sdp: 'fixture-answer', negotiationId: input.negotiationId})
     return create(DesktopResponseSchema)
   })
   const events = { state: vi.fn(), status: vi.fn(), clipboard: vi.fn(), challenge: vi.fn() }
-  const session = new RemoteDesktopSession({ request, ice: async () => [] }, 'fixture', 1n, events)
+  const session = new RemoteDesktopSession({ onICE: () => () => {}, capabilities: ['desktop-trickle-ice-v1'], request, ice: async () => [] }, 'fixture', 1n, events)
   sessions.push(session)
   await session.start(document.createElement('div'), document.createElement('video'))
   return { session, events, request, rfb: fixture.rfb! }

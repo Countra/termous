@@ -2,7 +2,7 @@ import { create } from '@bufbuild/protobuf'
 import { afterEach, expect, test, vi } from 'vitest'
 import { RemoteDesktopSession, DesktopResponseSchema } from '@termous/remote-protocol/desktop'
 
-const sdp = 'v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=recvonly\r\na=rtpmap:96 H264/90000\r\na=fmtp:96 packetization-mode=1;profile-level-id=42e01f\r\n'
+const sdp = 'v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=mid:0\r\na=ice-ufrag:fixture\r\na=recvonly\r\na=rtpmap:96 H264/90000\r\na=fmtp:96 packetization-mode=1;profile-level-id=42e01f\r\n'
 afterEach(() => vi.unstubAllGlobals())
 
 function fixture(rejectFirst: boolean, remoteReject = false, rejection = new DOMException('synthetic rejection', 'NotSupportedError')) {
@@ -23,16 +23,17 @@ function fixture(rejectFirst: boolean, remoteReject = false, rejection = new DOM
       this.localDescription = value
     }
     async setRemoteDescription() {}
+    async addIceCandidate() {}
     close() { this.closed = true }
   })
-  const request = vi.fn(async (input: {action?: string; sdp?:string}) => {
+  const request = vi.fn(async (input: {action?: string; sdp?:string; negotiationId?:string; ice?: { sequence?:bigint }; iceAck?:bigint}) => {
     if (input.action === 'attach') return create(DesktopResponseSchema, {attachment:{id:'attachment',transport:'h264',mediaGeneration:1n}})
     if (input.action === 'describe') return create(DesktopResponseSchema, {state:{available:true}})
-    if (input.action === 'offer') { if (remoteReject) throw new Error('desktop_h264_unsupported'); return create(DesktopResponseSchema, {sdp:'v=0\r\n'}) }
-    return create(DesktopResponseSchema)
+    if (input.action === 'offer') { if (remoteReject) throw new Error('desktop_h264_unsupported'); return create(DesktopResponseSchema, {sdp, negotiationId:input.negotiationId}) }
+    return create(DesktopResponseSchema, {negotiationId: input.negotiationId, iceAck: input.ice?.sequence ?? input.iceAck})
   })
   const receiver = vi.fn()
-  const runtime = new RemoteDesktopSession({request,ice:async()=>[],receiverPolicy:'prefer_level_51'}, 'session',1n,{state:vi.fn(),status:vi.fn(),clipboard:vi.fn(),challenge:vi.fn(),receiver})
+  const runtime = new RemoteDesktopSession({capabilities:['desktop-trickle-ice-v1'], onICE:()=>()=>{}, request,ice:async()=>[],receiverPolicy:'prefer_level_51'}, 'session',1n,{state:vi.fn(),status:vi.fn(),clipboard:vi.fn(),challenge:vi.fn(),receiver})
   return {runtime,request,peers,receiver}
 }
 

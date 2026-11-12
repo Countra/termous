@@ -1,4 +1,5 @@
 const en = {
+  firstFrameTimeout: 'The desktop connected but no picture arrived. Check the host and rejoin.',
 	videoConfirmationFailed: 'The desktop picture could not be confirmed. Rejoin to try again.',
 	videoConfigurationFailed: 'Desktop video settings could not be applied or restored. Rejoin to try again.',
 	 hdrUnavailable: 'The host system cannot capture this HDR source.',
@@ -10,6 +11,7 @@ const en = {
   resize: 'Target resolution', receiveClipboard: 'Receive clipboard', local: 'Controlled locally', desktop: 'Remote desktop', watching: 'Viewing', control: 'You have control', other: 'Controlled on another device', connecting: 'Connecting desktop', failed: 'Desktop disconnected', join: 'Join desktop', replace: 'Replace remote viewer', replaceHint: 'This ends the current remote view. The target session stays open.', take: 'Take control', release: 'Release control', fit: 'Fit window', actual: 'Actual size', fullscreen: 'Full screen', keyboard: 'Keyboard', clipboard: 'Clipboard', send: 'Send', cancel: 'Cancel', retry: 'Rejoin', vncJoin: 'Switch to this device', vncHint: 'VNC supports one active viewer. Joining reconnects the target and pauses the local view. Closing this view returns it to the original window if it is still open.', challenge: 'Verify server identity', fingerprint: 'SHA-256 fingerprint', once: 'Trust once', reject: 'Reject connection', credentials: 'Connection credentials', password: 'Password', username: 'Username', text: 'Text input', clipboardHint: 'Clipboard transfer is manual. Content is not synchronized automatically.', target: 'Target desktop', video: 'Desktop connection', uncertain: 'Input result is uncertain. The connection was closed to release pressed keys; the input will not be replayed.', unavailable: 'Desktop access is unavailable. Check authorization and update both devices.', conflict: 'Another remote viewer is active.', paused: 'Desktop viewing paused', controlConflict: 'Control is in use. Use Take control to take over.',
 }
 const zh: typeof en = {
+  firstFrameTimeout: '桌面已连接，但未收到画面，请检查被控端后重新加入。',
 	videoConfirmationFailed: '桌面画面未能确认，请重新加入。',
 	videoConfigurationFailed: '无法应用或恢复画质设置，请重新加入。',
 	 hdrUnavailable: '当前系统环境不支持此来源的 HDR 采集。',
@@ -23,6 +25,7 @@ const zh: typeof en = {
 export function desktopCopy(chinese: boolean) { return chinese ? zh : en }
 
 export function desktopErrorText(code: string, copy: typeof en): string {
+  if (code === 'desktop_first_frame_timeout') return copy.firstFrameTimeout
   if (code === 'desktop_access_restricted' || code === 'desktop_access_denied') return copy.restricted
   if (code === 'desktop_stream_recovery_timeout') return copy.switchTimeout
   if (code === 'desktop_continuity_unsupported' || code === 'desktop_presentation_receipt_unsupported') return copy.switchVersion
@@ -37,8 +40,8 @@ export function desktopErrorText(code: string, copy: typeof en): string {
   if (code.includes('unsupported')) return copy.unavailable
   if (code === 'desktop_ice_invalid') return copy.iceInvalid
   if (code === 'desktop_ice_unavailable') return copy.iceUnavailable
-  if (['desktop_peer_failed', 'desktop_offer_failed', 'desktop_signaling_failed', 'desktop_answer_failed', 'desktop_invalid_sdp'].includes(code)) return copy.negotiationFailed
-  if (['desktop_ice_timeout', 'desktop_channel_timeout', 'desktop_disconnected', 'desktop_channel_failed', 'desktop_media_failed', 'desktop_recovery_timeout'].includes(code)) return copy.networkFailed
+  if (['desktop_negotiation_timeout', 'desktop_ice_ack_invalid', 'desktop_ice_candidate_invalid', 'desktop_ice_capacity', 'desktop_peer_failed', 'desktop_offer_failed', 'desktop_signaling_failed', 'desktop_answer_failed', 'desktop_invalid_sdp'].includes(code)) return copy.negotiationFailed
+  if (['desktop_ice_signaling_failed', 'desktop_ice_ack_timeout', 'desktop_ice_candidate_failed', 'desktop_connection_timeout', 'desktop_connection_failed', 'desktop_channel_timeout', 'desktop_disconnected', 'desktop_channel_failed', 'desktop_media_failed', 'desktop_recovery_timeout'].includes(code)) return copy.networkFailed
   if (['desktop_not_ready', 'desktop_target_failed'].includes(code)) return copy.targetFailed
   if (['desktop_viewer_failed', 'desktop_video_playback_failed'].includes(code)) return copy.viewerFailed
   if (code.includes('stale')) return copy.stale
