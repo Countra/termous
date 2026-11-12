@@ -24,6 +24,7 @@ it('仅提交本机连接偏好，保存失败明确反馈且不自动重发', a
   expect(screen.getByText('应用于本机发起的新连接。')).toBeInTheDocument()
   expect(update).not.toHaveBeenCalled()
   fireEvent.mouseDown(screen.getByRole('combobox', { name: '连接方式' }))
+  expect(document.querySelector('.termous-select-popup')).toBeInTheDocument()
   fireEvent.click(await screen.findByText('仅中继', { selector: '.ant-select-item-option-content' }))
   await waitFor(() => expect(update).toHaveBeenCalledExactlyOnceWith('remote_connection', { expected_revision: 3, patch: { transport_policy: 'relay' } }, undefined))
   await waitFor(() => expect(screen.getByRole('combobox')).toBeEnabled())
