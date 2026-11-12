@@ -90,7 +90,7 @@ export async function importFile(core: ExchangeCore, selected: string, signal: A
   } finally {
     body.destroy()
     await finished(body, { cleanup: true }).catch(error => {
-      if (error.code !== 'ERR_STREAM_PREMATURE_CLOSE' && !signal.aborted) console.warn('[termous:workflow] 上传流已终止')
+      if (error.code !== 'ERR_STREAM_PREMATURE_CLOSE' && !signal.aborted) console.warn('[termous:workflow] Upload stream terminated')
     })
     await source.handle.close()
   }

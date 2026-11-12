@@ -400,7 +400,7 @@ export class CoreProcessManager {
         }
       },
       onStartupProtocolError: (reason) => {
-        this.options.logger?.warn('核心服务启动状态协议异常', { instance_id: instanceId, reason })
+        this.options.logger?.warn('core-startup-protocol-invalid', { instance_id: instanceId, reason })
       },
     })
     this.child = child
@@ -590,7 +590,7 @@ export class CoreProcessManager {
       // Core 先报告失败，再释放资源和刷新日志；Windows kill 会直接终止进程，需先留出自行退出窗口。
       const exited = await waitForManagedCoreFailureExit(child, () => this.shuttingDown)
       if (!exited && !this.shuttingDown) {
-        this.options.logger?.warn('核心服务失败后的资源清理超时，将终止所属进程', {
+        this.options.logger?.warn('core-failure-cleanup-timeout-terminating-process', {
           instance_id: this.getStartupStatus().instanceId,
         })
       }
@@ -598,9 +598,9 @@ export class CoreProcessManager {
     try {
       await this.stopChildOnly()
     } catch (error) {
-      this.options.logger?.error('核心服务失败后的进程清理未完成', {
+      this.options.logger?.error('core-failure-process-cleanup-failed', {
         instance_id: this.getStartupStatus().instanceId,
-        error: sanitizeCoreStartupText(error instanceof Error ? error.message : '未知进程清理错误', 2048),
+        error: sanitizeCoreStartupText(error instanceof Error ? error.message : 'Unknown process cleanup error', 2048),
       })
       throw error
     }
@@ -612,14 +612,14 @@ export class CoreProcessManager {
       phase: snapshot.phase, database_status: snapshot.database?.status,
       attention: snapshot.attention, error_code: snapshot.failure?.code,
     }
-    if (snapshot.failure) this.options.logger?.error('核心服务启动失败', fields)
-    else if (snapshot.attention) this.options.logger?.warn('核心服务启动等待时间较长', fields)
-    else this.options.logger?.info('核心服务启动状态更新', fields)
+    if (snapshot.failure) this.options.logger?.error('core-startup-failed', fields)
+    else if (snapshot.attention) this.options.logger?.warn('core-startup-taking-longer-than-expected', fields)
+    else this.options.logger?.info('core-startup-status-changed', fields)
     for (const listener of this.statusListeners) {
       try {
         listener(structuredClone(snapshot))
       } catch {
-        this.options.logger?.warn('核心服务启动状态订阅处理失败', { attempt_id: snapshot.attemptId })
+        this.options.logger?.warn('core-startup-status-listener-failed', { attempt_id: snapshot.attemptId })
       }
     }
   }

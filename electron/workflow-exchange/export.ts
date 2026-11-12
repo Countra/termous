@@ -9,7 +9,7 @@ import { assetIndex } from './resources.ts'
 export async function download(core: ExchangeCore, resource: string, target: string, size: number, signal: AbortSignal, progress: (bytes: number) => void, hash?: string) {
   const response = await core.request(resource, { signal })
   if (!response.body || Number(response.headers.get('Content-Length')) !== size) {
-    await response.body?.cancel().catch(() => console.warn('[termous:workflow] 无效下载响应关闭失败'))
+    await response.body?.cancel().catch(() => console.warn('[termous:workflow] Failed to close invalid download response'))
     throw new ExchangeFailure('workflow_exchange_response_invalid')
   }
   const reader = response.body.getReader(); const digest = createHash('sha256'); let bytes = 0
@@ -69,7 +69,7 @@ export async function exportFile(core: ExchangeCore, script: string, version: nu
     await rename(temporary, destination); temporary = undefined
     return { file_name: path.basename(destination), directory: layout === 'directory' ? destination : parent }
   } finally {
-    if (temporary) await rm(temporary, { recursive: layout === 'directory', force: true }).catch(() => console.warn('[termous:workflow] 导出暂存文件清理失败'))
-    await core.release('exports', snapshot.id).catch(() => console.warn('[termous:workflow] 导出快照释放失败，将由有效期回收'))
+    if (temporary) await rm(temporary, { recursive: layout === 'directory', force: true }).catch(() => console.warn('[termous:workflow] Failed to clean up temporary export files'))
+    await core.release('exports', snapshot.id).catch(() => console.warn('[termous:workflow] Failed to release export snapshot; it will expire automatically'))
   }
 }

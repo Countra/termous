@@ -14,7 +14,7 @@ if (process.argv.includes('--termous-development-start') && typeof process.send 
   process.once('disconnect', () => app.exit(0))
   // 入口只保存源码位置；启动环境和 API 令牌不写入开发壳。
   import(pathToFileURL(metadata.termousDevelopmentEntry).href).catch(error => {
-    console.error('Termous Dev 启动失败：', error)
+    console.error('Termous Dev failed to start:', error)
     app.exit(1)
   })
 } else {

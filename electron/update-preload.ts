@@ -52,13 +52,13 @@ const bridge = {
     void ipcRenderer.invoke('app-update:subscribe')
       .then((snapshot: UpdateSnapshot) => merge(snapshot))
       .catch(() => {
-        console.error('[termous:update] 无法订阅更新状态')
+        console.error('[termous:update] Failed to subscribe to update status')
       })
     return () => {
       active = false
       ipcRenderer.removeListener('app-update:state-changed', listener)
       void ipcRenderer.invoke('app-update:unsubscribe').catch(() => {
-        console.error('[termous:update] 无法注销更新状态订阅')
+        console.error('[termous:update] Failed to unsubscribe from update status')
       })
     }
   },
