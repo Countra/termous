@@ -7,7 +7,7 @@ import { RemoteConnectionStatus } from './RemoteConnectionStatus'
 
 test('主连接与桌面媒体分别呈现实测路径，连接偏好不冒充实际路径', async () => {
   const connection = { id: 'parent', transport_policy: 'auto', stats: { path: 'direct', protocol: 'udp', ip_version: 'ipv4', rtt_ms: 8, receive_bytes_per_second: 1024, send_bytes_per_second: 0 } } as RemoteConnection
-  const media = { connectionId: 'parent', title: 'Display 1', phase: 'viewing', transport: 'rfb' as const, sample: { attachmentId: 'media', mediaGeneration: 1n, sampledAt: 1000, path: 'relay' as const, rttMs: 40 } }
+  const media = { connectionId: 'parent', title: 'Display 1', phase: 'viewing', transport: 'rfb' as const, sample: { attachmentId: 'media', mediaGeneration: 1n, sampledAt: 1000, path: 'relay' as const, localRelayProtocol: 'unknown' as const, rttMs: 40 } }
   const props = { connection, media, ready: true, closed: false, path: 'P2P 直连', copy: remoteCopy('zh-CN'), zh: true }
   const view = render(<ConfigProvider theme={{ token: { motion: false } }}><RemoteConnectionStatus {...props} /></ConfigProvider>)
   fireEvent.click(screen.getByRole('button', { name: '连接详情' }))

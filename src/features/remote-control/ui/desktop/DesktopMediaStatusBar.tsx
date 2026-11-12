@@ -1,6 +1,7 @@
 import { useId, useRef, useState } from 'react'
 import { Activity, ChevronUp, Gauge, Monitor, Network, Timer } from 'lucide-react'
-import { DesktopMediaDetails, desktopMediaMetrics, type RemoteDesktopMediaDetails } from '#entities/remote-desktop'
+import { DesktopMediaDetails, desktopMediaMetrics } from '#entities/desktop-presentation'
+import type { RemoteDesktopMediaDetails } from '#entities/remote-desktop'
 import { FilterPopover } from '#shared/ui'
 import type { DesktopCopy } from '../../model/desktopCopy'
 import styles from './DesktopMediaStatusBar.module.scss'

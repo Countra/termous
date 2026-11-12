@@ -1,4 +1,4 @@
-import type { RemoteDesktopMediaDetails } from './mediaDetails'
+import type { RemoteDesktopMediaDetails } from '#entities/remote-desktop'
 
 export function formatMediaBitrate(value?: number) {
   return value === undefined || !Number.isFinite(value) || value < 0 ? '—' : `${(value / 1_000_000).toFixed(2)} Mbps`
@@ -10,6 +10,8 @@ export function desktopMediaMetrics(value: RemoteDesktopMediaDetails, zh: boolea
   return {
     sample,
     path: sample?.path === 'direct' ? (zh ? 'P2P 直连' : 'P2P direct') : sample?.path === 'relay' ? (zh ? 'TURN 中继' : 'TURN relay') : (zh ? '待确认' : 'Unconfirmed'),
+    localRelayProtocol: !sample || sample.localRelayProtocol === 'unknown' ? (zh ? '未知' : 'Unknown')
+      : sample.localRelayProtocol === 'none' ? (zh ? '未使用' : 'Not used') : sample.localRelayProtocol.toUpperCase(),
     bitrate: formatMediaBitrate(sample?.bitrate),
     framerate: sample?.framerate === undefined ? '—' : `${sample.framerate.toFixed(1)} fps`,
     latency: sample?.rttMs === undefined ? '—' : `${Math.round(sample.rttMs)} ms`,

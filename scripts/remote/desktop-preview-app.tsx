@@ -32,9 +32,9 @@ const media: RemoteDesktopMediaDetails = {
     status: 'confirmed', revision: 1n, configRevision: 1n,
     codec: { negotiated: { mimeType: 'video/H264', profile: 'constrained_baseline', receiverLevel: 51, negotiatedLevel: 51, packetizationMode: 1, profileLevelId: '42e033' }, applied: { configRevision: 1n, level: 42 } },
     applied: { width: 1920, height: 1080, framerate: 60, bitrate: 16_000_000 },
-    transport: { revision: 1n, path: 'relay', bitrateLimit: 24_000_000 },
+    transport: { revision: 1n, path: 'relay', bitrateLimit: 100_000_000 },
   },
-  sample: { attachmentId: 'preview', mediaGeneration: 1n, sampledAt: 1000, path: 'relay', protocol: 'udp', rttMs: 24, bitrate: 8_420_000, framerate: 59.8, width: 1920, height: 1080, lossPerMille: 0, jitterMs: 1.2 },
+  sample: { attachmentId: 'preview', mediaGeneration: 1n, sampledAt: 1000, path: 'relay', protocol: 'udp', localRelayProtocol: 'udp', rttMs: 24, bitrate: 8_420_000, framerate: 59.8, width: 1920, height: 1080, lossPerMille: 0, jitterMs: 1.2 },
 }
 const sourceClient = {
   connection: { id: 'preview' }, bridge: {}, hostPresentations: new DesktopPresentationPreferences(), onEvent: () => () => {},

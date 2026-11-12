@@ -42,6 +42,4 @@ export type { DesktopControl, DesktopState, DesktopRegion, DesktopScreenshotRequ
 export type { DesktopDirectoryMapping, DesktopExchange, DesktopFileEntry, DesktopFilesState, DesktopFileClipboard, DesktopClipboardQuery } from './model/files.ts'
 export type { PresentationSettings, PresentationState } from '@termous/remote-protocol/presentation'
 
-export type { RemoteDesktopMediaDetails, RemoteDesktopMediaChanged } from './model/mediaDetails'
-export { DesktopMediaDetails } from './ui/DesktopMediaDetails'
-export { desktopMediaMetrics } from './model/mediaMetrics'
+export type { RemoteDesktopMediaDetails, RemoteDesktopMediaChanged } from './model/mediaDetails.ts'

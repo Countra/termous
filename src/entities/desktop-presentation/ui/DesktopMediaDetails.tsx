@@ -1,6 +1,6 @@
 import { ChevronRight, MonitorPlay } from 'lucide-react'
 import { h264LevelLabel } from '@termous/remote-protocol/presentation'
-import type { RemoteDesktopMediaDetails } from '../model/mediaDetails'
+import type { RemoteDesktopMediaDetails } from '#entities/remote-desktop'
 import { desktopMediaMetrics, formatMediaBitrate } from '../model/mediaMetrics'
 import styles from './DesktopMediaDetails.module.scss'
 
@@ -31,6 +31,7 @@ export function DesktopMediaDetails({ value, zh }: { value: RemoteDesktopMediaDe
     <dl className={styles.rows}>
       <Metric label={label('媒体路径', 'Media path')} value={metrics.path} />
       <Metric label={label('传输协议', 'Transport')} value={sample?.protocol?.toUpperCase() ?? '—'} />
+      <Metric label={label('TURN 接入（本机）', 'TURN access (local)')} value={metrics.localRelayProtocol} />
       {video ? <>
         <Metric label={label('画面尺寸', 'Picture size')} value={metrics.resolution} />
         <Metric label={label('丢包 / 抖动', 'Loss / jitter')} value={`${sample?.lossPerMille === undefined ? '—' : `${(sample.lossPerMille / 10).toFixed(1)}%`} / ${sample?.jitterMs === undefined ? '—' : `${sample.jitterMs.toFixed(1)} ms`}`} />

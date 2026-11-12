@@ -51,6 +51,7 @@ vi.mock('#features/agent-setup', () => ({
 
 vi.mock('#features/settings', () => ({
 	LocalNetworkSettings: () => <div data-testid="local-network-settings" />,
+	RemoteConnectionSettings: () => <div data-testid="remote-connection-settings" />,
 	MCPInstallationSettings: () => <div data-testid="mcp-installation-settings" />,
 	WebSearchSettings: () => <div data-testid="web-search-settings" />,
   AuditSettings: function AuditSettings({ gateway, disabled }: { gateway: unknown; disabled: boolean }) {
