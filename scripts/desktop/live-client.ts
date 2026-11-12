@@ -23,7 +23,7 @@ export const liveClient = {
     if (response.result.value.attachment) attachment = response.result.value.attachment
     return response.result.value
   },
-  desktopICE: async () => [],
+  desktopICE: async () => ({ ice_servers: [], transport_policy: 'auto' }),
 } as unknown as RemoteClient
 
 export async function captureLiveDesktop() {

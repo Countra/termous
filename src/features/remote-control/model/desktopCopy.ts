@@ -1,4 +1,5 @@
 const en = {
+  relayDisabled: 'Relay is not configured. Contact the service administrator.',
   firstFrameTimeout: 'The desktop connected but no picture arrived. Check the host and rejoin.',
 	videoConfirmationFailed: 'The desktop picture could not be confirmed. Rejoin to try again.',
 	videoConfigurationFailed: 'Desktop video settings could not be applied or restored. Rejoin to try again.',
@@ -11,6 +12,7 @@ const en = {
   resize: 'Target resolution', receiveClipboard: 'Receive clipboard', local: 'Controlled locally', desktop: 'Remote desktop', watching: 'Viewing', control: 'You have control', other: 'Controlled on another device', connecting: 'Connecting desktop', failed: 'Desktop disconnected', join: 'Join desktop', replace: 'Replace remote viewer', replaceHint: 'This ends the current remote view. The target session stays open.', take: 'Take control', release: 'Release control', fit: 'Fit window', actual: 'Actual size', fullscreen: 'Full screen', keyboard: 'Keyboard', clipboard: 'Clipboard', send: 'Send', cancel: 'Cancel', retry: 'Rejoin', vncJoin: 'Switch to this device', vncHint: 'VNC supports one active viewer. Joining reconnects the target and pauses the local view. Closing this view returns it to the original window if it is still open.', challenge: 'Verify server identity', fingerprint: 'SHA-256 fingerprint', once: 'Trust once', reject: 'Reject connection', credentials: 'Connection credentials', password: 'Password', username: 'Username', text: 'Text input', clipboardHint: 'Clipboard transfer is manual. Content is not synchronized automatically.', target: 'Target desktop', video: 'Desktop connection', uncertain: 'Input result is uncertain. The connection was closed to release pressed keys; the input will not be replayed.', unavailable: 'Desktop access is unavailable. Check authorization and update both devices.', conflict: 'Another remote viewer is active.', paused: 'Desktop viewing paused', controlConflict: 'Control is in use. Use Take control to take over.',
 }
 const zh: typeof en = {
+  relayDisabled: '中继未配置，请联系服务管理员。',
   firstFrameTimeout: '桌面已连接，但未收到画面，请检查被控端后重新加入。',
 	videoConfirmationFailed: '桌面画面未能确认，请重新加入。',
 	videoConfigurationFailed: '无法应用或恢复画质设置，请重新加入。',
@@ -38,6 +40,7 @@ export function desktopErrorText(code: string, copy: typeof en): string {
   if (code.includes('uncertain')) return copy.uncertain
   if (code === 'desktop_control_locked') return copy.controlConflict
   if (code.includes('unsupported')) return copy.unavailable
+  if (code === 'remote_relay_disabled') return copy.relayDisabled
   if (code === 'desktop_ice_invalid') return copy.iceInvalid
   if (code === 'desktop_ice_unavailable') return copy.iceUnavailable
   if (['desktop_negotiation_timeout', 'desktop_ice_ack_invalid', 'desktop_ice_candidate_invalid', 'desktop_ice_capacity', 'desktop_peer_failed', 'desktop_offer_failed', 'desktop_signaling_failed', 'desktop_answer_failed', 'desktop_invalid_sdp'].includes(code)) return copy.negotiationFailed

@@ -26,8 +26,7 @@ void (async () => {
     return r
   }
   let phase = ''
-  const legacyICE = new URLSearchParams(location.search).get('legacy_ice') === '1'
-  view = new RemoteDesktopSession({ request, ice: async () => (await api(`ice?legacy=${legacyICE ? '1' : '0'}`)).ice_servers }, session.id, session.generation, {
+  view = new RemoteDesktopSession({ request, ice: async () => api('ice') }, session.id, session.generation, {
     state: () => {}, status: (value, reason) => { phase = value; if (reason) { failure = reason; output.textContent = `FAILED: ${reason}` } }, clipboard: () => {}, challenge: async () => ({ accept: false }),
   })
   await view.start(document.querySelector('#desktop')!, document.querySelector('#video')!)

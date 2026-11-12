@@ -1,6 +1,8 @@
 import type { AppLanguage } from '#common/contracts'
 
 const en = {
+  relayDisabled: 'Relay is not configured. Contact the service administrator.',
+  transportPolicyInvalid: 'The connection mode setting is invalid. Select it again in Settings.',
   accessMode: 'Access mode', fullControl: 'Full control', customControl: 'Custom',
   fullControlSummary: 'All connections, desktops and AI', customControlSummary: 'Choose individual permissions',
   fullControlHint: 'Allows all current and future connections, this desktop and AI conversations.',
@@ -115,6 +117,8 @@ const en = {
   emptyDirectory: 'This folder is empty', operationPending: 'File operation started', shellNotice: 'Commands use the selected account permissions.',
 }
 const zh: typeof en = {
+  relayDisabled: '中继未配置，请联系服务管理员。',
+  transportPolicyInvalid: '连接方式设置无效，请在设置中重新选择。',
   accessMode: '访问模式', fullControl: '完全控制', customControl: '自定义',
   fullControlSummary: '全部连接、桌面与助手', customControlSummary: '按需选择访问权限',
   fullControlHint: '开放全部现有及新增连接、设备桌面和 AI 对话。',
@@ -241,6 +245,8 @@ export function remoteErrorText(copy: RemoteCopy, error: unknown) {
   if (code === 'desktop_directory_operation_failed') return copy.desktopFilesMapping
   if (code === 'desktop_directory_path_too_long') return copy.desktopFilesPathLong
   if (code === 'desktop_files_expired') return copy.desktopFilesExpired
+  if (code === 'remote_relay_disabled') return copy.relayDisabled
+  if (code === 'remote_transport_policy_invalid') return copy.transportPolicyInvalid
   if (code === 'remote_policy_changed') return copy.policyChanged
   if (code === 'remote_policy_mode_required') return copy.modeRequired
   if (code === 'agent_revision_conflict' || code === 'revision_conflict' || code === 'mcp_conflict') return copy.contentChanged

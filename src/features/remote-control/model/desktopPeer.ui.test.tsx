@@ -1,13 +1,26 @@
 import { create, fromBinary, toBinary } from '@bufbuild/protobuf'
 import { DesktopAttachmentSchema, DesktopPeer } from '@termous/remote-protocol/desktop'
 import { DesktopPacketSchema } from '@termous/remote-protocol/desktop-protocol'
+import type { ICEConfiguration } from '@termous/remote-protocol/connection-policy'
 import { afterEach, expect, test, vi } from 'vitest'
 
 const iceTransport = { subscribe: () => () => {}, send: async () => {}, acknowledge: async () => {} }
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
-test.each(['rfb', 'h264'])('%s 兼容旧 Core 的 null ICE，且释放创建的连接', transport => {
+test.each([
+  [undefined, 'desktop_ice_invalid'],
+  [{ ice_servers: [], transport_policy: 'all' }, 'desktop_ice_invalid'],
+  [{ ice_servers: [], transport_policy: 'relay' }, 'remote_relay_disabled'],
+  [{ ice_servers: [{ urls: 'stun:fixture.invalid' }], transport_policy: 'relay' }, 'remote_relay_disabled'],
+])('缺少策略或中继配置在创建 Peer 前失败', (configuration, code) => {
+  const construct = vi.fn()
+  vi.stubGlobal('RTCPeerConnection', construct)
+  expect(() => new DesktopPeer(create(DesktopAttachmentSchema, { transport: 'rfb' }), configuration as ICEConfiguration, { packet: vi.fn(), track: vi.fn(), closed: vi.fn() }, 'native', iceTransport)).toThrow(code)
+  expect(construct).not.toHaveBeenCalled()
+})
+
+test.each(['rfb', 'h264'])('%s 自动模式允许无 TURN 的局域网连接，且释放资源', transport => {
   const close = vi.fn()
   const construct = vi.fn()
   vi.stubGlobal('RTCPeerConnection', class extends EventTarget {
@@ -17,8 +30,8 @@ test.each(['rfb', 'h264'])('%s 兼容旧 Core 的 null ICE，且释放创建的�
     close = close
   })
   vi.stubGlobal('RTCRtpReceiver', { getCapabilities: () => ({ codecs: [{ mimeType: 'video/H264', sdpFmtpLine: 'packetization-mode=1;profile-level-id=42e01f' }] }) })
-  const peer = new DesktopPeer(create(DesktopAttachmentSchema, { transport }), null, { packet: vi.fn(), track: vi.fn(), closed: vi.fn() }, 'native', iceTransport)
-  try { expect(construct).toHaveBeenCalledWith({ iceServers: [], bundlePolicy: 'max-bundle' }) }
+  const peer = new DesktopPeer(create(DesktopAttachmentSchema, { transport }), { ice_servers: [], transport_policy: 'auto' }, { packet: vi.fn(), track: vi.fn(), closed: vi.fn() }, 'native', iceTransport)
+  try { expect(construct).toHaveBeenCalledWith({ iceServers: [], iceTransportPolicy: 'all', bundlePolicy: 'max-bundle' }) }
   finally { peer.close() }
   expect(close).toHaveBeenCalledTimes(1)
 })
@@ -29,15 +42,15 @@ test('无效 ICE 配置保留失败语义，不降级为直连也不泄露底层
     constructor(configuration: RTCConfiguration) { super(); construct(configuration); throw new TypeError('invalid turn:private.invalid credential=synthetic') }
   })
   const servers = [{ urls: 'turn:fixture.invalid' }]
-  expect(() => new DesktopPeer(create(DesktopAttachmentSchema, { transport: 'rfb' }), servers, { packet: vi.fn(), track: vi.fn(), closed: vi.fn() }, 'native', iceTransport)).toThrow('desktop_ice_invalid')
-  expect(construct).toHaveBeenCalledExactlyOnceWith({ iceServers: servers, bundlePolicy: 'max-bundle' })
+  expect(() => new DesktopPeer(create(DesktopAttachmentSchema, { transport: 'rfb' }), { ice_servers: servers, transport_policy: 'auto' }, { packet: vi.fn(), track: vi.fn(), closed: vi.fn() }, 'native', iceTransport)).toThrow('desktop_ice_invalid')
+  expect(construct).toHaveBeenCalledExactlyOnceWith({ iceServers: servers, iceTransportPolicy: 'all', bundlePolicy: 'max-bundle' })
 })
 
 test('浏览器无法创建连接时不误报中继配置错误', () => {
   vi.stubGlobal('RTCPeerConnection', class extends EventTarget {
     constructor() { super(); throw new DOMException('synthetic resource failure', 'UnknownError') }
   })
-  expect(() => new DesktopPeer(create(DesktopAttachmentSchema, { transport: 'rfb' }), [], { packet: vi.fn(), track: vi.fn(), closed: vi.fn() }, 'native', iceTransport)).toThrow('desktop_peer_failed')
+  expect(() => new DesktopPeer(create(DesktopAttachmentSchema, { transport: 'rfb' }), { ice_servers: [], transport_policy: 'auto' }, { packet: vi.fn(), track: vi.fn(), closed: vi.fn() }, 'native', iceTransport)).toThrow('desktop_peer_failed')
 })
 
 test('编码能力不支持时，构造清理不会用连接关闭事件覆盖原始错误', () => {
@@ -50,7 +63,7 @@ test('编码能力不支持时，构造清理不会用连接关闭事件覆盖�
     close() { close(); this.onconnectionstatechange?.() }
   })
   vi.stubGlobal('RTCRtpReceiver', { getCapabilities: () => ({ codecs: [] }) })
-  expect(() => new DesktopPeer(create(DesktopAttachmentSchema, { transport: 'h264' }), [], { packet: vi.fn(), track: vi.fn(), closed }, 'native', iceTransport)).toThrow('desktop_h264_unsupported')
+  expect(() => new DesktopPeer(create(DesktopAttachmentSchema, { transport: 'h264' }), { ice_servers: [], transport_policy: 'auto' }, { packet: vi.fn(), track: vi.fn(), closed }, 'native', iceTransport)).toThrow('desktop_h264_unsupported')
   expect(close).toHaveBeenCalledTimes(1)
   expect(closed).not.toHaveBeenCalled()
 })
@@ -68,7 +81,7 @@ function recoveryPeer(transport = 'h264') {
   })
   vi.stubGlobal('RTCRtpReceiver', { getCapabilities: () => ({ codecs: [{ mimeType: 'video/H264', sdpFmtpLine: 'packetization-mode=1;profile-level-id=42e01f' }] }) })
   const events = { packet: vi.fn(), track: vi.fn(), closed: vi.fn(), recovering: vi.fn() }
-  const peer = new DesktopPeer(create(DesktopAttachmentSchema, { transport }), [], events, 'native', iceTransport)
+  const peer = new DesktopPeer(create(DesktopAttachmentSchema, { transport }), { ice_servers: [], transport_policy: 'auto' }, events, 'native', iceTransport)
   const change = (state: RTCPeerConnectionState) => {
     Object.defineProperty(peer.pc, 'connectionState', { configurable: true, value: state })
     peer.pc.onconnectionstatechange?.call(peer.pc, new Event('connectionstatechange'))

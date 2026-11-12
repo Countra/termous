@@ -35,7 +35,7 @@ test('连续切换保持同一个 Peer、Track、附着与播放器，实际呈�
   const request = vi.fn(async (input: { action?: string }) => create(DesktopResponseSchema,
     input.action === 'attach' ? { attachment } : input.action === 'stream_status' ? { streamState: state } : input.action === 'offer' ? { sdp: 'answer', negotiationId: 'fixture-negotiation' } : {}))
   const status = vi.fn(), reset = vi.fn(), updated = vi.fn()
-  const session = new RemoteDesktopSession({ onICE: () => () => {}, request, ice: async () => [], capabilities: ['desktop-trickle-ice-v1', capability], onStreamState: cb => { notify = cb; return () => {} } }, '', 0n, {
+  const session = new RemoteDesktopSession({ onICE: () => () => {}, request, ice: async () => ({ ice_servers: [], transport_policy: 'auto' }), capabilities: ['desktop-trickle-ice-v1', capability], onStreamState: cb => { notify = cb; return () => {} } }, '', 0n, {
     state: updated, status, inputReset: reset, clipboard: vi.fn(), challenge: vi.fn(),
   }, {}, target)
   try {

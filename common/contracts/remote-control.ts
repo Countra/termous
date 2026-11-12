@@ -1,4 +1,5 @@
 import type { JsonValue } from '@bufbuild/protobuf'
+import type { ICEConfiguration, TransportPolicy } from '@termous/remote-protocol/connection-policy'
 import type { DesktopConnectionDiagnostic } from '@termous/remote-protocol/desktop-diagnostics'
 import type { AppLanguage, AppTheme } from './application'
 import type { NotificationTarget } from './notification'
@@ -11,6 +12,7 @@ export interface HostDesktopAccess {
 }
 
 export interface RemoteConnection {
+  transport_policy: TransportPolicy
 	capabilities?: string[]
   id: string
   state: string
@@ -100,7 +102,7 @@ export interface RemoteWindowBridge {
   desktopReceiverPolicy?: 'native' | 'prefer_level_51'
   desktopQualityDefaults?(connectionId: string): Promise<RemoteResult<SettingsSnapshot>>
   debugMode?: boolean
-  desktopICE?(connectionId: string): Promise<RemoteResult<RTCIceServer[]>>
+  desktopICE?(connectionId: string): Promise<RemoteResult<ICEConfiguration>>
   desktopDiagnostic?(connectionId: string, value: DesktopConnectionDiagnostic): void
   windowControls?: {
     minimize(): Promise<RemoteResult<boolean>>

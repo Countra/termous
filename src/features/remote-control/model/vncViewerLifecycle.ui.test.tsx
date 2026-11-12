@@ -48,7 +48,7 @@ async function setup(control = false) {
     return create(DesktopResponseSchema)
   })
   const events = { state: vi.fn(), status: vi.fn(), clipboard: vi.fn(), challenge: vi.fn() }
-  const session = new RemoteDesktopSession({ onICE: () => () => {}, capabilities: ['desktop-trickle-ice-v1'], request, ice: async () => [] }, 'fixture', 1n, events)
+  const session = new RemoteDesktopSession({ onICE: () => () => {}, capabilities: ['desktop-trickle-ice-v1'], request, ice: async () => ({ ice_servers: [], transport_policy: 'auto' }) }, 'fixture', 1n, events)
   sessions.push(session)
   await session.start(document.createElement('div'), document.createElement('video'))
   return { session, events, request, rfb: fixture.rfb! }

@@ -22,7 +22,7 @@ const client = {
     if (response.result.case !== 'desktop') throw new Error('invalid_fixture_response')
     return response.result.value
   },
-  desktopICE: async () => [],
+  desktopICE: async () => ({ ice_servers: [], transport_policy: 'auto' }),
 } as unknown as RemoteClient
 export function Preview() {
   const [session, setSession] = useState<Session>()

@@ -37,7 +37,7 @@ async function startRecoveryFixture(owned: boolean) {
     return create(DesktopResponseSchema)
   })
   const status = vi.fn()
-  const runtime = new RemoteDesktopSession({ onICE: () => () => {}, capabilities: ['desktop-trickle-ice-v1'], request, ice: async () => [] }, 'session', 1n, { state: vi.fn(), status, clipboard: vi.fn(), challenge: vi.fn() })
+  const runtime = new RemoteDesktopSession({ onICE: () => () => {}, capabilities: ['desktop-trickle-ice-v1'], request, ice: async () => ({ ice_servers: [], transport_policy: 'auto' }) }, 'session', 1n, { state: vi.fn(), status, clipboard: vi.fn(), challenge: vi.fn() })
   const video = document.createElement('video')
   video.play = vi.fn().mockResolvedValue(undefined)
   video.pause = vi.fn()

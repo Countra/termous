@@ -6,7 +6,7 @@ const sdp = 'v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=mid:0\r\na=ice-ufrag:fix
 afterEach(() => vi.unstubAllGlobals())
 
 function fixture(rejectFirst: boolean, remoteReject = false, rejection = new DOMException('synthetic rejection', 'NotSupportedError')) {
-  const peers: { closed: boolean; localDescription?: RTCSessionDescriptionInit }[] = []
+  const peers: { closed: boolean; configuration: RTCConfiguration; localDescription?: RTCSessionDescriptionInit }[] = []
   vi.stubGlobal('RTCRtpReceiver', { getCapabilities: () => ({ codecs: [{mimeType:'video/H264',sdpFmtpLine:'packetization-mode=1;profile-level-id=42e01f'}] }) })
   vi.stubGlobal('RTCPeerConnection', class extends EventTarget {
     closed = false
@@ -14,7 +14,8 @@ function fixture(rejectFirst: boolean, remoteReject = false, rejection = new DOM
     iceGatheringState = 'complete'
     localDescription?: RTCSessionDescriptionInit
     readonly index = peers.length
-    constructor() { super(); peers.push(this) }
+    configuration: RTCConfiguration
+    constructor(configuration: RTCConfiguration) { super(); this.configuration = configuration; peers.push(this) }
     createDataChannel() { return Object.assign(new EventTarget(), {readyState:'open',bufferedAmount:0,send:vi.fn()}) }
     addTransceiver() { return {setCodecPreferences:vi.fn()} }
     async createOffer() { return {type:'offer',sdp} }
@@ -33,7 +34,7 @@ function fixture(rejectFirst: boolean, remoteReject = false, rejection = new DOM
     return create(DesktopResponseSchema, {negotiationId: input.negotiationId, iceAck: input.ice?.sequence ?? input.iceAck})
   })
   const receiver = vi.fn()
-  const runtime = new RemoteDesktopSession({capabilities:['desktop-trickle-ice-v1'], onICE:()=>()=>{}, request,ice:async()=>[],receiverPolicy:'prefer_level_51'}, 'session',1n,{state:vi.fn(),status:vi.fn(),clipboard:vi.fn(),challenge:vi.fn(),receiver})
+  const runtime = new RemoteDesktopSession({capabilities:['desktop-trickle-ice-v1'], onICE:()=>()=>{}, request,ice:async()=>({ice_servers:[{urls:'turn:fixture.invalid',username:'fixture',credential:'fixture'}],transport_policy:'relay'}),receiverPolicy:'prefer_level_51'}, 'session',1n,{state:vi.fn(),status:vi.fn(),clipboard:vi.fn(),challenge:vi.fn(),receiver})
   return {runtime,request,peers,receiver}
 }
 
@@ -41,6 +42,7 @@ test('生产准备路径本地回退只创建一个附着并发送一次原生 O
   const {runtime,request,peers,receiver} = fixture(true)
   try {
     await runtime.start(document.createElement('div'),document.createElement('video'))
+    expect(peers.map(peer => peer.configuration.iceTransportPolicy)).toEqual(['relay', 'relay']);
     expect(peers).toHaveLength(2); expect(peers[0].closed).toBe(true)
     expect(request.mock.calls.filter(([v])=>v.action === 'attach')).toHaveLength(1)
     const offers = request.mock.calls.filter(([v])=>v.action === 'offer')

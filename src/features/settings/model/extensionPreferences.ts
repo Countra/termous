@@ -1,7 +1,7 @@
 import type { SettingsSnapshot } from '#common/contracts'
 import type { SettingsGateway } from '#entities/settings'
 
-export type ExtensionPreferenceId = 'mcp_integrations' | 'web_search' | 'local_network'
+export type ExtensionPreferenceId = 'mcp_integrations' | 'web_search' | 'local_network' | 'remote_connection'
 export interface ExtensionPreferenceState {
   value?: Record<string, unknown>
   status: 'idle' | 'editing' | 'saving' | 'saved' | 'failed'

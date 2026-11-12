@@ -5540,6 +5540,11 @@
     }
   },
   "settings": {
+    "remoteConnectionTitle": "Remote control",
+    "remoteConnectionMode": "Connection mode",
+    "remoteConnectionHint": "Applies to new connections from this device.",
+    "remoteConnectionAuto": "Automatic (prefer direct)",
+    "remoteConnectionRelay": "Relay only",
     "screenAnalysis": {
       "mode": "Analysis mode",
       "modeHint": "Mode changes save immediately. Inactive parameters are preserved.",

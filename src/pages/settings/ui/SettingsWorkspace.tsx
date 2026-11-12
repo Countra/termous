@@ -28,7 +28,7 @@ import type { AgentIntegrationsGateway } from '#entities/agent-integrations'
 import {
   DataPortabilitySettings,
   ConnectionSettings as ConnectionSettingsPanel,
-  LocalNetworkSettings, MCPInstallationSettings, WebSearchSettings,
+  LocalNetworkSettings, MCPInstallationSettings, WebSearchSettings, RemoteConnectionSettings,
   RemoteDesktopSettings,
   ScreenAnalysisSettings,
   GeneralSettings,
@@ -197,6 +197,7 @@ export function SettingsWorkspace({
     connection: (
       <div className={styles['tab-scroll']} data-tour="settings-connection">
         <LocalNetworkSettings />
+        <RemoteConnectionSettings />
         <ConnectionSettingsPanel
           value={connectionSettings}
           disabled={actionBusy}

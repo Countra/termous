@@ -5514,6 +5514,11 @@
     }
   },
   "settings": {
+    "remoteConnectionTitle": "远程控制",
+    "remoteConnectionMode": "连接方式",
+    "remoteConnectionHint": "应用于本机发起的新连接。",
+    "remoteConnectionAuto": "自动（优先直连）",
+    "remoteConnectionRelay": "仅中继",
     "screenAnalysis": {
       "mode": "分析模式",
       "modeHint": "切换即保存，未启用的参数会保留。",

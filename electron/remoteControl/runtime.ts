@@ -1,3 +1,4 @@
+import type { ICEConfiguration } from '@termous/remote-protocol/connection-policy'
 import { randomUUID } from 'node:crypto'
 import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { fromJson, toJson, type JsonValue } from '@bufbuild/protobuf'
@@ -166,7 +167,7 @@ export class RemoteControlRuntime {
     }))
     ipcMain.handle('remote:desktop-ice', (event, id: string) => result(async () => {
       const { entry, base } = await this.active(event, id)
-      return (await this.options.core.request<{ ice_servers: RTCIceServer[] }>(`${base}/desktop-ice`, { generation: entry.bootstrap.generation })).ice_servers
+      return this.options.core.request<ICEConfiguration>(`${base}/desktop-ice`, { generation: entry.bootstrap.generation })
     }))
     ipcMain.handle('remote:desktop-quality-defaults', (event, id: string) => result(async () => {
       await this.active(event, id)
