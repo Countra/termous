@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": ["remote-fixture.ts", "remote-existing-viewer.ts", "../../src/features/remote-desktop/runtime/protocols/vnc/novnc.d.ts"],
+  "references": []
+}

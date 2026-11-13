@@ -2,6 +2,7 @@ import { create, fromJson, toJson, type MessageInitShape } from '@bufbuild/proto
 import { DesktopRequestSchema, type DesktopICEEvent, type DesktopStreamState } from '@termous/remote-protocol/desktop-protocol'
 import { RemoteDesktopSession } from '@termous/remote-protocol/desktop'
 import { ResponseSchema, SessionSchema, EventSchema } from '@termous/remote-protocol'
+import { openExistingViewer } from './remote-existing-viewer.ts'
 
 const output = document.querySelector('#result')!
 const api = async (path: string, input?: unknown) => {
@@ -12,6 +13,7 @@ const api = async (path: string, input?: unknown) => {
 const wait = () => new Promise(resolve => setTimeout(resolve, 50))
 const assert = (value: unknown, message: string) => { if (!value) throw new Error(message) }
 let view: RemoteDesktopSession
+let local: Awaited<ReturnType<typeof openExistingViewer>> | undefined
 let step = 'connect', failure = ''
 const eventsAbort = new AbortController()
 void (async () => {
@@ -38,7 +40,9 @@ void (async () => {
     }
   })().catch(error => { if (!eventsAbort.signal.aborted) failure = String(error) })
   let session = fromJson(SessionSchema, await api('session'))
-  for (let i = 0; session.state !== 'ready'; i++) { if (i > 100) throw new Error('not ready'); await wait(); session = fromJson(SessionSchema, await api('session')) }
+  for (let i = 0; !['ready', 'streaming'].includes(session.state); i++) { if (i > 100) throw new Error('not ready'); await wait(); session = fromJson(SessionSchema, await api('session')) }
+  const existing = session.engine === 'vnc' && new URLSearchParams(location.search).has('existing')
+  if (existing) local = await openExistingViewer(session.id, session.generation)
   let attachment: MessageInitShape<typeof DesktopRequestSchema> = {}
   const request = async (input: MessageInitShape<typeof DesktopRequestSchema>) => {
     const response = fromJson(ResponseSchema, await api('request', toJson(DesktopRequestSchema, create(DesktopRequestSchema, input))))
@@ -49,17 +53,30 @@ void (async () => {
     return r
   }
   let phase = ''
-  view = new RemoteDesktopSession({ request, ice: async () => api('ice'), protocol: session.engine === 'rdp' ? 'rdp' : 'vnc',
+  const createViewer = () => new RemoteDesktopSession({ request, ice: async () => api('ice'), protocol: session.engine === 'rdp' ? 'rdp' : 'vnc',
     capabilities: ['desktop-trickle-ice-v1', 'desktop-presentation-v1', 'desktop-video-limits-v2', 'desktop-video-stability-v1'],
     onICE: listener => { iceListeners.add(listener); return () => iceListeners.delete(listener) },
     onStreamState: listener => { streamListeners.add(listener); return () => streamListeners.delete(listener) },
   }, session.id, session.generation, {
     state: () => {}, status: (value, reason) => { phase = value; if (reason) { failure = reason; output.textContent = `FAILED: ${reason}` } }, clipboard: () => {}, challenge: async () => ({ accept: false }),
   })
-  await view.start(document.querySelector('#desktop')!, document.querySelector('#video')!)
-  for (let i = 0; phase !== 'viewing'; i++) { if (phase === 'closed' || i > 160) throw new Error(`viewer not ready: ${phase}`); await wait() }
-  if (!view.owned) await view.acquire(false)
+  const startViewer = async (current: RemoteDesktopSession) => {
+    phase = ''
+    await current.start(document.querySelector('#desktop')!, document.querySelector('#video')!)
+    for (let i = 0; phase !== 'viewing'; i++) { if (phase === 'closed' || i > 160) throw new Error(`viewer not ready: ${phase}`); await wait() }
+    if (!current.owned) await current.acquire(false)
+  }
+  const checkVNCPixels = () => {
+    const canvas = document.querySelector<HTMLCanvasElement>('#desktop canvas')!
+    const pixel = canvas.getContext('2d')!.getImageData(300, 200, 1, 1).data
+    assert(pixel[0] === 30 && pixel[1] === 20 && pixel[2] === 10, 'remote VNC pixels invalid')
+    document.querySelector<HTMLElement>('#desktop')!.dataset.lastFrame = canvas.toDataURL('image/png')
+  }
+  view = createViewer()
+  await startViewer(view)
   assert(view.owned, 'control acquisition')
+  if (existing) assert(local?.disconnected(), 'local stream not handed off')
+  if (session.engine === 'vnc') checkVNCPixels()
   if (session.engine === 'rdp') {
     const video = document.querySelector<HTMLVideoElement>('#video')!
     assert(video.videoWidth === 800 && video.videoHeight === 600, 'H.264 decoded size')
@@ -93,7 +110,9 @@ void (async () => {
     const part = await request({ ...attachment, action: 'image', captureId: second.image!.id, offset })
     assert(part.image?.data.length, 'empty screenshot chunk'); chunks.push(new Uint8Array(part.image!.data)); offset += part.image!.data.length
   }
-  document.querySelector<HTMLImageElement>('#snapshot')!.src = URL.createObjectURL(new Blob(chunks, { type: 'image/png' }))
+  const snapshot = document.querySelector<HTMLImageElement>('#snapshot')!
+  snapshot.src = URL.createObjectURL(new Blob(chunks, { type: 'image/png' }))
+  await snapshot.decode()
   if (session.engine === 'rdp') {
     // 另一主体收回控制后，模拟状态尚未同步时发出的旧租约输入。
     const previous = await request({ ...attachment, action: 'describe' })
@@ -122,6 +141,22 @@ void (async () => {
   if (session.engine === 'rdp') assert(document.querySelector<HTMLVideoElement>('#video')!.srcObject === null, 'video source retained after close')
   const state = await request({ sessionId: session.id, connectionGeneration: session.generation, action: 'describe' })
   assert(!state.state?.attachmentId, 'attachment not released')
-  output.textContent = JSON.stringify({ passed: true, checks: ['独立 WebRTC', session.engine === 'rdp' ? 'OpenH264 + libyuv → worker WS → Pion → video 解码、无音频轨道' : 'noVNC Raw/CopyRect/Tight PNG', '执行 DataChannel', '控制申请／释放／重新申请', '程序点击', 'Unicode 输入', '截图分块', '附着完整回收'] }, null, 2)
+  if (existing) {
+    local?.close()
+    // 在同一协议会话内连续交接，旧执行器与旧租约不能污染后续附着。
+    for (let cycle = 0; cycle < 2; cycle++) {
+      step = `handoff_${cycle + 2}`
+      local = await openExistingViewer(session.id, session.generation)
+      view = createViewer()
+      await startViewer(view)
+      assert(local.disconnected() && view.owned, 'repeated handoff or control failed')
+      checkVNCPixels()
+      await view.close()
+      local.close()
+    }
+    local = await openExistingViewer(session.id, session.generation)
+    local.close()
+  }
+  output.textContent = JSON.stringify({ passed: true, checks: ['独立 WebRTC', session.engine === 'rdp' ? 'OpenH264 + libyuv → worker WS → Pion → video 解码、无音频轨道' : 'noVNC Raw/CopyRect/Tight PNG', '执行 DataChannel', '控制申请／释放／重新申请', '程序点击', 'Unicode 输入', '截图分块和 PNG 解码', '附着完整回收', ...(existing ? ['同一会话连续三轮本机／远控交接', '控制端实际像素', '退出后本机画面恢复'] : [])] }, null, 2)
   await api('result?passed=true', {})
-})().catch(async error => { output.textContent = `FAILED: ${step}: ${String(error)}${failure ? `; channel=${failure}` : ''}`; await view?.close(); await api('result?passed=false', {}).catch(() => {}) }).finally(() => eventsAbort.abort())
+})().catch(async error => { output.textContent = `FAILED: ${step}: ${String(error)}${failure ? `; channel=${failure}` : ''}`; await view?.close(); await api('result?passed=false', {}).catch(() => {}) }).finally(() => { local?.close(); eventsAbort.abort() })
