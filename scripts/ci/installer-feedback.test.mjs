@@ -11,6 +11,7 @@ const compiler = process.env.TERMOUS_TEST_MAKENSIS ?? path.join(
   process.env.LOCALAPPDATA ?? '', 'electron-builder/Cache/nsis/nsis-3.0.4.1/makensis.exe',
 )
 const available = process.platform === 'win32' && existsSync(compiler)
+const core = fileURLToPath(new URL('../../../backend/', import.meta.url))
 const runtimeTemplate = fileURLToPath(new URL('../../../termous-buildtools/src/termous_build/templates/runtime.nsh', import.meta.url))
 
 function compile(directory, name, body) {
@@ -27,6 +28,80 @@ ${body}`, 'utf8')
   execFileSync(compiler, ['/V2', '/INPUTCHARSET', 'UTF8', file], { windowsHide: true, timeout: 30000 })
   return executable
 }
+
+test('Go 助手经 NSIS 保留 Unicode 详情、英文摘要和独立提示', { skip: !available, timeout: 120000 }, () => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), 'termous-go-feedback-'))
+  try {
+    const helper = path.join(directory, 'maintenance-helper.exe')
+    execFileSync('go', ['build', '-o', helper, './internal/platform/installcoordination/testdata/console'], {
+      cwd: core, windowsHide: true, timeout: 90000, env: { ...process.env, CGO_ENABLED: '0' },
+    })
+    const trace = path.join(directory, 'trace.txt')
+    const executable = compile(directory, 'go-feedback', `
+!include /CHARSET=UTF8 "${feedback}"
+SilentInstall silent
+Section
+  !insertmacro termousInstallerExec "${helper}" "fail"
+  FileOpen $0 "${trace}" w
+  FileWriteUTF16LE /BOM $0 "fail=$TermousCommandCode$\\r$\\n$TermousCommandOutput$\\r$\\n$TermousCommandError$\\r$\\n"
+  FileClose $0
+  !insertmacro termousInstallerExec "${helper}" "notice"
+  FileOpen $0 "${trace}" a
+  FileSeek $0 0 END
+  FileWriteUTF16LE $0 "notice=$TermousCommandCode,error=$TermousCommandError$\\r$\\n"
+  FileClose $0
+  !insertmacro termousInstallerExec "${helper}" "handle"
+  FileOpen $0 "${trace}" a
+  FileSeek $0 0 END
+  FileWriteUTF16LE $0 "handle=$TermousCommandOutput,error=$TermousCommandError$\\r$\\n"
+  FileClose $0
+  FileOpen $0 "${helper}.installer-error.txt" w
+  FileWriteUTF16LE /BOM $0 "stale-error-must-not-leak"
+  FileClose $0
+  System::Call 'kernel32::CreateFileW(w "${helper}.installer-error.txt", i 0x80000000, i 1, p 0, i 3, i 128, p 0) p.r2'
+  !insertmacro termousInstallerExec "${helper}" "handle"
+  System::Call 'kernel32::CloseHandle(p r2)'
+  FileOpen $0 "${trace}" a
+  FileSeek $0 0 END
+  FileWriteUTF16LE $0 "blocked=$TermousCommandCode,output=$TermousCommandOutput,error=$TermousCommandError$\\r$\\n"
+  FileClose $0
+SectionEnd`)
+    const result = spawnSync(executable, ['/S'], {
+      windowsHide: true, timeout: 30000, env: { ...process.env, TEMP: directory, TMP: directory },
+    })
+    assert.equal(result.error, undefined)
+    assert.equal(result.status, 0)
+    const content = readFileSync(trace, 'utf16le')
+    assert.match(content, /fail=7/)
+    assert.match(content, /Desktop service maintenance failed:/)
+    assert.match(content, /合成检查失败：C:\\用户\\缓存目录/)
+    assert.match(content, /notice=0,error=\r\n/)
+    assert.match(content, /handle=123456,error=\r\n/)
+    assert.match(content, /blocked=error,output=,error=无法清理上一条维护命令的诊断文件。/)
+    assert.doesNotMatch(content, /stale-error-must-not-leak/)
+    const logName = readdirSync(directory).find(name => name.startsWith('Termous-setup-') && name.endsWith('.log'))
+    assert.ok(logName)
+    const log = readFileSync(path.join(directory, logName), 'utf16le')
+    assert.match(log, /\[提示\] 已保留：C:\\程序\\NVIDIA Corporation/)
+    assert.doesNotMatch(log, /stale-error-must-not-leak/)
+    for (const line of log.split(/\r?\n/).filter(value => value.startsWith('[控制台摘要]'))) {
+      assert.ok([...line.replace('[控制台摘要]', '')].every(character => character.charCodeAt(0) <= 0x7f))
+    }
+    // 提示文件无法创建时保留英文转义兜底，业务结果及句柄 stdout 不受影响。
+    const noticePath = `${helper}.installer-notice.txt`
+    writeFileSync(noticePath, 'occupied', 'utf8')
+    const fallback = spawnSync(helper, ['notice'], {
+      windowsHide: true, encoding: 'utf8', env: { ...process.env, TERMOUS_INSTALLER_REPORT_ERROR: '1' },
+    })
+    assert.equal(fallback.status, 0)
+    assert.equal(fallback.stdout, '')
+    assert.match(fallback.stderr, /Maintenance notice:/)
+    assert.ok([...fallback.stderr].every(character => character.charCodeAt(0) <= 0x7f))
+    assert.equal(readFileSync(noticePath, 'utf8'), 'occupied')
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
 
 // 夹具只写临时文件，不包含正式安装宏、注册表、服务、ACL、提权或应用启动。
 test('NSIS 实际执行保留阶段文案、中文错误、完整日志及首次失败', { skip: !available, timeout: 90000 }, () => {

@@ -106,6 +106,7 @@ FunctionEnd
   !insertmacro termousInstallerLog `[命令] ${ARGUMENTS}`
   ClearErrors
   Delete "${EXECUTABLE}.installer-error.txt"
+  Delete "${EXECUTABLE}.installer-notice.txt"
   ${If} ${Errors}
     StrCpy $TermousCommandCode "error"
     StrCpy $TermousCommandError "无法清理上一条维护命令的诊断文件。"
@@ -121,21 +122,39 @@ FunctionEnd
   ${If} $TermousCommandOutput != ""
     !insertmacro termousInstallerLog "[控制台摘要] $TermousCommandOutput"
   ${EndIf}
-  ; UTF-16 错误旁路保留中文路径和完整错误；控制台只保留 nsExec 的有界摘要。
-  ClearErrors
-  FileOpen $0 "${EXECUTABLE}.installer-error.txt" r
-  ${IfNot} ${Errors}
-    FileSeek $0 2 SET
-    ${Do}
-      ClearErrors
-      FileReadUTF16LE $0 $1
-      ${If} ${Errors}
-        ${ExitDo}
-      ${EndIf}
-      !insertmacro termousInstallerLog "$1"
-      StrCpy $TermousCommandError "$TermousCommandError$1" 640
-    ${Loop}
-    FileClose $0
+  ; 未能清除旧诊断时命令没有执行，不读取上一条命令的错误或提示。
+  ${If} $TermousCommandCode != "error"
+    ; UTF-16 错误旁路保留中文路径和完整错误；控制台只保留 nsExec 的有界摘要。
+    ClearErrors
+    FileOpen $0 "${EXECUTABLE}.installer-error.txt" r
+    ${IfNot} ${Errors}
+      FileSeek $0 2 SET
+      ${Do}
+        ClearErrors
+        FileReadUTF16LE $0 $1
+        ${If} ${Errors}
+          ${ExitDo}
+        ${EndIf}
+        !insertmacro termousInstallerLog "$1"
+        StrCpy $TermousCommandError "$TermousCommandError$1" 640
+      ${Loop}
+      FileClose $0
+    ${EndIf}
+    ; 提示单独读取，不设置失败摘要，保留原始命令退出码及 stdout 数据合同。
+    ClearErrors
+    FileOpen $0 "${EXECUTABLE}.installer-notice.txt" r
+    ${IfNot} ${Errors}
+      FileSeek $0 2 SET
+      ${Do}
+        ClearErrors
+        FileReadUTF16LE $0 $1
+        ${If} ${Errors}
+          ${ExitDo}
+        ${EndIf}
+        !insertmacro termousInstallerLog "[提示] $1"
+      ${Loop}
+      FileClose $0
+    ${EndIf}
   ${EndIf}
   ${If} $TermousCommandCode != 0
   ${AndIf} $TermousCommandError == ""
