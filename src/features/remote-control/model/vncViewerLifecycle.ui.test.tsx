@@ -4,13 +4,15 @@ import { DesktopResponseSchema } from '@termous/remote-protocol/desktop-protocol
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 const fixture = vi.hoisted(() => ({
-  rfb: undefined as (EventTarget & { desktopState: { sequence: number }; disconnect: ReturnType<typeof vi.fn> }) | undefined,
+  rfb: undefined as (EventTarget & { desktopState: { sequence: number }; qualityLevel: number; compressionLevel: number; disconnect: ReturnType<typeof vi.fn> }) | undefined,
   execution: vi.fn(), start: vi.fn(), resume: vi.fn(), ready: vi.fn(),
 }))
 
 vi.mock('../../../../../termous-remote/node_modules/@novnc/novnc/core/rfb.js', () => ({
   default: class extends EventTarget {
     desktopState = { width: 800, height: 600, sequence: 0, displayEpoch: 1, flushing: false }
+    qualityLevel = 0
+    compressionLevel = 0
     disconnect = vi.fn()
     constructor() { super(); fixture.rfb = this }
     // 使用真实依赖的选项语义，避免 DOM EventTarget 替身掩盖监听器泄漏。
@@ -40,19 +42,48 @@ beforeEach(() => {
 })
 afterEach(async () => { await Promise.all(sessions.splice(0).map(session => session.close())) })
 
-async function setup(control = false) {
+async function setup(control = false, preference: ConstructorParameters<typeof RemoteDesktopSession>[4] = {}) {
   const request = vi.fn(async (input: { action?: string; negotiationId?: string }) => {
     if (input.action === 'attach') return create(DesktopResponseSchema, { attachment: { id: 'attachment', participantId: 'viewer', transport: 'rfb', connectionGeneration: 1n, mediaGeneration: 1n } })
-    if (input.action === 'describe') return create(DesktopResponseSchema, { state: { available: true, phase: 'viewing', control: control ? { id: 'lease', owner: 'viewer', generation: 1n, remainingMs: 30000n } : undefined } })
+    if (input.action === 'describe') return create(DesktopResponseSchema, { state: { attachmentId: 'attachment', mediaGeneration: 1n, available: true, phase: fixture.ready.mock.calls.length ? 'viewing' : 'first_frame', control: control && fixture.ready.mock.calls.length ? { id: 'lease', owner: 'viewer', generation: 1n, remainingMs: 30000n } : undefined } })
     if (input.action === 'offer') return create(DesktopResponseSchema, {sdp: 'fixture-answer', negotiationId: input.negotiationId})
     return create(DesktopResponseSchema)
   })
   const events = { state: vi.fn(), status: vi.fn(), clipboard: vi.fn(), challenge: vi.fn() }
-  const session = new RemoteDesktopSession({ onICE: () => () => {}, capabilities: ['desktop-trickle-ice-v1'], request, ice: async () => ({ ice_servers: [], transport_policy: 'auto' }) }, 'fixture', 1n, events)
+  const session = new RemoteDesktopSession({ onICE: () => () => {}, capabilities: ['desktop-trickle-ice-v1'], request, ice: async () => ({ ice_servers: [], transport_policy: 'auto' }) }, 'fixture', 1n, events, preference)
   sessions.push(session)
   await session.start(document.createElement('div'), document.createElement('video'))
   return { session, events, request, rfb: fixture.rfb! }
 }
+
+test('VNC 完整首屏后恢复保存的画质偏好，首次观看通知已具备当前租约状态', async () => {
+  const f = await setup(true, { settings: { kind: 'rfb', quality: 3, compression: 6 } })
+  const ownership: boolean[] = []
+  f.events.state.mockImplementation(state => { if (state.phase === 'viewing') ownership.push(f.session.owned) })
+  f.rfb.dispatchEvent(new Event('connect'))
+  await Promise.resolve()
+  expect(f.rfb.qualityLevel).toBe(9)
+  expect(f.rfb.compressionLevel).toBe(2)
+  expect(f.session.owned).toBe(false)
+  f.rfb.desktopState.sequence = 1
+  f.rfb.dispatchEvent(new Event('desktopframe'))
+  await vi.waitFor(() => expect(f.rfb.qualityLevel).toBe(3))
+  expect(f.rfb.compressionLevel).toBe(6)
+  expect(ownership[0]).toBe(true)
+})
+
+test('VNC 首屏后执行桥同步启动失败立即终止，迟到画面不能重试', async () => {
+  fixture.execution.mockImplementation(() => { throw new Error('desktop_executor_unavailable') })
+  const f = await setup()
+  f.rfb.dispatchEvent(new Event('connect'))
+  f.rfb.desktopState.sequence = 1
+  f.rfb.dispatchEvent(new Event('desktopframe'))
+  await vi.waitFor(() => expect(f.events.status).toHaveBeenLastCalledWith('closed', 'desktop_executor_unavailable'))
+  expect(f.rfb.disconnect).toHaveBeenCalledTimes(1)
+  expect(fixture.ready).not.toHaveBeenCalled()
+  f.rfb.dispatchEvent(new Event('desktopframe'))
+  expect(fixture.execution).toHaveBeenCalledTimes(1)
+})
 
 test('VNC 重复连接和画面通知只创建一个执行端，关闭后不再恢复消费或转发剪贴板', async () => {
   const f = await setup()

@@ -11,7 +11,7 @@ vi.mock('../../../../../termous-remote/browser/desktop/peer.ts', () => ({
     async offer() { return 'synthetic-offer' }
     async answer() {
       fixture.events?.track({} as MediaStream)
-      fixture.events?.packet(create(DesktopPacketSchema, { state: { phase: 'first_frame', displayEpoch: 1n } }))
+      fixture.events?.packet(create(DesktopPacketSchema, { state: { attachmentId: 'attachment', mediaGeneration: 1n, phase: 'first_frame', displayEpoch: 1n } }))
     }
     ready() {}
     resetInputSequence = fixture.resets
@@ -31,7 +31,7 @@ async function startRecoveryFixture(owned: boolean) {
   const request = vi.fn(async (input: Parameters<DesktopGateway['request']>[0]) => {
     if (input.action === 'attach') return create(DesktopResponseSchema, { attachment: { id: 'attachment', participantId: 'viewer', transport: 'h264', connectionGeneration: 1n, mediaGeneration: 1n } })
     // 故意持续返回释放前的快照，验证在途查询不能复活旧租约。
-    if (input.action === 'describe') return create(DesktopResponseSchema, { state: { available: true, phase: 'viewing', displayEpoch: 1n, width: 1920, height: 1080, capabilities: ['resize'], control: owned ? control : undefined } })
+    if (input.action === 'describe') return create(DesktopResponseSchema, { state: { attachmentId: 'attachment', mediaGeneration: 1n, available: true, phase: 'viewing', displayEpoch: 1n, width: 1920, height: 1080, capabilities: ['resize'], control: owned ? control : undefined } })
     if (input.action === 'release') return released
     if (input.action === 'offer') return create(DesktopResponseSchema, {sdp:'synthetic-answer', negotiationId: input.negotiationId})
     return create(DesktopResponseSchema)
@@ -128,13 +128,13 @@ test('申请控制前发出的查询迟到时不能覆盖新租约或重置输�
   const control = { id: 'new-lease', owner: 'viewer', generation: 6n, expiresUnixMs: BigInt(Date.now() + 30_000), remainingMs: 30_000n }
   const original = request.getMockImplementation()!
   request.mockImplementation(input => input.action === 'describe'
-    ? Promise.resolve(create(DesktopResponseSchema, { state: { available: true, phase: 'viewing', displayEpoch: 1n, control } }))
+    ? Promise.resolve(create(DesktopResponseSchema, { state: { attachmentId: 'attachment', mediaGeneration: 1n, available: true, phase: 'viewing', displayEpoch: 1n, control } }))
     : original(input))
   try {
     await runtime.acquire(true)
     expect(runtime.owned).toBe(true)
     const resets = fixture.resets.mock.calls.length
-    finish(create(DesktopResponseSchema, { state: { available: true, phase: 'viewing', displayEpoch: 1n } }))
+    finish(create(DesktopResponseSchema, { state: { attachmentId: 'attachment', mediaGeneration: 1n, available: true, phase: 'viewing', displayEpoch: 1n } }))
     await vi.advanceTimersByTimeAsync(0)
     expect(runtime.owned).toBe(true)
     expect(runtime.controlGeneration).toBe(6n)

@@ -5,6 +5,10 @@ const en = {
   connectingHint: 'Establishing a secure channel to the desktop.',
   keyboardHint: 'Send text to the focused app on the remote desktop.', clipboardContent: 'Clipboard content',
   relayDisabled: 'Relay is not configured. Contact the service administrator.',
+  workerUpdate: 'Update the RDP worker on the controlled device, then rejoin.',
+  videoDeliveryFailed: 'The desktop could not send a complete picture. Check the host load and network, then rejoin.',
+  videoEncodingFailed: 'The host could not encode the desktop picture. Check the host load and rejoin.',
+  authenticationFailed: 'Desktop authentication failed or was cancelled. Check the credentials and server certificate.',
   firstFrameTimeout: 'The desktop connected but no picture arrived. Check the host and rejoin.',
 	videoConfirmationFailed: 'The desktop picture could not be confirmed. Rejoin to try again.',
 	videoConfigurationFailed: 'Desktop video settings could not be applied or restored. Rejoin to try again.',
@@ -23,6 +27,10 @@ const zh: typeof en = {
   connectingHint: '正在与远端桌面建立安全通道。',
   keyboardHint: '将文本输入到远端当前焦点应用。', clipboardContent: '剪贴板内容',
   relayDisabled: '中继未配置，请联系服务管理员。',
+  workerUpdate: '请更新被控设备的 RDP 执行端后重新加入。',
+  videoDeliveryFailed: '桌面未能发送完整画面，请检查被控端负载和网络后重新加入。',
+  videoEncodingFailed: '被控端未能编码桌面画面，请检查被控端负载后重新加入。',
+  authenticationFailed: '桌面认证失败或已取消，请检查凭据及服务器证书。',
   firstFrameTimeout: '桌面已连接，但未收到画面，请检查被控端后重新加入。',
 	videoConfirmationFailed: '桌面画面未能确认，请重新加入。',
 	videoConfigurationFailed: '无法应用或恢复画质设置，请重新加入。',
@@ -38,6 +46,10 @@ export function desktopCopy(chinese: boolean) { return chinese ? zh : en }
 export type DesktopCopy = typeof en
 
 export function desktopErrorText(code: string, copy: typeof en): string {
+  if (code === 'rdp_video_worker_unsupported') return copy.workerUpdate
+  if (code === 'desktop_video_delivery_timeout') return copy.videoDeliveryFailed
+  if (code === 'desktop_video_startup_timeout') return copy.firstFrameTimeout
+  if (['desktop_authentication_failed', 'desktop_authentication_cancelled', 'desktop_certificate_invalid', 'desktop_certificate_rejected'].includes(code)) return copy.authenticationFailed
   if (code === 'desktop_first_frame_timeout') return copy.firstFrameTimeout
   if (code === 'desktop_access_restricted' || code === 'desktop_access_denied') return copy.restricted
   if (code === 'desktop_stream_recovery_timeout') return copy.switchTimeout
@@ -45,6 +57,7 @@ export function desktopErrorText(code: string, copy: typeof en): string {
   if (code === 'desktop_capture_cleanup_pending') return copy.switchCleanup
   if (code === 'desktop_window_paused') return copy.windowPaused
   if (code === 'desktop_video_decode_timeout') return copy.videoConfirmationFailed
+  if (code === 'desktop_video_encoding_failed') return copy.videoEncodingFailed
   if (['desktop_video_configuration_failed', 'rdp_video_reconfigure_failed'].includes(code)) return copy.videoConfigurationFailed
   if (code === 'desktop_capture_hdr_unavailable') return copy.hdrUnavailable
   if (code === 'desktop_busy') return copy.busy
@@ -55,8 +68,8 @@ export function desktopErrorText(code: string, copy: typeof en): string {
   if (code === 'desktop_ice_invalid') return copy.iceInvalid
   if (code === 'desktop_ice_unavailable') return copy.iceUnavailable
   if (['desktop_negotiation_timeout', 'desktop_ice_ack_invalid', 'desktop_ice_candidate_invalid', 'desktop_ice_capacity', 'desktop_peer_failed', 'desktop_offer_failed', 'desktop_signaling_failed', 'desktop_answer_failed', 'desktop_invalid_sdp'].includes(code)) return copy.negotiationFailed
-  if (['desktop_ice_signaling_failed', 'desktop_ice_ack_timeout', 'desktop_ice_candidate_failed', 'desktop_connection_timeout', 'desktop_connection_failed', 'desktop_channel_timeout', 'desktop_disconnected', 'desktop_channel_failed', 'desktop_media_failed', 'desktop_recovery_timeout'].includes(code)) return copy.networkFailed
-  if (['desktop_not_ready', 'desktop_target_failed'].includes(code)) return copy.targetFailed
+  if (['desktop_network_failed', 'desktop_ice_signaling_failed', 'desktop_ice_ack_timeout', 'desktop_ice_candidate_failed', 'desktop_connection_timeout', 'desktop_connection_failed', 'desktop_channel_timeout', 'desktop_disconnected', 'desktop_channel_failed', 'desktop_media_failed', 'desktop_recovery_timeout'].includes(code)) return copy.networkFailed
+  if (['desktop_not_ready', 'desktop_target_failed', 'desktop_source_closed', 'desktop_prepare_timeout'].includes(code)) return copy.targetFailed
   if (['desktop_viewer_failed', 'desktop_video_playback_failed'].includes(code)) return copy.viewerFailed
   if (code.includes('stale')) return copy.stale
   return copy.failed

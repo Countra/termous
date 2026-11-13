@@ -1,7 +1,7 @@
 import { create, fromJson, toJson, type MessageInitShape } from '@bufbuild/protobuf'
-import { DesktopRequestSchema } from '@termous/remote-protocol/desktop-protocol'
+import { DesktopRequestSchema, type DesktopICEEvent, type DesktopStreamState } from '@termous/remote-protocol/desktop-protocol'
 import { RemoteDesktopSession } from '@termous/remote-protocol/desktop'
-import { ResponseSchema, SessionSchema } from '@termous/remote-protocol'
+import { ResponseSchema, SessionSchema, EventSchema } from '@termous/remote-protocol'
 
 const output = document.querySelector('#result')!
 const api = async (path: string, input?: unknown) => {
@@ -13,7 +13,30 @@ const wait = () => new Promise(resolve => setTimeout(resolve, 50))
 const assert = (value: unknown, message: string) => { if (!value) throw new Error(message) }
 let view: RemoteDesktopSession
 let step = 'connect', failure = ''
+const eventsAbort = new AbortController()
 void (async () => {
+  const iceListeners = new Set<(value: DesktopICEEvent) => void>()
+  const streamListeners = new Set<(value: DesktopStreamState) => void>()
+  const events = await fetch('/fixture/events', { headers: { 'X-Termous-Fixture': 'desktop' }, signal: eventsAbort.signal })
+  if (!events.ok || !events.body) throw new Error('missing parent events')
+  const reader = events.body.pipeThrough(new TextDecoderStream()).getReader()
+  void (async () => {
+    let pending = ''
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) return
+      pending += value
+      let newline: number
+      while ((newline = pending.indexOf('\n')) >= 0) {
+        const line = pending.slice(0, newline).trim()
+        pending = pending.slice(newline + 1)
+        if (!line) continue
+        const event = fromJson(EventSchema, JSON.parse(line))
+        if (event.value.case === 'desktopIce') for (const listener of iceListeners) listener(event.value.value)
+        if (event.value.case === 'desktopStreamState') for (const listener of streamListeners) listener(event.value.value)
+      }
+    }
+  })().catch(error => { if (!eventsAbort.signal.aborted) failure = String(error) })
   let session = fromJson(SessionSchema, await api('session'))
   for (let i = 0; session.state !== 'ready'; i++) { if (i > 100) throw new Error('not ready'); await wait(); session = fromJson(SessionSchema, await api('session')) }
   let attachment: MessageInitShape<typeof DesktopRequestSchema> = {}
@@ -26,7 +49,11 @@ void (async () => {
     return r
   }
   let phase = ''
-  view = new RemoteDesktopSession({ request, ice: async () => api('ice') }, session.id, session.generation, {
+  view = new RemoteDesktopSession({ request, ice: async () => api('ice'), protocol: session.engine === 'rdp' ? 'rdp' : 'vnc',
+    capabilities: ['desktop-trickle-ice-v1', 'desktop-presentation-v1', 'desktop-video-limits-v2', 'desktop-video-stability-v1'],
+    onICE: listener => { iceListeners.add(listener); return () => iceListeners.delete(listener) },
+    onStreamState: listener => { streamListeners.add(listener); return () => streamListeners.delete(listener) },
+  }, session.id, session.generation, {
     state: () => {}, status: (value, reason) => { phase = value; if (reason) { failure = reason; output.textContent = `FAILED: ${reason}` } }, clipboard: () => {}, challenge: async () => ({ accept: false }),
   })
   await view.start(document.querySelector('#desktop')!, document.querySelector('#video')!)
@@ -97,4 +124,4 @@ void (async () => {
   assert(!state.state?.attachmentId, 'attachment not released')
   output.textContent = JSON.stringify({ passed: true, checks: ['独立 WebRTC', session.engine === 'rdp' ? 'OpenH264 + libyuv → worker WS → Pion → video 解码、无音频轨道' : 'noVNC Raw/CopyRect/Tight PNG', '执行 DataChannel', '控制申请／释放／重新申请', '程序点击', 'Unicode 输入', '截图分块', '附着完整回收'] }, null, 2)
   await api('result?passed=true', {})
-})().catch(async error => { output.textContent = `FAILED: ${step}: ${String(error)}${failure ? `; channel=${failure}` : ''}`; await view?.close(); await api('result?passed=false', {}).catch(() => {}) })
+})().catch(async error => { output.textContent = `FAILED: ${step}: ${String(error)}${failure ? `; channel=${failure}` : ''}`; await view?.close(); await api('result?passed=false', {}).catch(() => {}) }).finally(() => eventsAbort.abort())
